@@ -2,10 +2,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:iftook/core/widgets/custom_app_bar.dart';
 import 'package:iftook/features/home/presentation/screens/profile_swiper.dart';
 import 'package:iftook/features/home/presentation/screens/swiper_animation.dart';
 import 'package:iftook/helpers/app_colors.dart';
-import 'package:iftook/helpers/myassets.dart';
 
 class UserProfile {
   final String name;
@@ -199,38 +199,39 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: CustomScrollView(
-        physics: _isDragging ? const NeverScrollableScrollPhysics() : null,
-        slivers: [
-          SliverAppBar(
-            title: Row(
+      body: Column(
+        children: [
+          // App Bar
+          CustomAppBar(
+              selectedCountry: _selectedCountry,
+              countries: ['India', 'USA'],
+              onCountryChanged: (value) {
+                setState(() => _selectedCountry = value!);
+              }),
+          // Profile Swiper - Takes all available space
+          Expanded(
+            child: ProfileSwiper(
+              profiles: _profiles,
+              onSwipe: (profile, isLike) {
+                print('${profile.name} was ${isLike ? 'liked' : 'disliked'}');
+              },
+            ),
+          ),
+
+          // Bottom Section - Service and Action buttons
+          Container(
+            padding: const EdgeInsets.only(bottom: 16, top: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(MyAssets.appIconPNG, height: 40),
-                const Spacer(),
-                _buildCountryDropdown(),
+                // Service Buttons
+                _buildServiceButtons(),
+                const SizedBox(height: 16),
+                // Action Buttons
+                _buildActionButtonsRow(),
               ],
             ),
           ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 600,
-              child: ProfileSwiper(
-                profiles: _profiles,
-                onSwipe: (profile, isLike) {
-                  print('${profile.name} was ${isLike ? 'liked' : 'disliked'}');
-                },
-              ),
-            ),
-          ),
-          // Service Buttons
-          SliverToBoxAdapter(
-            child: _buildServiceButtons(),
-          ),
-          // Action Buttons - Now moved below service buttons
-          SliverToBoxAdapter(
-            child: _buildActionButtonsRow(),
-          ),
-          const SliverPadding(padding: EdgeInsets.only(bottom: 20)),
         ],
       ),
     );
@@ -245,15 +246,15 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
         children: [
           _buildActionButtonWithLabel(
             icon: HugeIcons.strokeRoundedStar,
-            label: 'Rating',
+            label: 'Rating\nand Review',
             color: AppColors.primaryColor,
             backgroundColor: Colors.transparent,
             onPressed: () {},
             showRating: false,
           ),
           _buildActionButtonWithLabel(
-            icon: HugeIcons.strokeRoundedFavourite,
-            label: 'Interested\n in Dating',
+            icon: HugeIcons.strokeRoundedInLove,
+            label: 'Interested\nin Dating',
             color: AppColors.primaryColor,
             backgroundColor: Colors.transparent,
             onPressed: () {},
@@ -348,6 +349,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
         // const SizedBox(height: 8),
         Text(
           label,
+          textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.grey[400],
             fontSize: 12,

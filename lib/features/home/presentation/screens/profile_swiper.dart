@@ -2,18 +2,23 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/features/home/presentation/screens/main_home_screen.dart';
 
 class TinderStyleProfileCard extends StatefulWidget {
   final UserProfile profile;
   final VoidCallback? onLike;
   final VoidCallback? onDislike;
+  final double? percentThresholdX;
+  final bool isProfileScreen;
 
   const TinderStyleProfileCard({
     super.key,
     required this.profile,
     this.onLike,
     this.onDislike,
+    this.isProfileScreen = false,
+    this.percentThresholdX,
   });
 
   @override
@@ -29,20 +34,25 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
     if (details.primaryVelocity == null) return;
 
     if (details.primaryVelocity! > 0 && _currentImageIndex > 0) {
-      // Swipe right - show previous image
       carouselController.previousPage();
     } else if (details.primaryVelocity! < 0 &&
         _currentImageIndex < widget.profile.imageUrls.length - 1) {
-      // Swipe left - show next image
       carouselController.nextPage();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Calculate the opacity based on the swipe threshold
+    final swipeOpacity = widget.percentThresholdX != null
+        ? (1 - widget.percentThresholdX!.abs() * 0.8).clamp(0.0, 1.0)
+        : 1.0;
+
     return GestureDetector(
       onHorizontalDragEnd: _handleHorizontalDrag,
       child: Container(
+        width: MediaQuery.of(context).size.width,
+        height: MediaQuery.of(context).size.height,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
@@ -58,9 +68,10 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Image Carousel
-              CarouselSlider(
+              // Full width image carousel
+              CarouselSlider.builder(
                 carouselController: carouselController,
+                itemCount: widget.profile.imageUrls.length,
                 options: CarouselOptions(
                   height: double.infinity,
                   viewportFraction: 1.0,
@@ -69,10 +80,12 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
                     setState(() => _currentImageIndex = index);
                   },
                 ),
-                items: widget.profile.imageUrls.map((url) {
+                itemBuilder: (context, index, _) {
                   return CachedNetworkImage(
-                    imageUrl: url,
+                    imageUrl: widget.profile.imageUrls[index],
                     fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
                     placeholder: (context, url) => Container(
                       color: Colors.grey[900],
                       child: const Center(
@@ -84,163 +97,164 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
                       child: const Icon(Icons.error),
                     ),
                   );
-                }).toList(),
+                },
               ),
 
-              // Gradient overlay
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.4),
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.7),
-                    ],
-                    stops: const [0.0, 0.2, 0.8],
-                  ),
-                ),
-              ),
-
-              // Rest of the UI components remain the same...
-              Positioned(
-                top: 32,
-                left: 16,
-                right: 16,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                blurRadius: 4,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(
-                                Icons.circle,
-                                color: Colors.green,
-                                size: 10,
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                'Online',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+              // Gradient overlay with fade animation
+              Opacity(
+                opacity: swipeOpacity,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.4),
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.7),
                       ],
+                      stops: const [0.0, 0.2, 0.8],
                     ),
-                    const SizedBox(height: 3),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 4,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            widget.profile.location,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.circle, size: 4),
-                          const SizedBox(width: 4),
-                          Text(
-                            widget.profile.profession,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Profile Info at bottom
-              Positioned(
-                bottom: 20,
-                left: 20,
-                right: 20,
-                child: Text(
-                  '${widget.profile.name}, ${widget.profile.age}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    shadows: [
-                      Shadow(
-                        offset: Offset(0, 1),
-                        blurRadius: 3,
-                        color: Colors.black,
-                      ),
-                    ],
                   ),
                 ),
               ),
 
-              // Image indicators
-              Positioned(
-                top: 16,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children:
-                      widget.profile.imageUrls.asMap().entries.map((entry) {
-                    return Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(2),
-                        color: _currentImageIndex == entry.key
-                            ? Colors.white
-                            : Colors.white.withOpacity(0.5),
-                      ),
-                    );
-                  }).toList(),
+              // Profile info with fade animation
+              Opacity(
+                opacity: swipeOpacity,
+                child: Column(
+                  children: [
+                    // Top section
+                    _buildTopSection(),
+                    const Spacer(),
+                    // Bottom section
+                    _buildBottomSection(),
+                  ],
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTopSection() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.circle, color: Colors.green, size: 10),
+                SizedBox(width: 6),
+                Text(
+                  'Online',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(
+              HugeIcons.strokeRoundedStar,
+              size: 20,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!widget.isProfileScreen)
+                Text(
+                  '${widget.profile.name}, ${widget.profile.age}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(offset: Offset(0, 1), blurRadius: 3),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(HugeIcons.strokeRoundedLocation01,
+                      size: 18, color: Colors.white),
+                  const SizedBox(width: 4),
+                  Text(
+                    widget.profile.location,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Icon(Icons.work_outline_rounded,
+                      size: 18, color: Colors.white),
+                  const SizedBox(width: 4),
+                  Text(
+                    widget.profile.profession,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Image indicators
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: widget.profile.imageUrls.asMap().entries.map((entry) {
+            return Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _currentImageIndex == entry.key
+                    ? Colors.white
+                    : Colors.white.withOpacity(0.5),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 20),
+      ],
     );
   }
 }
@@ -261,26 +275,6 @@ class ProfileSwiper extends StatefulWidget {
 
 class _ProfileSwiperState extends State<ProfileSwiper> {
   final CardSwiperController controller = CardSwiperController();
-  int currentIndex = 0;
-
-  void _handleSwipe(bool isLike) {
-    if (widget.profiles.isEmpty) return;
-
-    if (widget.onSwipe != null) {
-      widget.onSwipe!(widget.profiles[currentIndex], isLike);
-    }
-
-    if (isLike) {
-      controller.swipe(CardSwiperDirection.right);
-    } else {
-      controller.swipe(CardSwiperDirection.left);
-    }
-
-    setState(() {
-      // Implement looping by using modulo
-      currentIndex = (currentIndex + 1) % widget.profiles.length;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -293,19 +287,30 @@ class _ProfileSwiperState extends State<ProfileSwiper> {
         CardSwiper(
           controller: controller,
           cardsCount: widget.profiles.length,
-          onSwipe: null, // Disable default swipe behavior
+          numberOfCardsDisplayed: 1,
+          backCardOffset: const Offset(0, 40),
+          padding: EdgeInsets.zero,
+          threshold: 50,
+          scale: 0.95,
+          isLoop: true,
+          onSwipe: (previousIndex, currentIndex, direction) {
+            if (widget.onSwipe != null) {
+              widget.onSwipe!(
+                widget.profiles[previousIndex],
+                direction == CardSwiperDirection.right,
+              );
+            }
+            return true;
+          },
           cardBuilder: (context, index, percentThresholdX, percentThresholdY) {
-            // Use a unique key based on the profile and its position in the loop
-            final actualIndex = index % widget.profiles.length;
-            final profile = widget.profiles[actualIndex];
+            final profile = widget.profiles[index % widget.profiles.length];
             return TinderStyleProfileCard(
-              key: ValueKey('${profile.hashCode}-$index'),
+              key: ValueKey(profile.hashCode),
               profile: profile,
+              percentThresholdX: percentThresholdX.toDouble(),
             );
           },
-          isLoop: true, // Enable looping in CardSwiper
         ),
-        // Left and Right Arrow Buttons
         Positioned.fill(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -313,19 +318,12 @@ class _ProfileSwiperState extends State<ProfileSwiper> {
               Padding(
                 padding: const EdgeInsets.only(left: 16),
                 child: IconButton(
-                  onPressed: () => _handleSwipe(false),
+                  onPressed: () => controller.swipe(CardSwiperDirection.left),
                   icon: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.5),
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 8,
-                          spreadRadius: 2,
-                        ),
-                      ],
                     ),
                     child: const Icon(
                       Icons.keyboard_double_arrow_left_rounded,
@@ -338,19 +336,12 @@ class _ProfileSwiperState extends State<ProfileSwiper> {
               Padding(
                 padding: const EdgeInsets.only(right: 16),
                 child: IconButton(
-                  onPressed: () => _handleSwipe(true),
+                  onPressed: () => controller.swipe(CardSwiperDirection.right),
                   icon: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.5),
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 8,
-                          spreadRadius: 2,
-                        ),
-                      ],
                     ),
                     child: const Icon(
                       Icons.keyboard_double_arrow_right_rounded,
@@ -365,11 +356,5 @@ class _ProfileSwiperState extends State<ProfileSwiper> {
         ),
       ],
     );
-  }
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
   }
 }

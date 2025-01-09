@@ -41,7 +41,7 @@ dependencies:
   carousel_slider:
   cached_network_image:
   flutter_card_swiper:
-
+  intl:
 dev_dependencies:
   flutter_test:
     sdk: flutter

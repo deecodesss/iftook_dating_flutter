@@ -20,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
     MainHomeScreen(),
     FriendsListScreen(),
     const FriendRequestsScreen(),
-    const ProfileScreen(),
+    ProfileScreen(),
   ];
 
   final List<NavigationItem> _items = [
