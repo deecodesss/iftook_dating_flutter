@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:iftook/features/home/presentation/screens/home_screen.dart';
+import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
 
 import '../../helpers/myassets.dart';
 
@@ -33,7 +33,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
     Future.delayed(Duration(seconds: 3), () {
-      Get.off(() => HomeScreen());
+      Get.off(() => LoginScreen());
     });
 
     // fetchData();

@@ -51,7 +51,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final List<String> imageUrls = List<String>.from(profile.imageUrls);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      // backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         leading: IconButton(

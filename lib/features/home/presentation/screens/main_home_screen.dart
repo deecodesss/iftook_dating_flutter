@@ -1,8 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/core/widgets/custom_app_bar.dart';
+import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
 import 'package:iftook/features/home/presentation/screens/profile_swiper.dart';
 import 'package:iftook/features/home/presentation/screens/swiper_animation.dart';
 import 'package:iftook/helpers/app_colors.dart';
@@ -17,6 +19,8 @@ class UserProfile {
   final double rating;
   final int reviewCount;
   final List<Review> reviews;
+  int likes;
+  int dislikes;
 
   UserProfile({
     required this.name,
@@ -27,8 +31,23 @@ class UserProfile {
     required this.profession,
     this.rating = 4.5,
     this.reviewCount = 128,
+    this.likes = 2300,
+    this.dislikes = 23,
     this.reviews = const [],
   });
+
+  // Helper methods to format likes/dislikes
+  String get formattedLikes => _formatCount(likes!);
+  String get formattedDislikes => _formatCount(dislikes!);
+
+  String _formatCount(int count) {
+    if (count >= 1000000) {
+      return '${(count / 1000000).toStringAsFixed(1)}M';
+    } else if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}K';
+    }
+    return count.toString();
+  }
 }
 
 class Review {
@@ -264,7 +283,9 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
             label: 'Activity',
             color: AppColors.primaryColor,
             backgroundColor: Colors.transparent,
-            onPressed: () {},
+            onPressed: () {
+              Get.to(() => ActivityScreen());
+            },
           ),
           _buildActionButtonWithLabel(
             icon: HugeIcons.strokeRoundedVideo02,

@@ -30,31 +30,35 @@ class _FriendsListScreenState extends State<FriendsListScreen>
 
   void _showChatBottomSheet(BuildContext context, UserProfile profile,
       {bool isTrial = false}) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.primaryBackground,
-      isScrollControlled: true, // This is crucial
-      useSafeArea: true, // Add this
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom, // Add this
-        ),
-        child: Container(
-          height: MediaQuery.of(context).size.height * 0.75,
-          decoration: const BoxDecoration(
-            color: AppColors.primaryBackground,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-          ),
-          child: ChatRoom(
-            profile: profile,
-            isTrial: isTrial,
-          ),
-        ),
-      ),
-    );
+    Get.to(() => ChatRoom(
+          profile: profile,
+          isTrial: isTrial,
+        ));
+    // showModalBottomSheet(
+    //   context: context,
+    //   backgroundColor: AppColors.primaryBackground,
+    //   isScrollControlled: true, // This is crucial
+    //   useSafeArea: true, // Add this
+    //   shape: const RoundedRectangleBorder(
+    //     borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+    //   ),
+    //   builder: (context) => Padding(
+    //     padding: EdgeInsets.only(
+    //       bottom: MediaQuery.of(context).viewInsets.bottom, // Add this
+    //     ),
+    //     child: Container(
+    //       height: MediaQuery.of(context).size.height,
+    //       decoration: const BoxDecoration(
+    //         color: AppColors.primaryBackground,
+    //         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+    //       ),
+    //       child: ChatRoom(
+    //         profile: profile,
+    //         isTrial: isTrial,
+    //       ),
+    //     ),
+    //   ),
+    // );
   }
 
   Widget _buildServiceButtons(UserProfile profile) {

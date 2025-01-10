@@ -1,4 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:iftook/core/widgets/charges_bottom_sheet.dart';
+import 'package:iftook/core/widgets/interests_bottom_sheet.dart';
+import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
+import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
+import 'package:iftook/features/profile/presentation/screens/availability_screen.dart';
+import 'package:iftook/features/profile/presentation/screens/promote_profile_screen.dart';
+import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -59,7 +67,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               TextButton(
                 onPressed: () {
                   // Add your logout logic here
-                  Navigator.of(context).pop(); // Close the dialog
+                  Navigator.of(context).pop();
+                  Get.offAll(() => LoginScreen()); // Close the dialog
                   // Navigate to login screen or perform logout operations
                 },
                 style: TextButton.styleFrom(
@@ -260,7 +269,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildProfileOption(
                 icon: Icons.account_balance_wallet_outlined,
                 title: 'My Wallet',
-                onTap: () {},
+                onTap: () {
+                  Get.to(() => WalletScreen());
+                },
                 trailing: Text(
                   '₹1,000',
                   style: TextStyle(
@@ -272,28 +283,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildProfileOption(
                 icon: Icons.history,
                 title: 'My Activity',
-                onTap: () {},
+                onTap: () {
+                  Get.to(() => ActivityScreen(
+                        isCurrentUser: true,
+                      ));
+                },
               ),
               _buildProfileOption(
                 icon: Icons.interests_outlined,
                 title: 'My Interests',
-                onTap: () {},
+                onTap: () {
+                  showInterestsBottomSheet(context);
+                },
               ),
               _buildProfileOption(
-                  icon: Icons.access_time,
-                  title: 'My Availability',
-                  onTap: () {
-                    setState(() {
-                      isAvailable = !isAvailable;
-                    });
-                  },
-                  trailing: Switch(
-                      value: isAvailable,
-                      onChanged: (value) {
-                        setState(() {
-                          isAvailable = !isAvailable;
-                        });
-                      })),
+                icon: Icons.access_time,
+                title: 'My Availability',
+                onTap: () {
+                  Get.to(() => AvailabilityScreen());
+                },
+                // trailing: Switch(
+                //     value: isAvailable,
+                //     onChanged: (value) {
+                //       setState(() {
+                //         isAvailable = !isAvailable;
+                //       });
+                //     }),
+              ),
             ],
           ),
           _buildSection(
@@ -302,13 +318,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildProfileOption(
                 icon: Icons.campaign_outlined,
                 title: 'Promote My Profile',
-                onTap: () {},
+                onTap: () {
+                  Get.to(() => PromoteProfileScreen());
+                },
                 iconColor: AppColors.highlightColor,
               ),
               _buildProfileOption(
                 icon: Icons.payments_outlined,
                 title: 'My Charges',
-                onTap: () {},
+                onTap: () {
+                  showPriceBottomSheet(context);
+                },
                 iconColor: AppColors.highlightColor,
               ),
             ],

@@ -11,7 +11,7 @@ class MyAssets {
   static const String emptyDataPNG = 'assets/images/empty_data.png';
 
   static const String appleSVG = 'assets/svgs/apple.svg';
-  static const String googleSVG = 'assets/svgs/google.svg';
+  static const String googleSVG = 'assets/images/google_icon.svg';
   static const String netflixSVG = 'assets/svgs/netflix.svg';
   static const String nikeSVG = 'assets/svgs/nike.svg';
   static const String spotifySVG = 'assets/svgs/spotify.svg';

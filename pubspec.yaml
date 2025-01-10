@@ -42,6 +42,13 @@ dependencies:
   cached_network_image:
   flutter_card_swiper:
   intl:
+  flutter_svg:
+  camera:
+  permission_handler:
+  geolocator:
+  geocoding:
+  table_calendar:
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
+import 'package:iftook/features/calls/presentation/screens/voice_call_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
 import 'friends_list_screen.dart';
@@ -29,8 +32,31 @@ class _ChatRoomState extends State<ChatRoom> {
   final TextEditingController _messageController = TextEditingController();
   final List<ChatMessage> _messages = [];
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        // Scroll to bottom when keyboard appears
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (_scrollController.hasClients) {
+            _scrollController.animateTo(
+              0.0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
+    });
+  }
 
   void _showUnfriendDialog() {
+    // Hide keyboard if showing
+    FocusScope.of(context).unfocus();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -56,11 +82,10 @@ class _ChatRoomState extends State<ChatRoom> {
           ),
           TextButton(
             onPressed: () {
-              // Handle unfriend logic here
               Navigator.pop(context); // Close dialog
               Navigator.pop(context); // Close chat
             },
-            child: Text(
+            child: const Text(
               'Unfriend',
               style: TextStyle(color: AppColors.redColor),
             ),
@@ -71,6 +96,9 @@ class _ChatRoomState extends State<ChatRoom> {
   }
 
   void _showMoreOptions() {
+    // Hide keyboard if showing
+    FocusScope.of(context).unfocus();
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -80,45 +108,47 @@ class _ChatRoomState extends State<ChatRoom> {
           color: AppColors.secondaryBackground,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            if (!widget.isTrial)
-              ListTile(
-                leading: Icon(Icons.person_remove, color: AppColors.redColor),
-                title: Text(
-                  'Unfriend',
-                  style: TextStyle(color: AppColors.redColor),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showUnfriendDialog();
-                },
               ),
-            const ListTile(
-              leading: Icon(Icons.block, color: Colors.white70),
-              title: Text(
-                'Block User',
-                style: TextStyle(color: Colors.white70),
+              if (!widget.isTrial)
+                ListTile(
+                  leading: Icon(Icons.person_remove, color: AppColors.redColor),
+                  title: Text(
+                    'Unfriend',
+                    style: TextStyle(color: AppColors.redColor),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showUnfriendDialog();
+                  },
+                ),
+              const ListTile(
+                leading: Icon(Icons.block, color: Colors.white70),
+                title: Text(
+                  'Block User',
+                  style: TextStyle(color: Colors.white70),
+                ),
               ),
-            ),
-            const ListTile(
-              leading: Icon(Icons.report, color: Colors.white70),
-              title: Text(
-                'Report User',
-                style: TextStyle(color: Colors.white70),
+              const ListTile(
+                leading: Icon(Icons.report, color: Colors.white70),
+                title: Text(
+                  'Report User',
+                  style: TextStyle(color: Colors.white70),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -145,95 +175,100 @@ class _ChatRoomState extends State<ChatRoom> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
-      decoration: BoxDecoration(
-        color: AppColors.primaryBackground,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      child: Column(
-        children: [
-          // Chat header
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.secondaryBackground,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(25)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: Image.network(
-                            widget.profile.imageUrl,
-                            width: 40,
-                            height: 40,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        if (widget.profile.isOnline)
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: Colors.green,
-                                border: Border.all(
-                                  color: AppColors.secondaryBackground,
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                          ),
-                      ],
+    return GestureDetector(
+      onTap: () => FocusScope.of(context)
+          .unfocus(), // Dismiss keyboard when tapping outside
+      child: Scaffold(
+        backgroundColor: AppColors.primaryBackground,
+        appBar: AppBar(
+          backgroundColor: AppColors.secondaryBackground,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () {
+              FocusScope.of(context).unfocus(); // Hide keyboard before pop
+              Navigator.pop(context);
+            },
+          ),
+          title: Row(
+            children: [
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.network(
+                      widget.profile.imageUrl,
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.profile.name,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
+                  ),
+                  if (widget.profile.isOnline)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          border: Border.all(
+                            color: AppColors.secondaryBackground,
+                            width: 2,
                           ),
-                          Text(
-                            widget.profile.isOnline ? 'Online' : 'Offline',
-                            style: TextStyle(
-                              color: widget.profile.isOnline
-                                  ? Colors.green
-                                  : Colors.white.withOpacity(0.6),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.profile.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      widget.profile.isOnline ? 'Online' : 'Offline',
+                      style: TextStyle(
+                        color: widget.profile.isOnline
+                            ? Colors.green
+                            : Colors.white.withOpacity(0.6),
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Row(
+              ),
+            ],
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onPressed: _showMoreOptions,
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                color: AppColors.secondaryBackground,
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _buildActionButton(
                       icon: Icons.call,
                       onPressed: () {
-                        // Handle voice call
+                        Get.to(() => VoiceCallScreen());
                       },
                       label: 'Voice Call',
                       color: AppColors.greenColor,
@@ -241,86 +276,85 @@ class _ChatRoomState extends State<ChatRoom> {
                     _buildActionButton(
                       icon: Icons.videocam,
                       onPressed: () {
-                        // Handle video call
+                        Get.to(() => VideoCallScreen());
                       },
                       label: 'Video Call',
                       color: AppColors.primaryColor,
                     ),
-                    _buildActionButton(
-                      icon: Icons.more_horiz,
-                      onPressed: _showMoreOptions,
-                      label: 'More Options',
-                    ),
                   ],
                 ),
-              ],
-            ),
-          ),
-
-          // Chat messages
-          Expanded(
-            child: ListView.builder(
-              reverse: true,
-              controller: _scrollController,
-              padding: const EdgeInsets.only(top: 16, bottom: 16),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) =>
-                  _buildMessageBubble(_messages[index]),
-            ),
-          ),
-
-          // Message input (same as before)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.secondaryBackground,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(25)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Type a message...',
-                      hintStyle:
-                          TextStyle(color: Colors.white.withOpacity(0.6)),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25),
-                        borderSide: BorderSide.none,
+              ),
+              Expanded(
+                child: ListView.builder(
+                  reverse: true,
+                  controller: _scrollController,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  itemCount: _messages.length,
+                  itemBuilder: (context, index) =>
+                      _buildMessageBubble(_messages[index]),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                decoration: BoxDecoration(
+                  color: AppColors.secondaryBackground,
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(25)),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          focusNode: _focusNode,
+                          style: const TextStyle(color: Colors.white),
+                          textCapitalization: TextCapitalization.sentences,
+                          keyboardType: TextInputType.multiline,
+                          maxLines: 4,
+                          minLines: 1,
+                          decoration: InputDecoration(
+                            hintText: 'Type a message...',
+                            hintStyle:
+                                TextStyle(color: Colors.white.withOpacity(0.6)),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(25),
+                              borderSide: BorderSide.none,
+                            ),
+                            filled: true,
+                            fillColor: AppColors.primaryBackground,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 10,
+                            ),
+                            isDense: true,
+                          ),
+                        ),
                       ),
-                      filled: true,
-                      fillColor: AppColors.primaryBackground,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.send, color: Colors.white),
+                          onPressed: _sendMessage,
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: _sendMessage,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildMessageBubble(ChatMessage message) {
-    // ... (keep the existing _buildMessageBubble implementation)
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
@@ -420,6 +454,7 @@ class _ChatRoomState extends State<ChatRoom> {
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 }

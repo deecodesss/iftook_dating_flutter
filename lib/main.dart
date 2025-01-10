@@ -4,6 +4,7 @@ import 'package:iftook/features/splash/splash_screen.dart';
 import 'package:iftook/theme/app_theme.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(
     GetMaterialApp(
       debugShowCheckedModeBanner: false,
