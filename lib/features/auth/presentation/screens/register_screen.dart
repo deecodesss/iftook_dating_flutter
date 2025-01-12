@@ -17,23 +17,73 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   int _currentStep = 0;
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   final TextEditingController _dobController = TextEditingController();
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   DateTime? _selectedDate;
   String _selectedGender = '';
   String _interestedIn = '';
-  List<String> _selectedInterests = [];
+  List<String> _selectedInterests = [
+    'Dating',
+    'Open Relationship',
+    'Friendship',
+    'Long-term Relationship',
+    'Short-term Relationship',
+    'Travel Partner',
+    'Coffee Date',
+    'Date Night',
+    'Flirting',
+    'Decent Talk Only'
+  ];
   String _country = '';
   String _state = '';
   String _city = '';
   List<String> _photos = [];
+
+  // Rest of your existing variables and methods remain the same...
+
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Email is required';
+    }
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+      return 'Please enter a valid email';
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Password is required';
+    }
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    return null;
+  }
+
+  String? _validateConfirmPassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please confirm your password';
+    }
+    if (value != _passwordController.text) {
+      return 'Passwords do not match';
+    }
+    return null;
+  }
+
   @override
   void initState() {
     _getCurrentLocation();
     super.initState();
   }
 
-  final List<String> _genderOptions = ['Male', 'Female', 'Non-binary', 'Other'];
-  final List<String> _interestedInOptions = ['Men', 'Women', 'Both'];
+  final List<String> _genderOptions = ['Male', 'Female'];
+  final List<String> _interestedInOptions = ['Men', 'Women'];
 
   final List<String> _interestAreas = [
     'Dating',
@@ -266,6 +316,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             Step(
               title: const Text('Basic Info'),
               content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextFormField(
                     controller: _nameController,
@@ -327,6 +378,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: _getInputDecoration('Email'),
+                    style: const TextStyle(color: Colors.white),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: _validateEmail,
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _passwordController,
+                    decoration: _getInputDecoration('Password').copyWith(
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: _primaryColor,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                    obscureText: _obscurePassword,
+                    validator: _validatePassword,
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    decoration:
+                        _getInputDecoration('Confirm Password').copyWith(
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: _primaryColor,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          });
+                        },
+                      ),
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                    obscureText: _obscureConfirmPassword,
+                    validator: _validateConfirmPassword,
                   ),
                 ],
               ),
@@ -430,49 +534,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Interested In',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _interestedInOptions.map((option) {
-                            return ChoiceChip(
-                              label: Text(option),
-                              selected: _interestedIn == option,
-                              onSelected: (selected) {
-                                setState(() =>
-                                    _interestedIn = selected ? option : '');
-                              },
-                              selectedColor: _chipSelectedColor,
-                              backgroundColor: _chipUnselectedColor,
-                              labelStyle: TextStyle(
-                                color: _interestedIn == option
-                                    ? Colors.white
-                                    : Colors.grey[300],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _cardColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
                           'Looking for',
                           style: TextStyle(
                             fontSize: 16,
@@ -516,7 +577,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               isActive: _currentStep >= 3,
             ),
             Step(
-              title: const Text('Charges'),
+              title: const Text('Earnings'),
               content: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -527,7 +588,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Set Your Charges',
+                      'Set Your Earnings',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -549,7 +610,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 50),
                       ),
-                      child: const Text("Set Your Charges"),
+                      child: const Text("Set Your Earnings"),
                     ),
                   ],
                 ),

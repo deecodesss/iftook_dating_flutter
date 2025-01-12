@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
 class InterestsBottomSheet extends StatefulWidget {
@@ -74,6 +75,7 @@ class _InterestsBottomSheetState extends State<InterestsBottomSheet> {
             ),
           ),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
                 'My Interests',
@@ -84,6 +86,18 @@ class _InterestsBottomSheetState extends State<InterestsBottomSheet> {
                   letterSpacing: 0.5,
                 ),
               ),
+
+              IconButton(
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.blueGrey.withOpacity(0.2),
+                ),
+                onPressed: () {
+                  Get.back();
+                },
+                icon: Icon(
+                  Icons.close,
+                ),
+              )
               // const SizedBox(width: 12),
               // Container(
               //   padding:
@@ -229,9 +243,15 @@ class _InterestsBottomSheetState extends State<InterestsBottomSheet> {
 void showInterestsBottomSheet(BuildContext context) async {
   List<String> currentInterests = [
     'Dating',
+    'Open Relationship',
+    'Friendship',
     'Long-term Relationship',
-    'Flirting',
     'Short-term Relationship',
+    'Travel Partner',
+    'Coffee Date',
+    'Date Night',
+    'Flirting',
+    'Decent Talk Only'
   ];
   final result = await showModalBottomSheet<List<String>>(
     context: context,

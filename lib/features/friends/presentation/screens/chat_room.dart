@@ -104,9 +104,9 @@ class _ChatRoomState extends State<ChatRoom> {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: AppColors.secondaryBackground,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
         ),
         child: SafeArea(
           child: Column(
@@ -123,8 +123,9 @@ class _ChatRoomState extends State<ChatRoom> {
               ),
               if (!widget.isTrial)
                 ListTile(
-                  leading: Icon(Icons.person_remove, color: AppColors.redColor),
-                  title: Text(
+                  leading: const Icon(Icons.person_remove,
+                      color: AppColors.redColor),
+                  title: const Text(
                     'Unfriend',
                     style: TextStyle(color: AppColors.redColor),
                   ),
@@ -162,11 +163,11 @@ class _ChatRoomState extends State<ChatRoom> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.primaryBackground,
+        // color: AppColors.primaryBackground,
         borderRadius: BorderRadius.circular(15),
       ),
       child: IconButton(
-        icon: Icon(icon, color: color ?? Colors.white),
+        icon: Icon(icon, color: Colors.white),
         onPressed: onPressed,
         tooltip: label,
       ),
@@ -250,6 +251,22 @@ class _ChatRoomState extends State<ChatRoom> {
             ],
           ),
           actions: [
+            _buildActionButton(
+              icon: Icons.videocam,
+              onPressed: () {
+                Get.to(() => const VideoCallScreen());
+              },
+              label: 'Video Call',
+              color: AppColors.primaryColor,
+            ),
+            _buildActionButton(
+              icon: Icons.call,
+              onPressed: () {
+                Get.to(() => const VoiceCallScreen());
+              },
+              label: 'Voice Call',
+              color: AppColors.greenColor,
+            ),
             IconButton(
               icon: const Icon(Icons.more_vert, color: Colors.white),
               onPressed: _showMoreOptions,
@@ -262,26 +279,9 @@ class _ChatRoomState extends State<ChatRoom> {
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 color: AppColors.secondaryBackground,
-                child: Row(
+                child: const Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildActionButton(
-                      icon: Icons.call,
-                      onPressed: () {
-                        Get.to(() => VoiceCallScreen());
-                      },
-                      label: 'Voice Call',
-                      color: AppColors.greenColor,
-                    ),
-                    _buildActionButton(
-                      icon: Icons.videocam,
-                      onPressed: () {
-                        Get.to(() => VideoCallScreen());
-                      },
-                      label: 'Video Call',
-                      color: AppColors.primaryColor,
-                    ),
-                  ],
+                  children: [],
                 ),
               ),
               Expanded(
@@ -296,10 +296,9 @@ class _ChatRoomState extends State<ChatRoom> {
               ),
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppColors.secondaryBackground,
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(25)),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
                 ),
                 child: SafeArea(
                   top: false,
@@ -334,7 +333,7 @@ class _ChatRoomState extends State<ChatRoom> {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: AppColors.primaryColor,
                           shape: BoxShape.circle,
                         ),
@@ -402,10 +401,10 @@ class _ChatRoomState extends State<ChatRoom> {
           ),
           if (message.isSentByMe) ...[
             const SizedBox(width: 8),
-            CircleAvatar(
+            const CircleAvatar(
               radius: 16,
               backgroundColor: AppColors.secondaryBackground,
-              child: const Icon(
+              child: Icon(
                 Icons.person,
                 color: Colors.white,
                 size: 20,

@@ -7,18 +7,19 @@ import 'package:iftook/core/widgets/custom_app_bar.dart';
 import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
 import 'package:iftook/features/home/presentation/screens/profile_swiper.dart';
 import 'package:iftook/features/home/presentation/screens/swiper_animation.dart';
+import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
 class UserProfile {
-  final String name;
-  final int age;
-  final String description;
-  final List<String> imageUrls;
-  final String location;
-  final String profession;
-  final double rating;
-  final int reviewCount;
-  final List<Review> reviews;
+  String name;
+  int age;
+  String description;
+  List<String> imageUrls;
+  String location;
+  String profession;
+  double rating;
+  int reviewCount;
+  List<Review> reviews;
   int likes;
   int dislikes;
 
@@ -264,11 +265,13 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildActionButtonWithLabel(
-            icon: HugeIcons.strokeRoundedStar,
+            icon: HugeIcons.strokeRoundedDiamond02,
             label: 'Rating\nand Review',
             color: AppColors.primaryColor,
             backgroundColor: Colors.transparent,
-            onPressed: () {},
+            onPressed: () {
+              Get.to(() => AddReviewScreen());
+            },
             showRating: false,
           ),
           _buildActionButtonWithLabel(

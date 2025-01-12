@@ -274,6 +274,47 @@ class _ProfileCardState extends State<ProfileCard> {
                   );
                 },
               ),
+              // Edit controls overlay
+              if (widget.isCurrentUser)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        MaterialButton(
+                          minWidth: 0,
+                          shape: const CircleBorder(),
+                          onPressed: widget.onEditPressed,
+                          child: const Icon(
+                            Icons.edit_outlined,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 15,
+                          color: Colors.white.withOpacity(0.3),
+                        ),
+                        MaterialButton(
+                          minWidth: 0,
+                          shape: const CircleBorder(),
+                          onPressed: widget.onDeletePressed,
+                          child: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               Positioned(
                 bottom: 10,
                 left: 0,
@@ -309,7 +350,7 @@ class _ProfileCardState extends State<ProfileCard> {
                     SizedBox(
                       width: MediaQuery.of(context).size.width * 0.4,
                       child: Text(
-                        '${widget.profile.name}',
+                        widget.profile.name,
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -375,25 +416,6 @@ class _ProfileCardState extends State<ProfileCard> {
                     color: Colors.grey,
                   ),
                 ),
-                const SizedBox(height: 8),
-                // if (widget.isCurrentUser)
-                //   Row(
-                //     mainAxisAlignment: MainAxisAlignment.end,
-                //     children: [
-                //       Row(
-                //         children: [
-                //           IconButton(
-                //             icon: const Icon(Icons.edit, color: Colors.white),
-                //             onPressed: widget.onEditPressed,
-                //           ),
-                //           IconButton(
-                //             icon: const Icon(Icons.delete, color: Colors.white),
-                //             onPressed: widget.onDeletePressed,
-                //           ),
-                //         ],
-                //       ),
-                //     ],
-                //   ),
               ],
             ),
           ),
@@ -593,11 +615,173 @@ class _EditActivityBottomSheetState extends State<EditActivityBottomSheet> {
   }
 
   @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Similar UI to AddActivityBottomSheet but with pre-filled data
     return Container(
-        // ... Similar UI structure to AddActivityBottomSheet
-        // but with pre-filled data from widget.profile
-        );
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+      ),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Edit Post',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.grey[800],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: selectedImages.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == selectedImages.length) {
+                      return Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: IconButton(
+                          icon: const Icon(Icons.add_photo_alternate,
+                              color: Colors.white),
+                          onPressed: _pickImages,
+                        ),
+                      );
+                    }
+                    return Stack(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: CachedNetworkImage(
+                            imageUrl: "${selectedImages[index]}?w=200",
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              color: Colors.grey[850],
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.primaryColor,
+                                ),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              color: Colors.grey[850],
+                              child:
+                                  const Icon(Icons.error, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: IconButton(
+                            icon: const Icon(Icons.remove_circle,
+                                color: Colors.white),
+                            onPressed: () {
+                              setState(() {
+                                selectedImages.removeAt(index);
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _descriptionController,
+                maxLines: 4,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Write your post description...',
+                  hintStyle: TextStyle(color: Colors.grey[400]),
+                  filled: true,
+                  fillColor: Colors.grey[800],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saveActivity,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'Save Changes',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickImages() {
+    // Implement image picking functionality
+    // You can use image_picker package
+    setState(() {
+      // For demonstration, adding a random image URL
+      selectedImages
+          .add("https://images.unsplash.com/photo-1517841905240-472988babdf9");
+    });
+  }
+
+  void _saveActivity() {
+    if (_descriptionController.text.isNotEmpty && selectedImages.isNotEmpty) {
+      // Here you would typically update the profile in your data source
+      widget.profile.description = _descriptionController.text;
+      widget.profile.imageUrls = selectedImages;
+      Navigator.pop(context);
+    }
   }
 }

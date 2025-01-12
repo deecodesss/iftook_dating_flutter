@@ -48,6 +48,7 @@ dependencies:
   geolocator:
   geocoding:
   table_calendar:
+  image_picker:
 
 dev_dependencies:
   flutter_test:

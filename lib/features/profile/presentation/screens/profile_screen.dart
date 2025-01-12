@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/core/widgets/charges_bottom_sheet.dart';
 import 'package:iftook/core/widgets/interests_bottom_sheet.dart';
+import 'package:iftook/features/about_us/presentation/screens/cancellation_and_refund_policy_screen.dart';
+import 'package:iftook/features/about_us/presentation/screens/privacy_policy_screen.dart';
+import 'package:iftook/features/about_us/presentation/screens/terms_and_conditions_screen.dart';
 import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
 import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
 import 'package:iftook/features/profile/presentation/screens/availability_screen.dart';
+import 'package:iftook/features/profile/presentation/screens/edit_profile_screen.dart';
 import 'package:iftook/features/profile/presentation/screens/promote_profile_screen.dart';
+import 'package:iftook/features/profile/presentation/screens/view_reviews_screen.dart';
 import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
@@ -68,7 +74,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onPressed: () {
                   // Add your logout logic here
                   Navigator.of(context).pop();
-                  Get.offAll(() => LoginScreen()); // Close the dialog
+                  Get.offAll(() => const LoginScreen()); // Close the dialog
                   // Navigate to login screen or perform logout operations
                 },
                 style: TextButton.styleFrom(
@@ -76,7 +82,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   backgroundColor: AppColors.primaryColor.withOpacity(0.1),
                 ),
-                child: Text(
+                child: const Text(
                   'Logout',
                   style: TextStyle(
                     color: AppColors.primaryColor,
@@ -136,12 +142,86 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
           ),
-          IconButton(
-            onPressed: () {
-              // Handle edit profile
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              switch (value) {
+                case 'Edit Profile':
+                  Get.to(() => EditProfileScreen());
+                  break;
+                case 'Cancellation & Refund Policy':
+                  Get.to(() => CancellationAndRefundPolicyScreen());
+                  break;
+                case 'Privacy Policy':
+                  Get.to(() => PrivacyPolicyScreen());
+                  break;
+                case 'Terms & Conditions':
+                  Get.to(() => TermsAndConditionsScreen());
+                  break;
+              }
             },
-            icon: const Icon(Icons.edit_outlined),
-            color: AppColors.primaryColor,
+            icon: const Icon(Icons.more_vert, color: AppColors.primaryColor),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'Edit Profile',
+                child: Row(
+                  children: [
+                    Icon(
+                      HugeIcons.strokeRoundedPencilEdit02,
+                      size: 15,
+                    ),
+                    SizedBox(
+                      width: 4,
+                    ),
+                    Text('Edit Profile'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'Cancellation & Refund Policy',
+                child: Row(
+                  children: [
+                    Icon(
+                      HugeIcons.strokeRoundedPolicy,
+                      size: 15,
+                    ),
+                    SizedBox(
+                      width: 4,
+                    ),
+                    Text('Cancellation & Refund Policy'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'Privacy Policy',
+                child: Row(
+                  children: [
+                    Icon(
+                      HugeIcons.strokeRoundedSecurityLock,
+                      size: 15,
+                    ),
+                    SizedBox(
+                      width: 4,
+                    ),
+                    Text('Privacy Policy'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'Terms & Conditions',
+                child: Row(
+                  children: [
+                    Icon(
+                      HugeIcons.strokeRoundedDocumentValidation,
+                      size: 15,
+                    ),
+                    SizedBox(
+                      width: 4,
+                    ),
+                    Text('Terms & Conditions'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -270,7 +350,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: Icons.account_balance_wallet_outlined,
                 title: 'My Wallet',
                 onTap: () {
-                  Get.to(() => WalletScreen());
+                  Get.to(() => const WalletScreen());
                 },
                 trailing: Text(
                   '₹1,000',
@@ -284,7 +364,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: Icons.history,
                 title: 'My Activity',
                 onTap: () {
-                  Get.to(() => ActivityScreen(
+                  Get.to(() => const ActivityScreen(
                         isCurrentUser: true,
                       ));
                 },
@@ -300,7 +380,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: Icons.access_time,
                 title: 'My Availability',
                 onTap: () {
-                  Get.to(() => AvailabilityScreen());
+                  Get.to(() => const AvailabilityScreen());
                 },
                 // trailing: Switch(
                 //     value: isAvailable,
@@ -319,7 +399,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: Icons.campaign_outlined,
                 title: 'Promote My Profile',
                 onTap: () {
-                  Get.to(() => PromoteProfileScreen());
+                  Get.to(() => const PromoteProfileScreen());
                 },
                 iconColor: AppColors.highlightColor,
               ),
@@ -345,7 +425,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildProfileOption(
                 icon: Icons.star_outline,
                 title: 'Rating & Review',
-                onTap: () {},
+                onTap: () {
+                  Get.to(() => ViewReviewsScreen());
+                },
                 iconColor: AppColors.greenColor,
               ),
               _buildProfileOption(

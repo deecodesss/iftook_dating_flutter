@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
 class PriceBottomSheet extends StatefulWidget {
@@ -20,6 +21,12 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
   final TextEditingController _subscriptionController =
       TextEditingController(text: '700');
 
+  // Add state for free checkboxes
+  bool _isChatFree = false;
+  bool _isVoiceFree = false;
+  bool _isVideoFree = false;
+  bool _isLiveFree = false;
+  bool _isSubscriptionFree = false;
   bool _isSaving = false;
 
   @override
@@ -37,7 +44,7 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
       _isSaving = true;
     });
 
-    await Future.delayed(Duration(seconds: 1));
+    await Future.delayed(const Duration(seconds: 1));
 
     setState(() {
       _isSaving = false;
@@ -49,8 +56,8 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(24),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.all(24),
+      decoration: const BoxDecoration(
         color: Color(0xFF1A1A1A),
         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
@@ -62,7 +69,7 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
             child: Container(
               width: 40,
               height: 4,
-              margin: EdgeInsets.only(bottom: 24),
+              margin: const EdgeInsets.only(bottom: 24),
               decoration: BoxDecoration(
                 color: Colors.grey[700],
                 borderRadius: BorderRadius.circular(2),
@@ -70,9 +77,10 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
             ),
           ),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'My Charges',
+              const Text(
+                'My Earnings',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 28,
@@ -80,33 +88,44 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
                   letterSpacing: 0.5,
                 ),
               ),
-              SizedBox(width: 12),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Color(0xFF2E7D32),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0xFF2E7D32).withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
+              IconButton(
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.blueGrey.withOpacity(0.2),
                 ),
-                child: Text(
-                  'FREE',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
+                onPressed: () {
+                  Get.back();
+                },
+                icon: const Icon(
+                  Icons.close,
                 ),
-              ),
+              )
+              // SizedBox(width: 12),
+              // Container(
+              //   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              //   decoration: BoxDecoration(
+              //     color: Color(0xFF2E7D32),
+              //     borderRadius: BorderRadius.circular(16),
+              //     boxShadow: [
+              //       BoxShadow(
+              //         color: Color(0xFF2E7D32).withOpacity(0.3),
+              //         blurRadius: 8,
+              //         offset: Offset(0, 2),
+              //       ),
+              //     ],
+              //   ),
+              //   child: Text(
+              //     'FREE',
+              //     style: TextStyle(
+              //       color: Colors.white,
+              //       fontSize: 14,
+              //       fontWeight: FontWeight.w600,
+              //       letterSpacing: 0.5,
+              //     ),
+              //   ),
+              // ),
             ],
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           Text(
             'Hi Sarah!',
             style: TextStyle(
@@ -115,17 +134,37 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
               fontWeight: FontWeight.w500,
             ),
           ),
-          SizedBox(height: 32),
-          _buildPriceField(
-              'Chat (30 min)', _chatController, Icons.chat_bubble_outline),
-          _buildPriceField(
-              'Voice Call (30 min)', _voiceController, Icons.phone_outlined),
-          _buildPriceField(
-              'Video Call (30 min)', _videoController, Icons.videocam_outlined),
-          _buildPriceField(
-              'Live (per min)', _liveController, Icons.live_tv_outlined),
-          _buildSubscriptionField(),
-          SizedBox(height: 24),
+          const SizedBox(height: 32),
+          _buildPriceFieldWithCheckbox(
+            'Chat (30 min)',
+            _chatController,
+            Icons.chat_bubble_outline,
+            _isChatFree,
+            (value) => setState(() => _isChatFree = value ?? false),
+          ),
+          _buildPriceFieldWithCheckbox(
+            'Voice Call (30 min)',
+            _voiceController,
+            Icons.phone_outlined,
+            _isVoiceFree,
+            (value) => setState(() => _isVoiceFree = value ?? false),
+          ),
+          _buildPriceFieldWithCheckbox(
+            'Video Call (30 min)',
+            _videoController,
+            Icons.videocam_outlined,
+            _isVideoFree,
+            (value) => setState(() => _isVideoFree = value ?? false),
+          ),
+          _buildPriceFieldWithCheckbox(
+            'Live (per min)',
+            _liveController,
+            Icons.live_tv_outlined,
+            _isLiveFree,
+            (value) => setState(() => _isLiveFree = value ?? false),
+          ),
+          _buildSubscriptionFieldWithCheckbox(),
+          const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
             height: 56,
@@ -140,8 +179,8 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
                 elevation: 2,
               ),
               child: _isSaving
-                  ? CircularProgressIndicator(color: Colors.white)
-                  : Text(
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text(
                       'Save Changes',
                       style: TextStyle(
                         fontSize: 18,
@@ -151,63 +190,98 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
                     ),
             ),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
 
-  Widget _buildSubscriptionField() {
+  Widget _buildSubscriptionFieldWithCheckbox() {
     return Container(
-      margin: EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Color(0xFF2A2A2A),
+              color: const Color(0xFF2A2A2A),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.grey[800]!, width: 1),
             ),
-            child: TextField(
-              controller: _subscriptionController,
-              keyboardType: TextInputType.number,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-              ),
-              decoration: InputDecoration(
-                labelText: 'Monthly Subscription',
-                labelStyle: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 16,
+            child: Column(
+              children: [
+                TextField(
+                  controller: _subscriptionController,
+                  keyboardType: TextInputType.number,
+                  enabled: !_isSubscriptionFree,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Monthly Subscription',
+                    labelStyle: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 16,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.star_outline,
+                      color: Colors.grey[400],
+                      size: 24,
+                    ),
+                    prefixText: '₹ ',
+                    prefixStyle: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Colors.transparent,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
+                  ),
                 ),
-                prefixIcon: Icon(
-                  Icons.star_outline,
-                  color: Colors.grey[400],
-                  size: 24,
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Make it free',
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 14,
+                        ),
+                      ),
+                      const Spacer(),
+                      Switch(
+                        value: _isSubscriptionFree,
+                        onChanged: (value) {
+                          setState(() {
+                            _isSubscriptionFree = value;
+                            if (value) {
+                              _subscriptionController.text = '0';
+                            } else {
+                              _subscriptionController.text = '700';
+                            }
+                          });
+                        },
+                        activeColor: AppColors.primaryColor,
+                      ),
+                    ],
+                  ),
                 ),
-                prefixText: '₹ ',
-                prefixStyle: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Colors.transparent,
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              ),
+              ],
             ),
           ),
           Container(
-            margin: EdgeInsets.only(top: 8),
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.grey[800]!.withOpacity(0.3),
               border: Border.all(
@@ -223,7 +297,7 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
                   size: 16,
                   color: Colors.grey[400],
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Per month subscription you charge from your followers',
@@ -241,48 +315,100 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
     );
   }
 
-  Widget _buildPriceField(
-      String label, TextEditingController controller, IconData icon) {
+  Widget _buildPriceFieldWithCheckbox(
+    String label,
+    TextEditingController controller,
+    IconData icon,
+    bool isFree,
+    Function(bool?) onChanged,
+  ) {
     return Container(
-      margin: EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: Color(0xFF2A2A2A),
+        color: const Color(0xFF2A2A2A),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey[800]!, width: 1),
       ),
-      child: TextField(
-        controller: controller,
-        keyboardType: TextInputType.number,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.w500,
-        ),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(
-            color: Colors.grey[400],
-            fontSize: 16,
+      child: Column(
+        children: [
+          TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            enabled: !isFree,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
+              labelText: label,
+              labelStyle: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 16,
+              ),
+              prefixIcon: Icon(
+                icon,
+                color: Colors.grey[400],
+                size: 24,
+              ),
+              prefixText: '₹ ',
+              prefixStyle: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              filled: true,
+              fillColor: Colors.transparent,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            ),
           ),
-          prefixIcon: Icon(
-            icon,
-            color: Colors.grey[400],
-            size: 24,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+            child: Row(
+              children: [
+                Text(
+                  'Make it free',
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 14,
+                  ),
+                ),
+                const Spacer(),
+                Switch(
+                  value: isFree,
+                  onChanged: (value) {
+                    onChanged(value);
+                    if (value) {
+                      controller.text = '0';
+                    } else {
+                      // Reset to default values
+                      switch (label) {
+                        case 'Chat (30 min)':
+                          controller.text = '150';
+                          break;
+                        case 'Voice Call (30 min)':
+                          controller.text = '300';
+                          break;
+                        case 'Video Call (30 min)':
+                          controller.text = '450';
+                          break;
+                        case 'Live (per min)':
+                          controller.text = '5';
+                          break;
+                      }
+                    }
+                  },
+                  activeColor: AppColors.primaryColor,
+                ),
+              ],
+            ),
           ),
-          prefixText: '₹ ',
-          prefixStyle: TextStyle(
-            color: Colors.grey[400],
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.transparent,
-          contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        ),
+        ],
       ),
     );
   }
@@ -298,7 +424,7 @@ void showPriceBottomSheet(BuildContext context) async {
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: PriceBottomSheet(),
+        child: const PriceBottomSheet(),
       ),
     ),
   );
@@ -306,7 +432,7 @@ void showPriceBottomSheet(BuildContext context) async {
   if (result == true) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
+        content: const Row(
           children: [
             Icon(Icons.check_circle, color: Colors.white),
             SizedBox(width: 12),
@@ -316,13 +442,13 @@ void showPriceBottomSheet(BuildContext context) async {
             ),
           ],
         ),
-        backgroundColor: Color(0xFF2E7D32),
+        backgroundColor: const Color(0xFF2E7D32),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        margin: EdgeInsets.all(16),
-        duration: Duration(seconds: 2),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 2),
       ),
     );
   }

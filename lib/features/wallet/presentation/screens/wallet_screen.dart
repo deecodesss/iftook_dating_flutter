@@ -36,9 +36,7 @@ class _WalletScreenState extends State<WalletScreen>
     if (_tabController.index == 0) {
       return transactions; // All
     } else if (_tabController.index == 1) {
-      return transactions
-          .where((tx) => !tx['isRefund'])
-          .toList(); // Transactions
+      return transactions.where((tx) => !tx['isRefund']).toList(); // Earnings
     } else {
       return transactions.where((tx) => tx['isRefund']).toList(); // Refunds
     }
@@ -164,7 +162,7 @@ class _WalletScreenState extends State<WalletScreen>
                         unselectedLabelColor: Colors.grey,
                         tabs: const [
                           Tab(text: 'All'),
-                          Tab(text: 'Transactions'),
+                          Tab(text: 'Earnings'),
                           Tab(text: 'Refunds'),
                         ],
                         onTap: (_) => setState(() {}),
@@ -193,17 +191,20 @@ class _WalletScreenState extends State<WalletScreen>
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: transaction['isRefund']
-                                      ? Colors.green.withOpacity(0.2)
-                                      : Colors.red.withOpacity(0.2),
+                                      ? AppColors.redColor.withOpacity(0.2)
+                                      : AppColors.greenColor.withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Icon(
                                   transaction['isRefund']
-                                      ? Icons.replay
-                                      : Icons.payment,
+                                      ? HugeIcons
+                                          .strokeRoundedSquareArrowUpRight
+                                      : HugeIcons
+                                          .strokeRoundedSquareArrowDownLeft, // Refund (remove), Transaction (add)
                                   color: transaction['isRefund']
-                                      ? AppColors.greenColor
-                                      : AppColors.redColor,
+                                      ? AppColors.redColor
+                                      : AppColors
+                                          .greenColor, // Red for refunds, green for earnings
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -213,8 +214,8 @@ class _WalletScreenState extends State<WalletScreen>
                                   children: [
                                     Text(
                                       transaction['isRefund']
-                                          ? 'Refund #${transaction['id']}'
-                                          : 'Payment #${transaction['id']}',
+                                          ? 'Refund #${transaction['id']}' // Deduction
+                                          : 'Earning #${transaction['id']}', // Earning
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 16,
@@ -232,12 +233,13 @@ class _WalletScreenState extends State<WalletScreen>
                               ),
                               Text(
                                 transaction['isRefund']
-                                    ? '+₹${transaction['amount']}'
-                                    : '-₹${transaction['amount']}',
+                                    ? '-₹${transaction['amount']}' // Refund (Deduction)
+                                    : '+₹${transaction['amount']}', // Transaction (Earning)
                                 style: TextStyle(
                                   color: transaction['isRefund']
-                                      ? AppColors.greenColor
-                                      : AppColors.redColor,
+                                      ? AppColors.redColor // Red for deductions
+                                      : AppColors
+                                          .greenColor, // Green for earnings
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),

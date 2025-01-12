@@ -38,20 +38,12 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const SizedBox(height: 48),
                 // App Icon
-                Container(
-                  height: 80,
-                  width: 80,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryColor.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.lock_outlined,
-                    size: 40,
-                    color: AppColors.primaryColor,
-                  ),
+                Image.asset(
+                  MyAssets.appIconPNG,
+                  width: 100,
+                  height: 100,
                 ),
-                const SizedBox(height: 24),
+                // const SizedBox(height: 24),
                 const Text(
                   'Welcome Back',
                   style: TextStyle(
@@ -188,11 +180,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Facebook Sign In Button
                 ElevatedButton(
                   onPressed: () {
-                    Get.offAll(() => HomeScreen());
+                    Get.to(() => RegisterScreen());
                   },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: const Color(0xFF1877F2),
+                    backgroundColor: AppColors.highlightColor,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -201,14 +193,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.facebook,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                      SizedBox(width: 12),
                       Text(
-                        'Continue with Facebook',
+                        'Create a new account',
                         style: TextStyle(
                           fontSize: 16,
                           color: Colors.white,
