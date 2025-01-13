@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
+import 'package:iftook/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:iftook/features/auth/presentation/screens/register_screen.dart';
 import 'package:iftook/features/home/presentation/screens/home_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
@@ -27,7 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212), // Dark background
+      backgroundColor: const Color(0xFF121212),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -37,15 +38,13 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 48),
-                // App Icon
                 Image.asset(
                   MyAssets.appIconPNG,
                   width: 100,
                   height: 100,
                 ),
-                // const SizedBox(height: 24),
                 const Text(
-                  'Welcome Back',
+                  'Welcome',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
@@ -103,10 +102,26 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: const TextStyle(color: Colors.white),
                   obscureText: true,
                 ),
-                const SizedBox(height: 24),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Get.to(() => const ForgotPasswordScreen());
+                    },
+                    child: Text(
+                      'Forgot Password?',
+                      style: TextStyle(
+                        color: Theme.of(context).primaryColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: () {
-                    Get.offAll(() => HomeScreen());
+                    Get.offAll(() => const HomeScreen());
                   },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -139,10 +154,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                // Google Sign In Button
                 ElevatedButton(
                   onPressed: () {
-                    Get.offAll(() => HomeScreen());
+                    Get.offAll(() => const HomeScreen());
                   },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -177,10 +191,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Facebook Sign In Button
                 ElevatedButton(
                   onPressed: () {
-                    Get.to(() => RegisterScreen());
+                    Get.to(() => const RegisterScreen());
                   },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -202,33 +215,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 24),
-                // Registration Text
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Don't have an account? ",
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 14,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Get.to(() => RegisterScreen());
-                      },
-                      child: Text(
-                        'Register',
-                        style: TextStyle(
-                          color: Theme.of(context).primaryColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
                 const SizedBox(height: 16),
               ],

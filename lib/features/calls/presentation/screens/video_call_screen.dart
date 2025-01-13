@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class VideoCallScreen extends StatefulWidget {
@@ -326,7 +328,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                         color: Colors.white,
                         backgroundColor: Colors.red,
                         size: 65,
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () => Get.off(() => AddReviewScreen()),
                       ),
                       _buildCallButton(
                         icon: Icons.flip_camera_ios,

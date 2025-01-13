@@ -38,7 +38,7 @@ class ViewReviewsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Ratings & Reviews'),
+        title: const Text('Ratings & Reviews'),
       ),
       body: SingleChildScrollView(
         child: Column(

@@ -157,7 +157,7 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
             (value) => setState(() => _isVideoFree = value ?? false),
           ),
           _buildPriceFieldWithCheckbox(
-            'Live (per min)',
+            'Insta Talk (per min)',
             _liveController,
             Icons.live_tv_outlined,
             _isLiveFree,
@@ -397,7 +397,7 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
                         case 'Video Call (30 min)':
                           controller.text = '450';
                           break;
-                        case 'Live (per min)':
+                        case 'Insta Talk (per min)':
                           controller.text = '5';
                           break;
                       }

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/core/widgets/charges_bottom_sheet.dart';
 import 'package:iftook/features/home/presentation/screens/home_screen.dart';
+import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -14,14 +16,22 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final PageController _pageController = PageController();
   final _formKey = GlobalKey<FormState>();
-  int _currentStep = 0;
+  int _currentPage = 0;
+
+  // Controllers and variables remain the same as your original code
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
   final TextEditingController _dobController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _aboutController = TextEditingController();
+  final TextEditingController _professionController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
+  final TextEditingController _panController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   DateTime? _selectedDate;
@@ -43,8 +53,58 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _state = '';
   String _city = '';
   List<String> _photos = [];
+  bool _isLoadingLocation = true;
+  String _locationError = '';
 
-  // Rest of your existing variables and methods remain the same...
+  // Your existing constants
+  final List<String> _genderOptions = ['Male', 'Female'];
+  final List<String> _interestedInOptions = ['Men', 'Women'];
+  final List<String> _interestAreas = [
+    'Dating',
+    'Open Relationship',
+    'Friendship',
+    'Long-term Relationship',
+    'Short-term Relationship',
+    'Travel Partner',
+    'Coffee Date',
+    'Date Night',
+    'Flirting',
+    'Decent Talk Only'
+  ];
+
+  // Theme colors
+  final Color _primaryColor = const Color(0xFFE91E63);
+  final Color _surfaceColor = const Color(0xFF1E1E1E);
+  final Color _backgroundColor = const Color(0xFF121212);
+  final Color _cardColor = const Color(0xFF2A2A2A);
+  final Color _chipSelectedColor = const Color(0xFFE91E63);
+  final Color _chipUnselectedColor = const Color(0xFF3A3A3A);
+
+  @override
+  void initState() {
+    _getCurrentLocation();
+    super.initState();
+  }
+
+  String? selectedHeight;
+  List<String> selectedLanguages = [];
+  String? profileImagePath;
+  String? panImagePath;
+  final List<String> heights = List.generate(
+    81, // 4'10" to 7'0"
+    (index) => "${(4 + (index ~/ 12))}' ${(index % 12)}\"",
+  );
+
+  final List<String> languages = [
+    'English',
+    'Hindi',
+    'Marathi',
+    'Punjabi',
+    'Gujarati',
+    'Tamil',
+    'Telugu',
+    'Bengali',
+  ];
 
   String? _validateEmail(String? value) {
     if (value == null || value.isEmpty) {
@@ -75,38 +135,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     return null;
   }
-
-  @override
-  void initState() {
-    _getCurrentLocation();
-    super.initState();
-  }
-
-  final List<String> _genderOptions = ['Male', 'Female'];
-  final List<String> _interestedInOptions = ['Men', 'Women'];
-
-  final List<String> _interestAreas = [
-    'Dating',
-    'Open Relationship',
-    'Friendship',
-    'Long-term Relationship',
-    'Short-term Relationship',
-    'Travel Partner',
-    'Coffee Date',
-    'Date Night',
-    'Flirting',
-    'Decent Talk Only'
-  ];
-
-  // Custom dark theme colors
-  final Color _primaryColor = const Color(0xFFE91E63); // Pink
-  final Color _surfaceColor = const Color(0xFF1E1E1E);
-  final Color _backgroundColor = const Color(0xFF121212);
-  final Color _cardColor = const Color(0xFF2A2A2A);
-  final Color _chipSelectedColor = const Color(0xFFE91E63);
-  final Color _chipUnselectedColor = const Color(0xFF3A3A3A);
-  bool _isLoadingLocation = true;
-  String _locationError = '';
 
   Future<void> _getCurrentLocation() async {
     setState(() {
@@ -201,6 +229,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  void _nextPage() {
+    if (_currentPage < 4) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      setState(() {
+        _currentPage++;
+      });
+    } else {
+      _handleRegistration();
+    }
+  }
+
+  void _previousPage() {
+    if (_currentPage > 0) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      setState(() {
+        _currentPage--;
+      });
+    }
+  }
+
+  void _handleRegistration() {
+    // Here you would typically send the data to your backend
+    // For now, we'll just navigate to the home screen
+    Get.offAll(() => const HomeScreen());
+  }
+
+  // Your existing input decoration method
   InputDecoration _getInputDecoration(String label) {
     return InputDecoration(
       labelText: label,
@@ -223,417 +284,554 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  void _handleRegistration() {
-    // Here you would typically send the data to your backend
-    // For now, we'll just navigate to the home screen
-    Get.offAll(() => const HomeScreen());
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _backgroundColor,
       appBar: AppBar(
-        title: const Text(
-          'Register',
-          style: TextStyle(
+        title: Text(
+          'Step ${_currentPage + 1} of 5',
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: _surfaceColor,
         elevation: 0,
-        centerTitle: true,
+        leading: _currentPage > 0
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: _previousPage,
+              )
+            : null,
       ),
-      body: Theme(
-        data: ThemeData.dark().copyWith(
-          colorScheme: ColorScheme.dark(
-            primary: _primaryColor,
-            secondary: _primaryColor,
-            surface: _surfaceColor,
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
-        child: Stepper(
-          currentStep: _currentStep,
-          onStepContinue: () {
-            if (_currentStep < 4) {
-              setState(() => _currentStep++);
-            }
-          },
-          onStepCancel: () {
-            if (_currentStep > 0) {
-              setState(() => _currentStep--);
-            }
-          },
-          controlsBuilder: (context, controls) {
-            return Padding(
-              padding: const EdgeInsets.only(top: 20),
-              child: Row(
-                children: [
-                  if (_currentStep > 0)
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: controls.onStepCancel,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: BorderSide(color: _primaryColor),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text('Back'),
-                      ),
-                    ),
-                  if (_currentStep > 0) const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (_currentStep < 4) {
-                          controls.onStepContinue?.call();
-                        } else {
-                          _handleRegistration(); // Add this
-                        }
-                      },
-                      child: Text(_currentStep < 4 ? 'Continue' : 'Finish'),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-          steps: [
-            Step(
-              title: const Text('Basic Info'),
-              content: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: _getInputDecoration('Full Name'),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: _dobController,
-                    readOnly: true,
-                    onTap: () => _selectDate(context),
-                    decoration: _getInputDecoration('Date of Birth').copyWith(
-                      suffixIcon: Icon(
-                        Icons.calendar_today,
-                        color: _primaryColor,
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _cardColor,
+      body: PageView(
+        controller: _pageController,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          _buildBasicInfoPage(),
+          _buildAdditionalInfoPage(),
+          _buildPhotosPage(),
+          _buildLocationPage(),
+          _buildPreferencesPage(),
+          _buildEarningsPage(),
+        ],
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            if (_currentPage > 0)
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _previousPage,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: _primaryColor),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Gender',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _genderOptions.map((gender) {
-                            return ChoiceChip(
-                              label: Text(gender),
-                              selected: _selectedGender == gender,
-                              onSelected: (selected) {
-                                setState(() =>
-                                    _selectedGender = selected ? gender : '');
-                              },
-                              selectedColor: _chipSelectedColor,
-                              backgroundColor: _chipUnselectedColor,
-                              labelStyle: TextStyle(
-                                color: _selectedGender == gender
-                                    ? Colors.white
-                                    : Colors.grey[300],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
                   ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: _getInputDecoration('Email'),
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: _validateEmail,
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: _passwordController,
-                    decoration: _getInputDecoration('Password').copyWith(
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          color: _primaryColor,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                    obscureText: _obscurePassword,
-                    validator: _validatePassword,
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: _confirmPasswordController,
-                    decoration:
-                        _getInputDecoration('Confirm Password').copyWith(
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureConfirmPassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          color: _primaryColor,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscureConfirmPassword = !_obscureConfirmPassword;
-                          });
-                        },
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                    obscureText: _obscureConfirmPassword,
-                    validator: _validateConfirmPassword,
-                  ),
-                ],
-              ),
-              isActive: _currentStep >= 0,
-            ),
-            Step(
-              title: const Text('Photos'),
-              content: Container(
-                height: 200,
-                decoration: BoxDecoration(
-                  color: _cardColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade800),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_photo_alternate,
-                          size: 48, color: _primaryColor),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          // Implement photo upload logic
-                        },
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Photos'),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Add at least 2 photos',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  ),
+                  child: const Text('Back'),
                 ),
               ),
-              isActive: _currentStep >= 1,
-            ),
-            Step(
-              title: const Text('Location'),
-              content: Column(
-                children: [
-                  if (_isLoadingLocation)
-                    const Center(
-                      child: CircularProgressIndicator(),
-                    )
-                  else if (_locationError.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _locationError,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    )
-                  else ...[
-                    TextFormField(
-                      decoration: _getInputDecoration('Country'),
-                      initialValue: _country,
-                      readOnly: true,
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      decoration: _getInputDecoration('State'),
-                      initialValue: _state,
-                      readOnly: true,
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      decoration: _getInputDecoration('City'),
-                      initialValue: _city,
-                      readOnly: true,
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: _getCurrentLocation,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Refresh Location'),
-                  ),
-                ],
-              ),
-              isActive: _currentStep >= 2,
-            ),
-            Step(
-              title: const Text('Preferences'),
-              content: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _cardColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Looking for',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _interestAreas.map((interest) {
-                            return FilterChip(
-                              label: Text(interest),
-                              selected: _selectedInterests.contains(interest),
-                              onSelected: (selected) {
-                                setState(() {
-                                  if (selected) {
-                                    _selectedInterests.add(interest);
-                                  } else {
-                                    _selectedInterests.remove(interest);
-                                  }
-                                });
-                              },
-                              selectedColor: _chipSelectedColor,
-                              checkmarkColor: Colors.white,
-                              backgroundColor: _chipUnselectedColor,
-                              labelStyle: TextStyle(
-                                color: _selectedInterests.contains(interest)
-                                    ? Colors.white
-                                    : Colors.grey[300],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              isActive: _currentStep >= 3,
-            ),
-            Step(
-              title: const Text('Earnings'),
-              content: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _cardColor,
-                  borderRadius: BorderRadius.circular(12),
+            if (_currentPage > 0) const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Set Your Earnings',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Define your charges for different services',
-                      style: TextStyle(
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () {
-                        showPriceBottomSheet(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                      child: const Text("Set Your Earnings"),
-                    ),
-                  ],
-                ),
+                onPressed: _nextPage,
+                child: Text(_currentPage < 4 ? 'Continue' : 'Finish'),
               ),
-              isActive: _currentStep >= 4,
             ),
           ],
         ),
       ),
-      floatingActionButton: _currentStep == 5
-          ? FloatingActionButton.extended(
-              onPressed: _handleRegistration,
-              label: const Text('Complete Profile'),
-              icon: const Icon(Icons.check),
-              backgroundColor: _primaryColor,
-              elevation: 4,
+    );
+  }
+
+  Widget _headerTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  // Individual page builders
+  Widget _buildBasicInfoPage() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _headerTitle("Basics"),
+          TextFormField(
+            controller: _nameController,
+            decoration: _getInputDecoration('Full Name'),
+            style: const TextStyle(color: Colors.white),
+          ),
+          const SizedBox(height: 20),
+          TextFormField(
+            controller: _dobController,
+            readOnly: true,
+            onTap: () => _selectDate(context),
+            decoration: _getInputDecoration('Date of Birth').copyWith(
+              suffixIcon: Icon(
+                Icons.calendar_today,
+                color: _primaryColor,
+              ),
+            ),
+            style: const TextStyle(color: Colors.white),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _cardColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Gender',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _genderOptions.map((gender) {
+                    return ChoiceChip(
+                      label: Text(gender),
+                      selected: _selectedGender == gender,
+                      onSelected: (selected) {
+                        setState(
+                            () => _selectedGender = selected ? gender : '');
+                      },
+                      selectedColor: _chipSelectedColor,
+                      backgroundColor: _chipUnselectedColor,
+                      labelStyle: TextStyle(
+                        color: _selectedGender == gender
+                            ? Colors.white
+                            : Colors.grey[300],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          TextFormField(
+            controller: _emailController,
+            decoration: _getInputDecoration('Email'),
+            style: const TextStyle(color: Colors.white),
+            keyboardType: TextInputType.emailAddress,
+            validator: _validateEmail,
+          ),
+          const SizedBox(height: 20),
+          TextFormField(
+            controller: _passwordController,
+            decoration: _getInputDecoration('Password').copyWith(
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  color: _primaryColor,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _obscurePassword = !_obscurePassword;
+                  });
+                },
+              ),
+            ),
+            style: const TextStyle(color: Colors.white),
+            obscureText: _obscurePassword,
+            validator: _validatePassword,
+          ),
+          const SizedBox(height: 20),
+          TextFormField(
+            controller: _confirmPasswordController,
+            decoration: _getInputDecoration('Confirm Password').copyWith(
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscureConfirmPassword
+                      ? Icons.visibility_off
+                      : Icons.visibility,
+                  color: _primaryColor,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _obscureConfirmPassword = !_obscureConfirmPassword;
+                  });
+                },
+              ),
+            ),
+            style: const TextStyle(color: Colors.white),
+            obscureText: _obscureConfirmPassword,
+            validator: _validateConfirmPassword,
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _phoneController,
+                  decoration: _getInputDecoration('Phone Number'),
+                  style: const TextStyle(color: Colors.white),
+                  keyboardType: TextInputType.phone,
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8)),
+                onPressed: () {
+                  // Implement verification logic
+                },
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Verify'),
+                    SizedBox(width: 2),
+                    Icon(HugeIcons.strokeRoundedCheckmarkBadge01, size: 20)
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdditionalInfoPage() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _headerTitle("Additional Information"),
+
+          // About Me
+          TextFormField(
+            controller: _aboutController,
+            decoration: _getInputDecoration('About Me'),
+            style: const TextStyle(color: Colors.white),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 20),
+
+          // Height Selection
+          DropdownButtonFormField<String>(
+            value: selectedHeight,
+            items: heights.map((height) {
+              return DropdownMenuItem(
+                value: height,
+                child: Text(height),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                selectedHeight = value;
+              });
+            },
+            style: const TextStyle(color: Colors.white),
+            dropdownColor: _cardColor,
+            decoration: _getInputDecoration('Height'),
+          ),
+          const SizedBox(height: 20),
+
+          // Languages
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _cardColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Languages',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  children: languages.map((language) {
+                    return FilterChip(
+                      label: Text(language),
+                      selected: selectedLanguages.contains(language),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            selectedLanguages.add(language);
+                          } else {
+                            selectedLanguages.remove(language);
+                          }
+                        });
+                      },
+                      backgroundColor: _chipUnselectedColor,
+                      selectedColor: _chipSelectedColor,
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Profession
+          TextFormField(
+            controller: _professionController,
+            decoration: _getInputDecoration('Profession'),
+            style: const TextStyle(color: Colors.white),
+          ),
+          const SizedBox(height: 20),
+
+          // PAN Details
+          TextFormField(
+            controller: _panController,
+            decoration: _getInputDecoration('PAN Number (Optional)'),
+            style: const TextStyle(color: Colors.white),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () {
+              // Implement PAN photo upload logic
+            },
+            icon: const Icon(Icons.upload_file),
+            label: const Text('Upload PAN Photo (Optional)'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: BorderSide(color: Colors.grey[700]!),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotosPage() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: _cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade800),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_photo_alternate, size: 48, color: _primaryColor),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryColor,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  // Implement photo upload logic
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Add Photos'),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Add at least 2 photos',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLocationPage() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          if (_isLoadingLocation)
+            const Center(
+              child: CircularProgressIndicator(),
             )
-          : null,
+          else if (_locationError.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                _locationError,
+                style: const TextStyle(color: Colors.red),
+              ),
+            )
+          else ...[
+            TextFormField(
+              decoration: _getInputDecoration('Country'),
+              initialValue: _country,
+              readOnly: true,
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              decoration: _getInputDecoration('State'),
+              initialValue: _state,
+              readOnly: true,
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              decoration: _getInputDecoration('City'),
+              initialValue: _city,
+              readOnly: true,
+              style: const TextStyle(color: Colors.white),
+            ),
+          ],
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: _getCurrentLocation,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Refresh Location'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreferencesPage() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _cardColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Looking for',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _interestAreas.map((interest) {
+                return FilterChip(
+                  label: Text(interest),
+                  selected: _selectedInterests.contains(interest),
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        _selectedInterests.add(interest);
+                      } else {
+                        _selectedInterests.remove(interest);
+                      }
+                    });
+                  },
+                  selectedColor: _chipSelectedColor,
+                  checkmarkColor: Colors.white,
+                  backgroundColor: _chipUnselectedColor,
+                  labelStyle: TextStyle(
+                    color: _selectedInterests.contains(interest)
+                        ? Colors.white
+                        : Colors.grey[300],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEarningsPage() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _cardColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Set Your Earnings',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Define your charges for different services',
+              style: TextStyle(
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                showPriceBottomSheet(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text("Set Your Earnings"),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   @override
   void dispose() {
+    _pageController.dispose();
     _nameController.dispose();
     _dobController.dispose();
     super.dispose();

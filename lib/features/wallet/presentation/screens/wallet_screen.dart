@@ -161,7 +161,7 @@ class _WalletScreenState extends State<WalletScreen>
                         labelColor: AppColors.primaryColor,
                         unselectedLabelColor: Colors.grey,
                         tabs: const [
-                          Tab(text: 'All'),
+                          Tab(text: 'Transactions'),
                           Tab(text: 'Earnings'),
                           Tab(text: 'Refunds'),
                         ],

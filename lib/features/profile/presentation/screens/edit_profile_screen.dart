@@ -30,12 +30,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final List<String> languages = [
     'English',
     'Hindi',
-    'Spanish',
-    'French',
-    'German',
-    'Chinese',
-    'Japanese',
-    // Add more languages as needed
+    'Marathi',
+    'Punjabi',
+    'Gujarati',
+    'Tamil',
+    'Telugu',
+    'Bengali',
   ];
 
   Future<void> _pickImage(bool isProfile) async {

@@ -10,7 +10,9 @@ import 'package:iftook/features/activity/presentation/screens/activity_screen.da
 import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
 import 'package:iftook/features/profile/presentation/screens/availability_screen.dart';
 import 'package:iftook/features/profile/presentation/screens/edit_profile_screen.dart';
+import 'package:iftook/features/profile/presentation/screens/my_history_screen.dart';
 import 'package:iftook/features/profile/presentation/screens/promote_profile_screen.dart';
+import 'package:iftook/features/profile/presentation/screens/support_screen.dart';
 import 'package:iftook/features/profile/presentation/screens/view_reviews_screen.dart';
 import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
@@ -321,7 +323,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             [
               _buildProfileOption(
                 icon: Icons.live_tv,
-                title: 'Go Live',
+                title: 'Insta Talk',
                 onTap: () {},
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(
@@ -382,13 +384,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onTap: () {
                   Get.to(() => const AvailabilityScreen());
                 },
-                // trailing: Switch(
-                //     value: isAvailable,
-                //     onChanged: (value) {
-                //       setState(() {
-                //         isAvailable = !isAvailable;
-                //       });
-                //     }),
+              ),
+              _buildProfileOption(
+                icon: Icons.manage_history_outlined,
+                title: 'My History',
+                onTap: () {
+                  Get.to(() => const HistoryScreen());
+                },
               ),
             ],
           ),
@@ -405,7 +407,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               _buildProfileOption(
                 icon: Icons.payments_outlined,
-                title: 'My Charges',
+                title: 'My Earnings',
                 onTap: () {
                   showPriceBottomSheet(context);
                 },
@@ -419,7 +421,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildProfileOption(
                 icon: Icons.support_agent_outlined,
                 title: 'Support',
-                onTap: () {},
+                onTap: () {
+                  Get.to(() => SupportScreen());
+                },
                 iconColor: AppColors.greenColor,
               ),
               _buildProfileOption(

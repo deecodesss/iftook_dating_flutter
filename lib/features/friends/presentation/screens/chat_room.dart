@@ -10,11 +10,13 @@ class ChatMessage {
   final String text;
   final bool isSentByMe;
   final DateTime timestamp;
+  final double? amount; // Add amount field for payment messages
 
   ChatMessage({
     required this.text,
     required this.isSentByMe,
     required this.timestamp,
+    this.amount,
   });
 }
 
@@ -30,9 +32,129 @@ class ChatRoom extends StatefulWidget {
 
 class _ChatRoomState extends State<ChatRoom> {
   final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _amountController = TextEditingController();
   final List<ChatMessage> _messages = [];
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
+
+  static const double MESSAGE_FEE = 10; // Static fee per message in dollars
+
+  // Show payment popup for sending money
+  Future<void> _showSendMoneyDialog() async {
+    _amountController.clear();
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.secondaryBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Text(
+          'Send Money',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _amountController,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Enter amount',
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                prefixText: '₹ ',
+                prefixStyle: const TextStyle(color: Colors.white),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.primaryColor),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              final amount = double.tryParse(_amountController.text);
+              if (amount != null && amount > 0) {
+                _sendMoneyMessage(amount);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text(
+              'Send',
+              style: TextStyle(color: AppColors.primaryColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Show payment required popup for sending message
+  Future<bool> _showPaymentRequiredDialog() async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppColors.secondaryBackground,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Text(
+              'Payment Required',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: Text(
+              'To send this message, you need to pay \₹${MESSAGE_FEE.toStringAsFixed(2)}',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  'Pay & Send',
+                  style: TextStyle(color: AppColors.primaryColor),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  void _sendMoneyMessage(double amount) {
+    setState(() {
+      _messages.insert(
+        0,
+        ChatMessage(
+          text: "Sent \₹${amount.toStringAsFixed(2)}",
+          isSentByMe: true,
+          timestamp: DateTime.now(),
+          amount: amount,
+        ),
+      );
+    });
+  }
 
   @override
   void initState() {
@@ -342,6 +464,18 @@ class _ChatRoomState extends State<ChatRoom> {
                           onPressed: _sendMessage,
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.currency_rupee,
+                              color: Colors.white),
+                          onPressed: _showSendMoneyDialog,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -372,14 +506,20 @@ class _ChatRoomState extends State<ChatRoom> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: message.isSentByMe
-                    ? AppColors.primaryColor
-                    : AppColors.secondaryBackground,
+                color: message.amount != null
+                    ? Colors.green
+                    : (message.isSentByMe
+                        ? AppColors.primaryColor
+                        : AppColors.secondaryBackground),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (message.amount != null) ...[
+                    const Icon(Icons.check_circle, color: Colors.white),
+                    const SizedBox(height: 4),
+                  ],
                   Text(
                     message.text,
                     style: const TextStyle(
@@ -416,8 +556,12 @@ class _ChatRoomState extends State<ChatRoom> {
     );
   }
 
-  void _sendMessage() {
+  void _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
+
+    // Show payment required dialog
+    final paid = await _showPaymentRequiredDialog();
+    if (!paid) return;
 
     setState(() {
       _messages.insert(
@@ -452,6 +596,7 @@ class _ChatRoomState extends State<ChatRoom> {
   @override
   void dispose() {
     _messageController.dispose();
+    _amountController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
     super.dispose();

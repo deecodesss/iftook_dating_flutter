@@ -12,12 +12,14 @@ class Meeting {
   final String callType;
   final DateTime meetingTime;
   final bool isLiked;
+  final String charges;
 
   Meeting({
     required this.name,
     required this.imageUrl,
     required this.callType,
     required this.meetingTime,
+    required this.charges,
     this.isLiked = false,
   });
 
@@ -40,12 +42,14 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     Meeting(
       isLiked: true,
       name: 'Sarah Parker',
+      charges: "450",
       imageUrl: 'https://images.unsplash.com/photo-1535324492437-d8dea70a38a7',
       callType: 'Video Call',
       meetingTime: DateTime.now().add(const Duration(minutes: 30)),
     ),
     Meeting(
       name: 'John Doe',
+      charges: "300",
       imageUrl: 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43',
       callType: 'Voice Call',
       meetingTime: DateTime.now().subtract(const Duration(minutes: 15)),
@@ -245,6 +249,23 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                       ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '₹${meeting.charges}',
+                      style: TextStyle(
+                        color: AppColors.primaryColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -254,11 +275,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 _buildMeetingTimeIndicator(meeting.meetingTime),
                 const SizedBox(height: 8),
                 ElevatedButton(
-                  onPressed: meeting.hasStarted
-                      ? () {
-                          // Handle join
-                        }
-                      : null,
+                  onPressed: meeting.hasStarted ? () {} : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryColor,
                     foregroundColor: Colors.white,

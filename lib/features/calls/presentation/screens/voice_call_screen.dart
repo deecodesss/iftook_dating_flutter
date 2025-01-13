@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
 
 class VoiceCallScreen extends StatelessWidget {
   const VoiceCallScreen({Key? key}) : super(key: key);
@@ -55,7 +56,7 @@ class VoiceCallScreen extends StatelessWidget {
                 ),
                 _buildCallButton(
                   onTap: () {
-                    Get.back();
+                    Get.off(() => AddReviewScreen());
                   },
                   icon: Icons.call_end,
                   color: Colors.white,
