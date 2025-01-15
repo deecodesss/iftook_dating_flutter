@@ -323,7 +323,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             [
               _buildProfileOption(
                 icon: Icons.live_tv,
-                title: 'Insta Talk',
+                title: 'Go Live',
                 onTap: () {},
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(

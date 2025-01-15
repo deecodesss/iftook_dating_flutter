@@ -485,43 +485,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
             obscureText: _obscureConfirmPassword,
             validator: _validateConfirmPassword,
           ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _phoneController,
-                  decoration: _getInputDecoration('Phone Number'),
-                  style: const TextStyle(color: Colors.white),
-                  keyboardType: TextInputType.phone,
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8)),
-                onPressed: () {
-                  // Implement verification logic
-                },
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Verify'),
-                    SizedBox(width: 2),
-                    Icon(HugeIcons.strokeRoundedCheckmarkBadge01, size: 20)
-                  ],
-                ),
-              ),
-            ],
-          ),
+          // const SizedBox(height: 20),
+          // Row(
+          //   children: [
+          //     Expanded(
+          //       child: TextFormField(
+          //         controller: _phoneController,
+          //         decoration: _getInputDecoration('Phone Number'),
+          //         style: const TextStyle(color: Colors.white),
+          //         keyboardType: TextInputType.phone,
+          //       ),
+          //     ),
+          //     const SizedBox(width: 8),
+          //     ElevatedButton(
+          //       style: ElevatedButton.styleFrom(
+          //           backgroundColor: AppColors.primaryColor,
+          //           foregroundColor: Colors.white,
+          //           padding: const EdgeInsets.symmetric(
+          //               horizontal: 12, vertical: 8)),
+          //       onPressed: () {
+          //         // Implement verification logic
+          //       },
+          //       child: const Row(
+          //         mainAxisSize: MainAxisSize.min,
+          //         children: [
+          //           Text('Verify'),
+          //           SizedBox(width: 2),
+          //           Icon(HugeIcons.strokeRoundedCheckmarkBadge01, size: 20)
+          //         ],
+          //       ),
+          //     ),
+          //   ],
+          // ),
         ],
       ),
     );
   }
-
   Widget _buildAdditionalInfoPage() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -612,23 +611,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
           const SizedBox(height: 20),
 
           // PAN Details
-          TextFormField(
-            controller: _panController,
-            decoration: _getInputDecoration('PAN Number (Optional)'),
-            style: const TextStyle(color: Colors.white),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () {
-              // Implement PAN photo upload logic
-            },
-            icon: const Icon(Icons.upload_file),
-            label: const Text('Upload PAN Photo (Optional)'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: BorderSide(color: Colors.grey[700]!),
-            ),
-          ),
+          // TextFormField(
+          //   controller: _panController,
+          //   decoration: _getInputDecoration('PAN Number (Optional)'),
+          //   style: const TextStyle(color: Colors.white),
+          // ),
+          // const SizedBox(height: 8),
+          // OutlinedButton.icon(
+          //   onPressed: () {
+          //     // Implement PAN photo upload logic
+          //   },
+          //   icon: const Icon(Icons.upload_file),
+          //   label: const Text('Upload PAN Photo (Optional)'),
+          //   style: OutlinedButton.styleFrom(
+          //     foregroundColor: Colors.white,
+          //     side: BorderSide(color: Colors.grey[700]!),
+          //   ),
+          // ),
         ],
       ),
     );

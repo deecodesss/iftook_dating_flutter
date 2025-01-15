@@ -220,7 +220,7 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
                     fontWeight: FontWeight.w500,
                   ),
                   decoration: InputDecoration(
-                    labelText: 'Monthly Subscription',
+                    labelText: 'Live Streaming (Monthly Subscription)',
                     labelStyle: TextStyle(
                       color: Colors.grey[400],
                       fontSize: 16,
@@ -397,7 +397,7 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
                         case 'Video Call (30 min)':
                           controller.text = '450';
                           break;
-                        case 'Insta Talk (per min)':
+                        case 'Go Live (per min)':
                           controller.text = '5';
                           break;
                       }

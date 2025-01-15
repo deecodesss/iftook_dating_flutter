@@ -287,7 +287,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
           ),
           _buildActionButtonWithLabel(
             icon: HugeIcons.strokeRoundedVideo02,
-            label: 'Insta Talk',
+            label: 'Go Live',
             color: AppColors.primaryColor,
             backgroundColor: Colors.transparent,
             onPressed: () {},
@@ -751,7 +751,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     return Column(
       children: [
         const Text(
-          'Free Trial',
+          'Insta Talk',
           style: TextStyle(color: AppColors.primaryColor),
         ),
         DropdownButton<String>(

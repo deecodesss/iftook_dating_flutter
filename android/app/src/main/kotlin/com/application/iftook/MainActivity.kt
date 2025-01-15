@@ -1,4 +1,4 @@
-package com.example.iftook
+package com.application.iftook
 
 import io.flutter.embedding.android.FlutterActivity
 
