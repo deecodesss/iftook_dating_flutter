@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/features/home/presentation/screens/main_home_screen.dart';
 import 'package:iftook/features/home/presentation/screens/profile_swiper.dart';
+import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
 class UserProfileScreen extends StatefulWidget {
-  const UserProfileScreen({super.key});
+  final User profile;
+  const UserProfileScreen({super.key, required this.profile});
 
   @override
   State<UserProfileScreen> createState() => _UserProfileScreenState();
@@ -45,6 +47,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           date: "1 week ago"),
     ],
   );
+  int calculateAge(DateTime birthDate) {
+    final currentDate = DateTime.now();
+    int age = currentDate.year - birthDate.year;
+    final monthDiff = currentDate.month - birthDate.month;
+
+    if (monthDiff < 0 || (monthDiff == 0 && currentDate.day < birthDate.day)) {
+      age--;
+    }
+
+    return age;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +72,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          profile.name as String,
+          widget.profile.name as String,
           style: const TextStyle(color: Colors.white),
         ),
         elevation: 0,
@@ -72,7 +85,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             SizedBox(
               height: 500,
               child: TinderStyleProfileCard(
-                profile: profile,
+                profile: widget.profile,
                 isProfileScreen:
                     true, // New parameter to adjust UI for profile screen
               ),
@@ -87,7 +100,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${profile.name}, ${profile.age}',
+                        '${widget.profile.name}, ${calculateAge(DateTime.parse(widget.profile.dob.toString()))}',
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -126,7 +139,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    profile.description as String,
+                    widget.profile.about as String,
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey[300],

@@ -1,124 +1,114 @@
-import 'dart:math';
-
-import 'package:camera/camera.dart';
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:get/get.dart';
-import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class VideoCallScreen extends StatefulWidget {
-  const VideoCallScreen({Key? key}) : super(key: key);
+  final String meetingId;
+  final String token;
+  final String channel;
+  const VideoCallScreen(
+      {Key? key,
+      required this.meetingId,
+      required this.token,
+      required this.channel})
+      : super(key: key);
 
   @override
   State<VideoCallScreen> createState() => _VideoCallScreenState();
 }
 
 class _VideoCallScreenState extends State<VideoCallScreen> {
-  CameraController? _cameraController;
-  bool _isCameraInitialized = false;
-  bool _isFrontCamera = true;
+  int? _remoteUid; // Stores remote user ID
   bool _isMuted = false;
   bool _isVideoEnabled = true;
-  Offset _pipPosition = const Offset(20, 20);
+  bool _localUserJoined =
+      false; // Indicates if local user has joined the channel
+  late RtcEngine _engine;
 
+  // Agora credentials
+  final String appId = "5da40b914dcf4a089e8bbee75a926178";
   @override
   void initState() {
     super.initState();
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
-    _requestPermissions();
+    _initAgora();
   }
 
+  // Initialize Agora SDK
+  Future<void> _initAgora() async {
+    try {
+      await _requestPermissions();
+      _engine = createAgoraRtcEngine();
+      await _engine.initialize(RtcEngineContext(appId: appId));
+
+      await _engine.enableVideo();
+      _setupEventHandlers();
+      debugPrint(
+          "Joining channel: ${widget.channel} with token: ${widget.token}");
+
+      // Join the channel
+      await _engine.joinChannel(
+        token: widget.token,
+        channelId: widget.channel,
+        uid: 0,
+        options: const ChannelMediaOptions(
+          autoSubscribeVideo: true,
+          autoSubscribeAudio: true,
+          publishCameraTrack: true,
+          publishMicrophoneTrack: true,
+          clientRoleType: ClientRoleType.clientRoleBroadcaster,
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        // _isLoading = false;
+        // _errorMessage = "Failed to initialize Agora SDK: ${e.toString()}";
+        print("error in agora: $e");
+      });
+    }
+  }
+
+  // Set up event handlers for Agora RTC
+  void _setupEventHandlers() {
+    _engine.registerEventHandler(
+      RtcEngineEventHandler(
+        onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
+          debugPrint("Local user ${connection.localUid} joined");
+          setState(() => _localUserJoined = true);
+        },
+        onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
+          debugPrint("Remote user $remoteUid joined");
+          setState(() => _remoteUid = remoteUid);
+        },
+        onUserOffline: (RtcConnection connection, int remoteUid,
+            UserOfflineReasonType reason) {
+          debugPrint("Remote user $remoteUid left");
+          setState(() => _remoteUid = null);
+        },
+      ),
+    );
+  }
+
+  // Request camera and microphone permissions
   Future<void> _requestPermissions() async {
     final cameraStatus = await Permission.camera.request();
     final micStatus = await Permission.microphone.request();
 
-    if (cameraStatus.isGranted && micStatus.isGranted) {
-      _initializeCamera();
-    } else {
+    if (!cameraStatus.isGranted || !micStatus.isGranted) {
       _showPermissionDeniedDialog();
     }
   }
 
-  Future<void> _initializeCamera() async {
-    final cameras = await availableCameras();
-    final frontCamera = cameras.firstWhere(
-      (camera) => camera.lensDirection == CameraLensDirection.front,
-      orElse: () => cameras.first,
-    );
-
-    _cameraController = CameraController(
-      frontCamera,
-      ResolutionPreset.max,
-      enableAudio: true,
-    );
-
-    try {
-      await _cameraController!.initialize();
-      if (mounted) {
-        setState(() {
-          _isCameraInitialized = true;
-        });
-      }
-    } catch (e) {
-      print('Error initializing camera: $e');
-    }
-  }
-
-  Future<void> _switchCamera() async {
-    final cameras = await availableCameras();
-    final newCameraLensDirection =
-        _isFrontCamera ? CameraLensDirection.back : CameraLensDirection.front;
-
-    final newCamera = cameras.firstWhere(
-      (camera) => camera.lensDirection == newCameraLensDirection,
-      orElse: () => cameras.first,
-    );
-
-    if (_cameraController != null) {
-      await _cameraController!.dispose();
-    }
-
-    _cameraController = CameraController(
-      newCamera,
-      ResolutionPreset.max,
-      enableAudio: true,
-    );
-
-    try {
-      await _cameraController!.initialize();
-      if (mounted) {
-        setState(() {
-          _isFrontCamera = !_isFrontCamera;
-        });
-      }
-    } catch (e) {
-      print('Error switching camera: $e');
-    }
-  }
-
+  // Show a dialog if permissions are denied
   void _showPermissionDeniedDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: Colors.grey[900],
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          title: const Text(
-            'Permissions Required',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
+          title: const Text('Permissions Required'),
           content: const Text(
-            'Camera and microphone permissions are required for video calls. '
-            'Please enable them in your device settings.',
-            style: TextStyle(color: Colors.white70),
-          ),
+              'Camera and microphone permissions are required for video calls. '
+              'Please enable them in your device settings.'),
           actions: [
             TextButton(
               child: const Text('Open Settings'),
@@ -140,211 +130,121 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setPreferredOrientations([]);
-    _cameraController?.dispose();
-    super.dispose();
+  // Toggle microphone mute
+  void _toggleMute() {
+    setState(() {
+      _isMuted = !_isMuted;
+    });
+    _engine.muteLocalAudioStream(_isMuted);
+  }
+
+  // Toggle video stream
+  void _toggleVideo() {
+    setState(() {
+      _isVideoEnabled = !_isVideoEnabled;
+    });
+    _engine.muteLocalVideoStream(!_isVideoEnabled);
+  }
+
+  // Switch between front and back cameras
+  void _switchCamera() {
+    _engine.switchCamera();
+  }
+
+  // Leave the channel and release resources
+  Future<void> _leaveChannel() async {
+    await _engine.leaveChannel();
+    await _engine.release();
+  }
+
+  // End the call and navigate back
+  void _endCall() {
+    _leaveChannel();
+    Navigator.pop(context);
   }
 
   @override
+  void dispose() {
+    _leaveChannel();
+    super.dispose();
+  }
+
+  // Build the UI
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      appBar: AppBar(title: const Text('Agora Video Call')),
       body: Stack(
-        fit: StackFit.expand,
         children: [
-          // Receiver's video (full screen)
-          Container(
-            color: Colors.black,
-            child: Image.network(
-              'https://images.unsplash.com/photo-1524504388940-b1c1722653e1',
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  color: Colors.grey[900],
-                  child: const Center(
-                    child: Icon(
-                      Icons.person,
-                      size: 100,
-                      color: Colors.white54,
+          // Remote video
+          Center(
+            child: _remoteUid != null
+                ? AgoraVideoView(
+                    controller: VideoViewController.remote(
+                      rtcEngine: _engine,
+                      canvas: VideoCanvas(uid: _remoteUid),
+                      connection: RtcConnection(channelId: widget.channel),
                     ),
-                  ),
-                );
-              },
-            ),
+                  )
+                : const Text('Waiting for remote user to join...'),
           ),
-
-          // Draggable PIP for local camera
-          if (_isCameraInitialized && _isVideoEnabled)
-            Positioned(
-              right: _pipPosition.dx,
-              top: _pipPosition.dy,
-              child: GestureDetector(
-                onPanUpdate: (details) {
-                  setState(() {
-                    _pipPosition += details.delta;
-                  });
-                },
-                child: Container(
-                  width: 140,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white, width: 1),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
-                        blurRadius: 10,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Transform(
-                      alignment: Alignment.center,
-                      transform: Matrix4.identity()
-                        ..rotateY(_isFrontCamera
-                            ? pi
-                            : 0), // Flip horizontally for front camera
-                      child: AspectRatio(
-                        aspectRatio: _cameraController!.value.aspectRatio,
-                        child: CameraPreview(_cameraController!),
-                      ),
-                    ),
-                  ),
-                ),
+          // Local video (only shown if video is enabled)
+          if (_isVideoEnabled)
+            Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 100,
+                height: 150,
+                child: _localUserJoined
+                    ? AgoraVideoView(
+                        controller: VideoViewController(
+                          rtcEngine: _engine,
+                          canvas: const VideoCanvas(uid: 0),
+                        ),
+                      )
+                    : const CircularProgressIndicator(),
               ),
             ),
-
-          // Gradient overlay for better text visibility
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.center,
-                colors: [
-                  Colors.black.withOpacity(0.7),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-
-          // Call information
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Sarah Parker',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              shadows: [
-                                Shadow(
-                                  offset: Offset(0, 1),
-                                  blurRadius: 3,
-                                  color: Colors.black45,
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Video Call • 00:00',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white70,
-                              shadows: [
-                                Shadow(
-                                  offset: Offset(0, 1),
-                                  blurRadius: 3,
-                                  color: Colors.black45,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
           // Call controls
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.8),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildCallButton(
-                        icon: _isMuted ? Icons.mic_off : Icons.mic,
-                        color: Colors.white,
-                        backgroundColor:
-                            _isMuted ? Colors.red : Colors.grey[800]!,
-                        onPressed: () => setState(() => _isMuted = !_isMuted),
-                      ),
-                      _buildCallButton(
-                        icon: _isVideoEnabled
-                            ? Icons.videocam
-                            : Icons.videocam_off,
-                        color: Colors.white,
-                        backgroundColor:
-                            _isVideoEnabled ? Colors.grey[800]! : Colors.red,
-                        onPressed: () =>
-                            setState(() => _isVideoEnabled = !_isVideoEnabled),
-                      ),
-                      _buildCallButton(
-                        icon: Icons.call_end,
-                        color: Colors.white,
-                        backgroundColor: Colors.red,
-                        size: 65,
-                        onPressed: () => Get.off(() => AddReviewScreen()),
-                      ),
-                      _buildCallButton(
-                        icon: Icons.flip_camera_ios,
-                        color: Colors.white,
-                        backgroundColor: Colors.grey[800]!,
-                        onPressed: _switchCamera,
-                      ),
-                      _buildCallButton(
-                        icon: Icons.volume_up,
-                        color: Colors.white,
-                        backgroundColor: Colors.grey[800]!,
-                        onPressed: () {},
-                      ),
-                    ],
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Mute button
+                  _buildCallButton(
+                    icon: _isMuted ? Icons.mic_off : Icons.mic,
+                    color: Colors.white,
+                    backgroundColor: _isMuted ? Colors.red : Colors.blue,
+                    onPressed: _toggleMute,
                   ),
-                ),
+                  const SizedBox(width: 20),
+                  // Video toggle button
+                  _buildCallButton(
+                    icon: _isVideoEnabled ? Icons.videocam : Icons.videocam_off,
+                    color: Colors.white,
+                    backgroundColor: _isVideoEnabled ? Colors.blue : Colors.red,
+                    onPressed: _toggleVideo,
+                  ),
+                  const SizedBox(width: 20),
+                  // Switch camera button
+                  _buildCallButton(
+                    icon: Icons.cameraswitch,
+                    color: Colors.white,
+                    backgroundColor: Colors.blue,
+                    onPressed: _switchCamera,
+                  ),
+                  const SizedBox(width: 20),
+                  // End call button
+                  _buildCallButton(
+                    icon: Icons.call_end,
+                    color: Colors.white,
+                    backgroundColor: Colors.red,
+                    onPressed: _endCall,
+                  ),
+                ],
               ),
             ),
           ),
@@ -353,6 +253,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     );
   }
 
+  // Helper method to build call control buttons
   Widget _buildCallButton({
     required IconData icon,
     required Color color,
@@ -370,17 +271,12 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
           color: backgroundColor,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 10,
-              spreadRadius: 2,
-            ),
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 10,
+                spreadRadius: 2),
           ],
         ),
-        child: Icon(
-          icon,
-          color: color,
-          size: size * 0.5,
-        ),
+        child: Icon(icon, color: color, size: size * 0.5),
       ),
     );
   }

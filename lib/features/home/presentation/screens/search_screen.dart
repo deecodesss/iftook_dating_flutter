@@ -1,282 +1,393 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:iftook/features/home/controllers/search_controller.dart';
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
+import 'package:iftook/helpers/app_colors.dart';
 
-import 'main_home_screen.dart';
+import '../../../profile/data/models/user.dart';
 
-class SearchScreen extends StatefulWidget {
-  const SearchScreen({Key? key}) : super(key: key);
+class SearchScreen extends StatelessWidget {
+  final SearchControllerCustom _searchController =
+      Get.put(SearchControllerCustom());
+  final TextEditingController _textController = TextEditingController();
 
-  @override
-  State<SearchScreen> createState() => _SearchScreenState();
-}
-
-class _SearchScreenState extends State<SearchScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  final List<UserProfile> _searchResults = [];
-  final List<String> _recentSearches = [];
-  final List<UserProfile> _profiles = [
-    UserProfile(
-        name: 'Priya Sharma',
-        age: 25,
-        description:
-            'Tech enthusiast and yoga instructor. Love exploring new cafes and reading science fiction.',
-        imageUrls: [
-          'https://images.unsplash.com/photo-1494790108377-be9c29b29330',
-          'https://images.unsplash.com/photo-1524504388940-b1c1722653e1',
-          'https://images.unsplash.com/photo-1517841905240-472988babdf9'
-        ],
-        location: 'Mumbai',
-        profession: 'Software Engineer',
-        rating: 4.8,
-        reviewCount: 156,
-        likes: 3200,
-        dislikes: 45,
-        reviews: [
-          Review(
-              name: "Rahul M.",
-              comment: "Great conversation about tech and startups!",
-              rating: 5.0,
-              date: "2 days ago"),
-          Review(
-              name: "Anjali K.",
-              comment: "Very knowledgeable and friendly",
-              rating: 4.5,
-              date: "1 week ago")
-        ]),
-    UserProfile(
-        name: 'Aditya Patel',
-        age: 28,
-        description:
-            'Startup founder by day, musician by night. Looking for someone who shares my passion for innovation and art.',
-        imageUrls: [
-          'https://images.unsplash.com/photo-1500648767791-00dcc994a43e',
-          'https://images.unsplash.com/photo-1568602471122-7832951cc4c5',
-          'https://images.unsplash.com/photo-1564564321837-a57b7070ac4f'
-        ],
-        location: 'Bangalore',
-        profession: 'Entrepreneur',
-        rating: 4.6,
-        reviewCount: 142,
-        likes: 2800,
-        dislikes: 32,
-        reviews: [
-          Review(
-              name: "Sneha R.",
-              comment: "Inspiring conversations about business and music",
-              rating: 4.5,
-              date: "3 days ago")
-        ]),
-    UserProfile(
-      name: 'Zara Khan',
-      age: 24,
-      description:
-          'Fashion blogger and digital content creator. Always hunting for the perfect shot and the perfect cup of coffee.',
-      imageUrls: [
-        'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43',
-        'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e',
-        'https://images.unsplash.com/photo-1535324492437-d8dea70a38a7'
-      ],
-      location: 'Delhi',
-      profession: 'Content Creator',
-      rating: 4.9,
-      reviewCount: 198,
-      likes: 4500,
-      dislikes: 28,
-    ),
-    UserProfile(
-      name: 'Vikram Singh',
-      age: 30,
-      description:
-          'Chef and food photographer. Believer in sustainable cooking and farm-to-table philosophy.',
-      imageUrls: [
-        'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d',
-        'https://images.unsplash.com/photo-1480429370139-e0132c086e2a',
-        'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce'
-      ],
-      location: 'Pune',
-      profession: 'Chef',
-      rating: 4.7,
-      reviewCount: 165,
-      likes: 2900,
-      dislikes: 34,
-    ),
-    UserProfile(
-      name: 'Anjali Desai',
-      age: 26,
-      description:
-          'Environmental lawyer fighting for climate justice. Avid trekker and amateur astronomer.',
-      imageUrls: [
-        'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04',
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb',
-        'https://images.unsplash.com/photo-1526510747491-58f928ec870f'
-      ],
-      location: 'Chennai',
-      profession: 'Lawyer',
-      rating: 4.4,
-      reviewCount: 112,
-      likes: 1900,
-      dislikes: 41,
-    ),
-    UserProfile(
-      name: 'Arjun Menon',
-      age: 29,
-      description:
-          'Product designer with a passion for minimalism. Part-time surfer and full-time dog parent.',
-      imageUrls: [
-        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d',
-        'https://images.unsplash.com/photo-1506277886164-e25aa3f4ef7f',
-        'https://images.unsplash.com/photo-1492446845049-9c50cc313f00'
-      ],
-      location: 'Goa',
-      profession: 'Product Designer',
-      rating: 4.3,
-      reviewCount: 134,
-      likes: 2100,
-      dislikes: 38,
-    ),
-    UserProfile(
-      name: 'Maya Reddy',
-      age: 27,
-      description:
-          'Classical dancer and dance therapist. Believe in the healing power of movement and expression.',
-      imageUrls: [
-        'https://images.unsplash.com/photo-1534751516642-a1af1ef26a56',
-        'https://images.unsplash.com/photo-1524502397800-2eeaad7c3fe5',
-        'https://images.unsplash.com/photo-1526510747491-58f928ec870f'
-      ],
-      location: 'Hyderabad',
-      profession: 'Dance Therapist',
-      rating: 4.8,
-      reviewCount: 178,
-      likes: 3100,
-      dislikes: 25,
-    ),
-    UserProfile(
-      name: 'Kabir Bhat',
-      age: 31,
-      description:
-          'Travel photographer documenting cultures around India. Always ready for the next adventure.',
-      imageUrls: [
-        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e',
-        'https://images.unsplash.com/photo-1506277886164-e25aa3f4ef7f',
-        'https://images.unsplash.com/photo-1492446845049-9c50cc313f00'
-      ],
-      location: 'Kolkata',
-      profession: 'Photographer',
-      rating: 4.6,
-      reviewCount: 145,
-      likes: 2600,
-      dislikes: 29,
-    ),
-  ];
-  void _performSearch(String query) {
-    // Mock search functionality - replace with actual implementation
-    setState(() {
-      _searchResults.clear();
-      if (query.isNotEmpty) {
-        _searchResults.addAll(_profiles.where((profile) =>
-            profile.name.toLowerCase().contains(query.toLowerCase()) ||
-            profile.profession.toLowerCase().contains(query.toLowerCase()) ||
-            profile.location.toLowerCase().contains(query.toLowerCase())));
-      }
-    });
-  }
+  SearchScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: const Color(0xFF121212),
         elevation: 0,
-        title: TextField(
-          controller: _searchController,
-          autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'Search users...',
-            hintStyle: TextStyle(color: Colors.grey[400]),
-            border: InputBorder.none,
-            prefixIcon:
-                Icon(HugeIcons.strokeRoundedSearch01, color: Colors.grey[400]),
-            suffixIcon: IconButton(
-              icon: Icon(Icons.clear, color: Colors.grey[400]),
-              onPressed: () {
-                _searchController.clear();
-                _performSearch('');
-              },
-            ),
-          ),
-          onChanged: _performSearch,
-        ),
+        title: Text('Search'),
       ),
-      body: Column(
+      body: Obx(() => AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: Column(
+              children: [
+                _buildSearchField(),
+                Expanded(child: _buildBody()),
+              ],
+            ),
+          )),
+    );
+  }
+
+  int calculateAge(DateTime birthDate) {
+    final currentDate = DateTime.now();
+    int age = currentDate.year - birthDate.year;
+    final monthDiff = currentDate.month - birthDate.month;
+
+    if (monthDiff < 0 || (monthDiff == 0 && currentDate.day < birthDate.day)) {
+      age--;
+    }
+
+    return age;
+  }
+
+  Widget _buildSearchField() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Obx(() => TextField(
+            controller: _textController,
+            autofocus: true,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Search users...',
+              hintStyle: TextStyle(color: Colors.grey[400]),
+              border: InputBorder.none,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              prefixIcon: Icon(HugeIcons.strokeRoundedSearch01,
+                  color: Colors.grey[400]),
+              suffixIcon: _searchController.searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, color: Colors.grey),
+                      onPressed: () {
+                        _searchController.clearSearch();
+                        FocusManager.instance.primaryFocus?.unfocus();
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (query) {
+              _searchController.searchQuery.value = query;
+              _searchController.performSearch(query);
+            },
+          )),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_searchController.isLoading.value) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Searching...',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_searchController.errorMessage.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
+            const SizedBox(height: 16),
+            Text(
+              _searchController.errorMessage.value,
+              style: TextStyle(color: Colors.red[400]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => _searchController
+                  .performSearch(_searchController.searchQuery.value),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _searchController.searchQuery.isEmpty
+        ? _buildRecentSearches()
+        : _buildSearchResults();
+  }
+
+  Widget _buildRecentSearches() {
+    return AnimationLimiter(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_searchController.text.isEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'Recent Searches',
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            ListView.builder(
-              shrinkWrap: true,
-              itemCount: _recentSearches.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  leading: Icon(Icons.history, color: Colors.grey[400]),
-                  title: Text(
-                    _recentSearches[index],
-                    style: const TextStyle(color: Colors.white),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Recent Searches',
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
-                  onTap: () {
-                    _searchController.text = _recentSearches[index];
-                    _performSearch(_recentSearches[index]);
-                  },
-                );
-              },
+                ),
+                if (_searchController.recentSearches.isNotEmpty)
+                  TextButton(
+                    onPressed: () => _searchController.clearRecentSearches(),
+                    child: const Text(
+                      'Clear All',
+                      style: TextStyle(color: Colors.purple),
+                    ),
+                  ),
+              ],
             ),
-          ] else
-            Expanded(
-              child: ListView.builder(
-                itemCount: _searchResults.length,
-                itemBuilder: (context, index) {
-                  final profile = _searchResults[index];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage: NetworkImage(profile.imageUrls[0]),
+          ),
+          Expanded(
+            child: _searchController.recentSearches.isEmpty
+                ? Center(
+                    child: Text(
+                      'No recent searches',
+                      style: TextStyle(color: Colors.grey[600]),
                     ),
-                    title: Text(
-                      '${profile.name}, ${profile.age}',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle: Text(
-                      '${profile.profession} • ${profile.location}',
-                      style: TextStyle(color: Colors.grey[400]),
-                    ),
-                    onTap: () {
-                      Get.to(() => UserProfileScreen());
+                  )
+                : ListView.builder(
+                    itemCount: _searchController.recentSearches.length,
+                    itemBuilder: (context, index) {
+                      return AnimationConfiguration.staggeredList(
+                        position: index,
+                        duration: const Duration(milliseconds: 375),
+                        child: SlideAnimation(
+                          verticalOffset: 50.0,
+                          child: FadeInAnimation(
+                            child: _buildRecentSearchTile(index),
+                          ),
+                        ),
+                      );
                     },
-                  );
-                },
-              ),
-            ),
+                  ),
+          ),
         ],
       ),
     );
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  Widget _buildRecentSearchTile(int index) {
+    return Dismissible(
+      key: Key(_searchController.recentSearches[index]),
+      background: Container(
+        color: Colors.red,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 16),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      onDismissed: (direction) {
+        // _searchController.removeRecentSearch(index);
+      },
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.purple.withOpacity(0.2),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.history, color: Colors.purple[300]),
+        ),
+        title: Text(
+          _searchController.recentSearches[index],
+          style: const TextStyle(color: Colors.white),
+        ),
+        onTap: () {
+          _searchController.searchQuery.value =
+              _searchController.recentSearches[index];
+          _searchController
+              .performSearch(_searchController.recentSearches[index]);
+        },
+      ),
+    );
+  }
+
+  Widget _buildSearchResults() {
+    return AnimationLimiter(
+      child: ListView.builder(
+        itemCount: _searchController.searchResults.length,
+        itemBuilder: (context, index) {
+          return AnimationConfiguration.staggeredList(
+            position: index,
+            duration: const Duration(milliseconds: 375),
+            child: SlideAnimation(
+              verticalOffset: 50.0,
+              child: FadeInAnimation(
+                child: _buildUserProfileTile(
+                    _searchController.searchResults[index]),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildUserProfileTile(User profile) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.grey[900],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: () => Get.to(() => UserProfileScreen(
+              profile: profile,
+            )),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Hero(
+                    tag: 'profile-${profile.sId}',
+                    child: CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Colors.purple.withOpacity(0.2),
+                      child:
+                          profile.photos != null && profile.photos!.isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(30),
+                                  child: Container(
+                                    width: 60, // Set the desired width
+                                    height: 60, //
+                                    child: CachedNetworkImage(
+                                      imageUrl: profile.photos![0],
+                                      placeholder: (context, url) =>
+                                          const CircularProgressIndicator(),
+                                      errorWidget: (context, url, error) =>
+                                          const Icon(Icons.person),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                )
+                              : const Icon(Icons.person, color: Colors.purple),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${profile.name}, ${calculateAge(DateTime.parse(profile.dob.toString()))}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${profile.profession} • ${profile.location!.city}',
+                          style: TextStyle(color: Colors.grey[400]),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: Colors.grey[600]),
+                ],
+              ),
+              if (profile.isFriend == true)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        "In your circle",
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    InkWell(
+                      onTap: () {
+                        // Add friend functionality here
+                        _searchController.addFriend(profile.sId.toString());
+                      },
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryColor.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(
+                              Icons.person_add_rounded,
+                              color: AppColors.primaryColor,
+                              size: 18,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              "Add Friend",
+                              style: TextStyle(
+                                color: AppColors.primaryColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

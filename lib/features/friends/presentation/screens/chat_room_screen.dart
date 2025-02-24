@@ -1,43 +1,70 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
-import 'package:iftook/features/calls/presentation/screens/voice_call_screen.dart';
+import 'package:iftook/core/services/shared_prefs.dart';
+import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
+import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
+import 'package:iftook/features/friends/data/message.dart';
+import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
+import 'package:intl/intl.dart';
 
-import 'friends_list_screen.dart';
+import '../../controllers/chat_controller.dart';
 
-class ChatMessage {
-  final String text;
-  final bool isSentByMe;
-  final DateTime timestamp;
-  final double? amount; // Add amount field for payment messages
-
-  ChatMessage({
-    required this.text,
-    required this.isSentByMe,
-    required this.timestamp,
-    this.amount,
-  });
-}
-
-class ChatRoom extends StatefulWidget {
-  final UserProfile profile;
+class ChatRoomScreen extends StatefulWidget {
+  final User profile;
   final bool isTrial;
 
-  const ChatRoom({super.key, required this.profile, this.isTrial = false});
+  const ChatRoomScreen(
+      {super.key, required this.profile, this.isTrial = false});
 
   @override
-  State<ChatRoom> createState() => _ChatRoomState();
+  State<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
 
-class _ChatRoomState extends State<ChatRoom> {
+class _ChatRoomScreenState extends State<ChatRoomScreen> {
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
-  final List<ChatMessage> _messages = [];
-  final ScrollController _scrollController = ScrollController();
+  // final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
-
+  final ChatController _chatController = Get.put(ChatController());
+  String? currentUserId;
   static const double MESSAGE_FEE = 10; // Static fee per message in dollars
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeChatRoom();
+    _focusNode.addListener(_onFocusChange);
+    _chatController.messages.listen((_) => _chatController.scrollToBottom());
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      Future.delayed(
+          const Duration(milliseconds: 300), _chatController.scrollToBottom());
+    }
+  }
+
+  Future<void> _initializeChatRoom() async {
+    currentUserId = await SharedPrefs.getUserIdSharedPreference();
+    if (currentUserId != null) {
+      await _chatController.openChatRoom(
+          currentUserId.toString(), widget.profile.sId.toString());
+    } else {
+      // Get.snackbar('Error', 'User ID not found');
+    }
+  }
+
+  @override
+  void dispose() {
+    _chatController.stopPolling();
+    _messageController.dispose();
+    _amountController.dispose();
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   // Show payment popup for sending money
   Future<void> _showSendMoneyDialog() async {
@@ -70,9 +97,9 @@ class _ChatRoomState extends State<ChatRoom> {
                   borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.primaryColor),
-                ),
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide:
+                        const BorderSide(color: AppColors.primaryColor)),
               ),
             ),
           ],
@@ -143,36 +170,10 @@ class _ChatRoomState extends State<ChatRoom> {
   }
 
   void _sendMoneyMessage(double amount) {
-    setState(() {
-      _messages.insert(
-        0,
-        ChatMessage(
-          text: "Sent \₹${amount.toStringAsFixed(2)}",
-          isSentByMe: true,
-          timestamp: DateTime.now(),
-          amount: amount,
-        ),
-      );
-    });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode.addListener(() {
-      if (_focusNode.hasFocus) {
-        // Scroll to bottom when keyboard appears
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (_scrollController.hasClients) {
-            _scrollController.animateTo(
-              0.0,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
-          }
-        });
-      }
-    });
+    _chatController.sendMessage(
+        currentUserId.toString(),
+        _chatController.chatRoom.value!.sId.toString(),
+        "Sent \₹${amount.toStringAsFixed(2)}");
   }
 
   void _showUnfriendDialog() {
@@ -299,8 +300,7 @@ class _ChatRoomState extends State<ChatRoom> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => FocusScope.of(context)
-          .unfocus(), // Dismiss keyboard when tapping outside
+      onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         backgroundColor: AppColors.primaryBackground,
         appBar: AppBar(
@@ -309,7 +309,7 @@ class _ChatRoomState extends State<ChatRoom> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () {
-              FocusScope.of(context).unfocus(); // Hide keyboard before pop
+              FocusScope.of(context).unfocus();
               Navigator.pop(context);
             },
           ),
@@ -318,15 +318,22 @@ class _ChatRoomState extends State<ChatRoom> {
               Stack(
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Image.network(
-                      widget.profile.imageUrl,
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.cover,
-                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    child: widget.profile.photos != null &&
+                            widget.profile.photos!.isNotEmpty
+                        ? ClipOval(
+                            child: Image.network(
+                              widget.profile.photos![0],
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : CircleAvatar(
+                            radius: 25,
+                          ),
                   ),
-                  if (widget.profile.isOnline)
+                  if (widget.profile.isOnline == true)
                     Positioned(
                       right: 0,
                       bottom: 0,
@@ -351,7 +358,7 @@ class _ChatRoomState extends State<ChatRoom> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.profile.name,
+                      widget.profile.name.toString(),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -359,9 +366,9 @@ class _ChatRoomState extends State<ChatRoom> {
                       ),
                     ),
                     Text(
-                      widget.profile.isOnline ? 'Online' : 'Offline',
+                      widget.profile.isOnline == true ? 'Online' : 'Offline',
                       style: TextStyle(
-                        color: widget.profile.isOnline
+                        color: widget.profile.isOnline == true
                             ? Colors.green
                             : Colors.white.withOpacity(0.6),
                         fontSize: 12,
@@ -376,7 +383,11 @@ class _ChatRoomState extends State<ChatRoom> {
             _buildActionButton(
               icon: Icons.videocam,
               onPressed: () {
-                Get.to(() => const VideoCallScreen());
+                Get.to(() => VideoCallLoadingScreen(
+                      participant: widget.profile,
+                      scheduleTime: DateTime.now(),
+                      type: "video",
+                    ));
               },
               label: 'Video Call',
               color: AppColors.primaryColor,
@@ -384,7 +395,11 @@ class _ChatRoomState extends State<ChatRoom> {
             _buildActionButton(
               icon: Icons.call,
               onPressed: () {
-                Get.to(() => const VoiceCallScreen());
+                Get.to(() => VoiceCallLoadingScreen(
+                      participant: widget.profile,
+                      scheduleTime: DateTime.now(),
+                      type: "voice",
+                    ));
               },
               label: 'Voice Call',
               color: AppColors.greenColor,
@@ -407,14 +422,19 @@ class _ChatRoomState extends State<ChatRoom> {
                 ),
               ),
               Expanded(
-                child: ListView.builder(
-                  reverse: true,
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  itemCount: _messages.length,
-                  itemBuilder: (context, index) =>
-                      _buildMessageBubble(_messages[index]),
-                ),
+                child: Obx(() {
+                  if (_chatController.isLoading.value) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else {
+                    return ListView.builder(
+                      controller: _chatController.scrollController,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      itemCount: _chatController.messages.length,
+                      itemBuilder: (context, index) =>
+                          _buildMessageBubble(_chatController.messages[index]),
+                    );
+                  }
+                }),
               ),
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -461,7 +481,18 @@ class _ChatRoomState extends State<ChatRoom> {
                         ),
                         child: IconButton(
                           icon: const Icon(Icons.send, color: Colors.white),
-                          onPressed: _sendMessage,
+                          onPressed: () {
+                            _chatController.sendMessage(
+                                currentUserId.toString(),
+                                _chatController.chatRoom.value!.sId.toString(),
+                                _messageController.text);
+                            _messageController.clear();
+                            _chatController.messages.listen(
+                                (_) => _chatController.scrollToBottom());
+
+                            FocusScope.of(context)
+                                .unfocus(); // Close the keyboard
+                          },
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -487,41 +518,55 @@ class _ChatRoomState extends State<ChatRoom> {
     );
   }
 
-  Widget _buildMessageBubble(ChatMessage message) {
+  Widget _buildMessageBubble(Message message) {
+    bool isSentByMe = message.senderId!.sId.toString() == currentUserId;
+
+    // Format the createdAt timestamp
+    String formattedTime = DateFormat('hh:mm a')
+        .format(DateTime.parse(message.createdAt.toString()).toLocal());
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
-        mainAxisAlignment: message.isSentByMe
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isSentByMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
-          if (!message.isSentByMe) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundImage: NetworkImage(widget.profile.imageUrl),
-            ),
+          if (!isSentByMe) ...[
+            widget.profile.photos != null && widget.profile.photos!.isNotEmpty
+                ? ClipOval(
+                    // borderRadius: BorderRadius.circular(30),
+                    child: Container(
+                      width: 60, // Set the desired width
+                      height: 60, // Set the desired height
+                      child: CachedNetworkImage(
+                        imageUrl: widget.profile.photos![0],
+                        placeholder: (context, url) =>
+                            const CircularProgressIndicator(),
+                        errorWidget: (context, url, error) =>
+                            const Icon(Icons.person),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  )
+                : CircleAvatar(
+                    radius: 16,
+                  ),
             const SizedBox(width: 8),
           ],
           Flexible(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: message.amount != null
-                    ? Colors.green
-                    : (message.isSentByMe
-                        ? AppColors.primaryColor
-                        : AppColors.secondaryBackground),
+                color: isSentByMe
+                    ? AppColors.primaryColor
+                    : AppColors.secondaryBackground,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (message.amount != null) ...[
-                    const Icon(Icons.check_circle, color: Colors.white),
-                    const SizedBox(height: 4),
-                  ],
                   Text(
-                    message.text,
+                    message.text.toString(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -529,7 +574,7 @@ class _ChatRoomState extends State<ChatRoom> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}",
+                    formattedTime, // Display the formatted time
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.6),
                       fontSize: 12,
@@ -539,7 +584,7 @@ class _ChatRoomState extends State<ChatRoom> {
               ),
             ),
           ),
-          if (message.isSentByMe) ...[
+          if (isSentByMe) ...[
             const SizedBox(width: 8),
             const CircleAvatar(
               radius: 16,
@@ -554,51 +599,5 @@ class _ChatRoomState extends State<ChatRoom> {
         ],
       ),
     );
-  }
-
-  void _sendMessage() async {
-    if (_messageController.text.trim().isEmpty) return;
-
-    // Show payment required dialog
-    final paid = await _showPaymentRequiredDialog();
-    if (!paid) return;
-
-    setState(() {
-      _messages.insert(
-        0,
-        ChatMessage(
-          text: _messageController.text,
-          isSentByMe: true,
-          timestamp: DateTime.now(),
-        ),
-      );
-
-      // Simulate received message
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) {
-          setState(() {
-            _messages.insert(
-              0,
-              ChatMessage(
-                text: "This is an auto-reply message!",
-                isSentByMe: false,
-                timestamp: DateTime.now(),
-              ),
-            );
-          });
-        }
-      });
-    });
-
-    _messageController.clear();
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _amountController.dispose();
-    _scrollController.dispose();
-    _focusNode.dispose();
-    super.dispose();
   }
 }

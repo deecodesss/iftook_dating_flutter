@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/core/widgets/charges_bottom_sheet.dart';
 import 'package:iftook/core/widgets/interests_bottom_sheet.dart';
 import 'package:iftook/features/about_us/presentation/screens/cancellation_and_refund_policy_screen.dart';
 import 'package:iftook/features/about_us/presentation/screens/privacy_policy_screen.dart';
 import 'package:iftook/features/about_us/presentation/screens/terms_and_conditions_screen.dart';
 import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
-import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
+import 'package:iftook/features/profile/controllers/profile_controller.dart'; // Import the ProfileController
+import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/features/profile/presentation/screens/availability_screen.dart';
 import 'package:iftook/features/profile/presentation/screens/edit_profile_screen.dart';
 import 'package:iftook/features/profile/presentation/screens/my_history_screen.dart';
@@ -17,90 +17,177 @@ import 'package:iftook/features/profile/presentation/screens/view_reviews_screen
 import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends StatelessWidget {
+  final ProfileController _profileController = Get.put(ProfileController());
+
   ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
-}
-
-class _ProfileScreenState extends State<ProfileScreen> {
-  bool isAvailable = true;
-
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            dialogBackgroundColor: Colors.grey[900],
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        title: const Text(
+          'Profile',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
           ),
-          child: AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
+        ),
+      ),
+      body: Obx(() {
+        if (_profileController.isLoading.value) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (_profileController.errorMessage.isNotEmpty) {
+          return Center(
+            child: Text(
+              _profileController.errorMessage.value,
+              style: const TextStyle(color: Colors.red),
             ),
-            title: const Text(
-              'Logout',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
-            ),
-            content: const Text(
-              'Are you sure you want to logout?',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 16,
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // Close the dialog
-                },
-                style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                ),
-                child: Text(
-                  'Cancel',
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+          );
+        }
+
+        final user = _profileController.user.value;
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _buildProfileHeader(user),
+            const SizedBox(height: 24),
+            _buildSection(
+              'Streaming',
+              [
+                _buildProfileOption(
+                  icon: Icons.live_tv,
+                  title: 'Go Live',
+                  onTap: () {},
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'LIVE',
+                      style: TextStyle(
+                        color: AppColors.primaryColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              TextButton(
-                onPressed: () {
-                  // Add your logout logic here
-                  Navigator.of(context).pop();
-                  Get.offAll(() => const LoginScreen()); // Close the dialog
-                  // Navigate to login screen or perform logout operations
-                },
-                style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  backgroundColor: AppColors.primaryColor.withOpacity(0.1),
-                ),
-                child: const Text(
-                  'Logout',
-                  style: TextStyle(
-                    color: AppColors.primaryColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+              ],
+            ),
+            _buildSection(
+              'Account',
+              [
+                _buildProfileOption(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: 'My Wallet',
+                  onTap: () {
+                    Get.to(() => const WalletScreen());
+                  },
+                  trailing: Text(
+                    '₹${user.walletBalance ?? '0'}',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 16,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+                _buildProfileOption(
+                  icon: Icons.history,
+                  title: 'My Activity',
+                  onTap: () {
+                    Get.to(() => const ActivityScreen(
+                          isCurrentUser: true,
+                        ));
+                  },
+                ),
+                _buildProfileOption(
+                  icon: Icons.interests_outlined,
+                  title: 'My Interests',
+                  onTap: () {
+                    showInterestsBottomSheet(context);
+                  },
+                ),
+                _buildProfileOption(
+                  icon: Icons.access_time,
+                  title: 'My Availability',
+                  onTap: () {
+                    Get.to(() => const AvailabilityScreen());
+                  },
+                ),
+                _buildProfileOption(
+                  icon: Icons.manage_history_outlined,
+                  title: 'My History',
+                  onTap: () {
+                    Get.to(() => const HistoryScreen());
+                  },
+                ),
+              ],
+            ),
+            _buildSection(
+              'Monetization',
+              [
+                _buildProfileOption(
+                  icon: Icons.campaign_outlined,
+                  title: 'Promote My Profile',
+                  onTap: () {
+                    Get.to(() => const PromoteProfileScreen());
+                  },
+                  iconColor: AppColors.highlightColor,
+                ),
+                _buildProfileOption(
+                  icon: Icons.payments_outlined,
+                  title: 'My Earnings',
+                  onTap: () {
+                    showPriceBottomSheet(context);
+                  },
+                  iconColor: AppColors.highlightColor,
+                ),
+              ],
+            ),
+            _buildSection(
+              'Support & Feedback',
+              [
+                _buildProfileOption(
+                  icon: Icons.support_agent_outlined,
+                  title: 'Support',
+                  onTap: () {
+                    Get.to(() => SupportScreen());
+                  },
+                  iconColor: AppColors.greenColor,
+                ),
+                _buildProfileOption(
+                  icon: Icons.star_outline,
+                  title: 'Rating & Review',
+                  onTap: () {
+                    Get.to(() => ViewReviewsScreen());
+                  },
+                  iconColor: AppColors.greenColor,
+                ),
+                _buildProfileOption(
+                  icon: Icons.logout,
+                  title: 'Logout',
+                  onTap: _profileController.logout,
+                  iconColor: AppColors.greenColor,
+                ),
+              ],
+            ),
+          ],
         );
-      },
+      }),
     );
   }
 
-  Widget _buildProfileHeader() {
+  Widget _buildProfileHeader(User user) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -114,10 +201,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               shape: BoxShape.circle,
               border: Border.all(color: AppColors.accentColor, width: 0.5),
             ),
-            child: const CircleAvatar(
+            child: CircleAvatar(
               radius: 40,
               backgroundImage: NetworkImage(
-                  'https://images.unsplash.com/photo-1524504388940-b1c1722653e1'),
+                user.photos?.isNotEmpty == true
+                    ? user.photos!.first
+                    : 'https://via.placeholder.com/150',
+              ),
             ),
           ),
           const SizedBox(width: 20),
@@ -125,9 +215,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Sarah Parker',
-                  style: TextStyle(
+                Text(
+                  user.name ?? 'User Name',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -135,7 +225,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '@sarahparker',
+                  user.email ?? '@username',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 16,
@@ -167,13 +257,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 value: 'Edit Profile',
                 child: Row(
                   children: [
-                    Icon(
-                      HugeIcons.strokeRoundedPencilEdit02,
-                      size: 15,
-                    ),
-                    SizedBox(
-                      width: 4,
-                    ),
+                    Icon(Icons.edit, size: 15),
+                    SizedBox(width: 4),
                     Text('Edit Profile'),
                   ],
                 ),
@@ -182,13 +267,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 value: 'Cancellation & Refund Policy',
                 child: Row(
                   children: [
-                    Icon(
-                      HugeIcons.strokeRoundedPolicy,
-                      size: 15,
-                    ),
-                    SizedBox(
-                      width: 4,
-                    ),
+                    Icon(Icons.policy, size: 15),
+                    SizedBox(width: 4),
                     Text('Cancellation & Refund Policy'),
                   ],
                 ),
@@ -197,13 +277,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 value: 'Privacy Policy',
                 child: Row(
                   children: [
-                    Icon(
-                      HugeIcons.strokeRoundedSecurityLock,
-                      size: 15,
-                    ),
-                    SizedBox(
-                      width: 4,
-                    ),
+                    Icon(Icons.security, size: 15),
+                    SizedBox(width: 4),
                     Text('Privacy Policy'),
                   ],
                 ),
@@ -212,13 +287,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 value: 'Terms & Conditions',
                 child: Row(
                   children: [
-                    Icon(
-                      HugeIcons.strokeRoundedDocumentValidation,
-                      size: 15,
-                    ),
-                    SizedBox(
-                      width: 4,
-                    ),
+                    Icon(Icons.description, size: 15),
+                    SizedBox(width: 4),
                     Text('Terms & Conditions'),
                   ],
                 ),
@@ -296,154 +366,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(children: children),
         ),
       ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        title: const Text(
-          'Profile',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildProfileHeader(),
-          const SizedBox(height: 24),
-          _buildSection(
-            'Streaming',
-            [
-              _buildProfileOption(
-                icon: Icons.live_tv,
-                title: 'Go Live',
-                onTap: () {},
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'LIVE',
-                    style: TextStyle(
-                      color: AppColors.primaryColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          _buildSection(
-            'Account',
-            [
-              _buildProfileOption(
-                icon: Icons.account_balance_wallet_outlined,
-                title: 'My Wallet',
-                onTap: () {
-                  Get.to(() => const WalletScreen());
-                },
-                trailing: Text(
-                  '₹1,000',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-              _buildProfileOption(
-                icon: Icons.history,
-                title: 'My Activity',
-                onTap: () {
-                  Get.to(() => const ActivityScreen(
-                        isCurrentUser: true,
-                      ));
-                },
-              ),
-              _buildProfileOption(
-                icon: Icons.interests_outlined,
-                title: 'My Interests',
-                onTap: () {
-                  showInterestsBottomSheet(context);
-                },
-              ),
-              _buildProfileOption(
-                icon: Icons.access_time,
-                title: 'My Availability',
-                onTap: () {
-                  Get.to(() => const AvailabilityScreen());
-                },
-              ),
-              _buildProfileOption(
-                icon: Icons.manage_history_outlined,
-                title: 'My History',
-                onTap: () {
-                  Get.to(() => const HistoryScreen());
-                },
-              ),
-            ],
-          ),
-          _buildSection(
-            'Monetization',
-            [
-              _buildProfileOption(
-                icon: Icons.campaign_outlined,
-                title: 'Promote My Profile',
-                onTap: () {
-                  Get.to(() => const PromoteProfileScreen());
-                },
-                iconColor: AppColors.highlightColor,
-              ),
-              _buildProfileOption(
-                icon: Icons.payments_outlined,
-                title: 'My Earnings',
-                onTap: () {
-                  showPriceBottomSheet(context);
-                },
-                iconColor: AppColors.highlightColor,
-              ),
-            ],
-          ),
-          _buildSection(
-            'Support & Feedback',
-            [
-              _buildProfileOption(
-                icon: Icons.support_agent_outlined,
-                title: 'Support',
-                onTap: () {
-                  Get.to(() => SupportScreen());
-                },
-                iconColor: AppColors.greenColor,
-              ),
-              _buildProfileOption(
-                icon: Icons.star_outline,
-                title: 'Rating & Review',
-                onTap: () {
-                  Get.to(() => ViewReviewsScreen());
-                },
-                iconColor: AppColors.greenColor,
-              ),
-              _buildProfileOption(
-                icon: Icons.logout,
-                title: 'Logout',
-                onTap: _showLogoutDialog,
-                iconColor: AppColors.greenColor,
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 }

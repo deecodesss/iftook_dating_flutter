@@ -7,8 +7,11 @@ import 'package:iftook/core/widgets/custom_app_bar.dart';
 import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
 import 'package:iftook/features/home/presentation/screens/profile_swiper.dart';
 import 'package:iftook/features/home/presentation/screens/swiper_animation.dart';
+import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/features/profile/presentation/screens/view_reviews_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
+
+import '../../controllers/home_controller.dart';
 
 class UserProfile {
   String name;
@@ -136,119 +139,128 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
   final double _swipeThreshold = 100;
   final AppinioSwiperController _swiperController = AppinioSwiperController();
 
-  final List<UserProfile> _profiles = [
-    UserProfile(
-      name: 'Sarah',
-      age: 25,
-      description: 'Professional model and fitness enthusiast',
-      imageUrls: [
-        'https://images.unsplash.com/photo-1494790108377-be9c29b29330',
-        'https://images.unsplash.com/photo-1524504388940-b1c1722653e1',
-        'https://images.unsplash.com/photo-1517841905240-472988babdf9'
-      ],
-      location: 'Mumbai',
-      profession: 'Model',
-      rating: 4.8,
-      reviewCount: 156,
-      reviews: [
-        Review(
-            name: "John D.",
-            comment: "Great conversation, very friendly and engaging!",
-            rating: 5,
-            date: "2 days ago"),
-        Review(
-            name: "Mike R.",
-            comment: "Helpful and professional, would recommend.",
-            rating: 4,
-            date: "1 week ago"),
-      ],
-    ),
-    UserProfile(
-      name: 'Emma',
-      age: 23,
-      description: 'Travel blogger | Coffee lover',
-      imageUrls: [
-        'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43',
-        'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e',
-        'https://images.unsplash.com/photo-1535324492437-d8dea70a38a7'
-      ],
-      location: 'Delhi',
-      profession: 'Blogger',
-      rating: 4.8,
-      reviewCount: 156,
-      reviews: [
-        Review(
-            name: "John D.",
-            comment: "Great conversation, very friendly and engaging!",
-            rating: 5,
-            date: "2 days ago"),
-        Review(
-            name: "Mike R.",
-            comment: "Helpful and professional, would recommend.",
-            rating: 4,
-            date: "1 week ago"),
-      ],
-    ),
-    UserProfile(
-      name: 'Priya',
-      age: 24,
-      description: 'Software Engineer | Music enthusiast',
-      imageUrls: [
-        'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04',
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb',
-        'https://images.unsplash.com/photo-1526510747491-58f928ec870f'
-      ],
-      location: 'Bangalore',
-      profession: 'Engineer',
-      rating: 4.8,
-      reviewCount: 156,
-      reviews: [
-        Review(
-            name: "John D.",
-            comment: "Great conversation, very friendly and engaging!",
-            rating: 5,
-            date: "2 days ago"),
-        Review(
-            name: "Mike R.",
-            comment: "Helpful and professional, would recommend.",
-            rating: 4,
-            date: "1 week ago"),
-      ],
-    ),
-  ];
+  // final List<UserProfile> _profiles = [
+  //   UserProfile(
+  //     name: 'Sarah',
+  //     age: 25,
+  //     description: 'Professional model and fitness enthusiast',
+  //     imageUrls: [
+  //       'https://images.unsplash.com/photo-1494790108377-be9c29b29330',
+  //       'https://images.unsplash.com/photo-1524504388940-b1c1722653e1',
+  //       'https://images.unsplash.com/photo-1517841905240-472988babdf9'
+  //     ],
+  //     location: 'Mumbai',
+  //     profession: 'Model',
+  //     rating: 4.8,
+  //     reviewCount: 156,
+  //     reviews: [
+  //       Review(
+  //           name: "John D.",
+  //           comment: "Great conversation, very friendly and engaging!",
+  //           rating: 5,
+  //           date: "2 days ago"),
+  //       Review(
+  //           name: "Mike R.",
+  //           comment: "Helpful and professional, would recommend.",
+  //           rating: 4,
+  //           date: "1 week ago"),
+  //     ],
+  //   ),
+  //   UserProfile(
+  //     name: 'Emma',
+  //     age: 23,
+  //     description: 'Travel blogger | Coffee lover',
+  //     imageUrls: [
+  //       'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43',
+  //       'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e',
+  //       'https://images.unsplash.com/photo-1535324492437-d8dea70a38a7'
+  //     ],
+  //     location: 'Delhi',
+  //     profession: 'Blogger',
+  //     rating: 4.8,
+  //     reviewCount: 156,
+  //     reviews: [
+  //       Review(
+  //           name: "John D.",
+  //           comment: "Great conversation, very friendly and engaging!",
+  //           rating: 5,
+  //           date: "2 days ago"),
+  //       Review(
+  //           name: "Mike R.",
+  //           comment: "Helpful and professional, would recommend.",
+  //           rating: 4,
+  //           date: "1 week ago"),
+  //     ],
+  //   ),
+  //   UserProfile(
+  //     name: 'Priya',
+  //     age: 24,
+  //     description: 'Software Engineer | Music enthusiast',
+  //     imageUrls: [
+  //       'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04',
+  //       'https://images.unsplash.com/photo-1534528741775-53994a69daeb',
+  //       'https://images.unsplash.com/photo-1526510747491-58f928ec870f'
+  //     ],
+  //     location: 'Bangalore',
+  //     profession: 'Engineer',
+  //     rating: 4.8,
+  //     reviewCount: 156,
+  //     reviews: [
+  //       Review(
+  //           name: "John D.",
+  //           comment: "Great conversation, very friendly and engaging!",
+  //           rating: 5,
+  //           date: "2 days ago"),
+  //       Review(
+  //           name: "Mike R.",
+  //           comment: "Helpful and professional, would recommend.",
+  //           rating: 4,
+  //           date: "1 week ago"),
+  //     ],
+  //   ),
+  // ];
+  final HomeController _homeController = Get.put(HomeController());
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
-        children: [
-          // App Bar
-          CustomAppBar(),
-          // Profile Swiper - Takes all available space
-          Expanded(
-            child: ProfileSwiper(
-              profiles: _profiles,
-              onSwipe: (profile, isLike) {
-                print('${profile.name} was ${isLike ? 'liked' : 'disliked'}');
-              },
-            ),
-          ),
+      body: Obx(() {
+        if (_homeController.isLoading.value) {
+          return Center(child: CircularProgressIndicator());
+        } else {
+          return Column(
+            children: [
+              // App Bar
+              CustomAppBar(),
+              // Profile Swiper - Takes all available space
+              Expanded(
+                child: ProfileSwiper(
+                  profiles: _homeController.profiles,
+                  onSwipe: (profile, isLike) {
+                    // print(
+                    //     '${profile!.name} was ${isLike ? 'liked' : 'disliked'}');
+                  },
+                ),
+              ),
 
-          // Bottom Section - Service and Action buttons
-          Container(
-            padding: const EdgeInsets.only(bottom: 16, top: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Service Buttons
-                _buildServiceButtons(),
-                const SizedBox(height: 16),
-                // Action Buttons
-                _buildActionButtonsRow(),
-              ],
-            ),
-          ),
-        ],
-      ),
+              // Bottom Section - Service and Action buttons
+              Container(
+                padding: const EdgeInsets.only(bottom: 16, top: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Service Buttons
+                    _buildServiceButtons(),
+                    const SizedBox(height: 16),
+                    // Action Buttons
+                    _buildActionButtonsRow(),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+      }),
     );
   }
 
@@ -461,7 +473,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     );
   }
 
-  Widget _buildReviewSection(UserProfile profile) {
+  Widget _buildReviewSection(User profile) {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -472,7 +484,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
               const Icon(Icons.star, color: Colors.amber, size: 24),
               const SizedBox(width: 8),
               Text(
-                '${profile.rating}',
+                '${profile.averageRating}',
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -534,7 +546,8 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
                   ),
                 ),
                 onPressed: () {
-                  if (_currentProfileIndex < _profiles.length - 1) {
+                  if (_currentProfileIndex <
+                      _homeController.profiles.length - 1) {
                     pageController.nextPage(
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeInOut,
@@ -549,56 +562,67 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     );
   }
 
-  Widget _buildBioSection(UserProfile profile) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${profile.name}, ${profile.age}',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            profile.description,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[400],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  int calculateAge(DateTime birthDate) {
+    final currentDate = DateTime.now();
+    int age = currentDate.year - birthDate.year;
+    final monthDiff = currentDate.month - birthDate.month;
 
-  void _handleNavigation(bool isPrevious) {
-    final profile = _profiles[_currentProfileIndex];
-    if (isPrevious) {
-      if (_currentImageIndex > 0) {
-        carouselController.previousPage();
-      } else if (_currentProfileIndex > 0) {
-        pageController.previousPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-    } else {
-      if (_currentImageIndex < profile.imageUrls.length - 1) {
-        carouselController.nextPage();
-      } else if (_currentProfileIndex < _profiles.length - 1) {
-        pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
+    if (monthDiff < 0 || (monthDiff == 0 && currentDate.day < birthDate.day)) {
+      age--;
     }
+
+    return age;
   }
+  // Widget _buildBioSection(User profile) {
+  //   return Container(
+  //     width: double.infinity,
+  //     padding: const EdgeInsets.all(16),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Text(
+  //           '${profile.name}, ${calculateAge(DateTime.parse(profile.dob.toString()))}',
+  //           style: const TextStyle(
+  //             fontSize: 24,
+  //             fontWeight: FontWeight.bold,
+  //             color: Colors.white,
+  //           ),
+  //         ),
+  //         const SizedBox(height: 8),
+  //         Text(
+  //           profile.description,
+  //           style: TextStyle(
+  //             fontSize: 16,
+  //             color: Colors.grey[400],
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  // void _handleNavigation(bool isPrevious) {
+  //   final profile = _homeController.profiles[_currentProfileIndex];
+  //   if (isPrevious) {
+  //     if (_currentImageIndex > 0) {
+  //       carouselController.previousPage();
+  //     } else if (_currentProfileIndex > 0) {
+  //       pageController.previousPage(
+  //         duration: const Duration(milliseconds: 300),
+  //         curve: Curves.easeInOut,
+  //       );
+  //     }
+  //   } else {
+  //     if (_currentImageIndex < profile.imageUrls.length - 1) {
+  //       carouselController.nextPage();
+  //     } else if (_currentProfileIndex < _homeController.profiles.length - 1) {
+  //       pageController.nextPage(
+  //         duration: const Duration(milliseconds: 300),
+  //         curve: Curves.easeInOut,
+  //       );
+  //     }
+  //   }
+  // }
 
   Widget _buildServiceButtons() {
     return Padding(
@@ -792,48 +816,48 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
       ),
     );
   }
-
-  Widget _buildLocationBadge(UserProfile profile) {
-    return Positioned(
-      top: 16,
-      left: 16,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.black54,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          '${profile.location} • ${profile.profession}',
-          style: const TextStyle(color: Colors.white),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImageIndicators(UserProfile profile) {
-    return Positioned(
-      bottom: 16,
-      left: 0,
-      right: 0,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: profile.imageUrls.asMap().entries.map((entry) {
-          return Container(
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _currentImageIndex == entry.key
-                  ? AppColors.primaryColor
-                  : Colors.grey[600],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
+  //
+  // Widget _buildLocationBadge(UserProfile profile) {
+  //   return Positioned(
+  //     top: 16,
+  //     left: 16,
+  //     child: Container(
+  //       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+  //       decoration: BoxDecoration(
+  //         color: Colors.black54,
+  //         borderRadius: BorderRadius.circular(20),
+  //       ),
+  //       child: Text(
+  //         '${profile.location} • ${profile.profession}',
+  //         style: const TextStyle(color: Colors.white),
+  //       ),
+  //     ),
+  //   );
+  // }
+  //
+  // Widget _buildImageIndicators(UserProfile profile) {
+  //   return Positioned(
+  //     bottom: 16,
+  //     left: 0,
+  //     right: 0,
+  //     child: Row(
+  //       mainAxisAlignment: MainAxisAlignment.center,
+  //       children: profile.imageUrls.asMap().entries.map((entry) {
+  //         return Container(
+  //           width: 8,
+  //           height: 8,
+  //           margin: const EdgeInsets.symmetric(horizontal: 4),
+  //           decoration: BoxDecoration(
+  //             shape: BoxShape.circle,
+  //             color: _currentImageIndex == entry.key
+  //                 ? AppColors.primaryColor
+  //                 : Colors.grey[600],
+  //           ),
+  //         );
+  //       }).toList(),
+  //     ),
+  //   );
+  // }
 
   Widget _buildProfileIndicators() {
     return Positioned(
@@ -842,7 +866,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
       right: 0,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: _profiles.asMap().entries.map((entry) {
+        children: _homeController.profiles.asMap().entries.map((entry) {
           return Container(
             width: 8,
             height: 8,

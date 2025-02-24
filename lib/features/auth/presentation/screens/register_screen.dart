@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
-import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/core/widgets/charges_bottom_sheet.dart';
 import 'package:iftook/features/home/presentation/screens/home_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
+
+import '../../controllers/auth_controller.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -16,6 +17,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final AuthController _authController = Get.put(AuthController());
   final PageController _pageController = PageController();
   final _formKey = GlobalKey<FormState>();
   int _currentPage = 0;
@@ -55,8 +57,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   List<String> _photos = [];
   bool _isLoadingLocation = true;
   String _locationError = '';
-
-  // Your existing constants
   final List<String> _genderOptions = ['Male', 'Female'];
   final List<String> _interestedInOptions = ['Men', 'Women'];
   final List<String> _interestAreas = [
@@ -230,7 +230,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _nextPage() {
-    if (_currentPage < 4) {
+    if (_currentPage < 5) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -256,9 +256,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _handleRegistration() {
-    // Here you would typically send the data to your backend
-    // For now, we'll just navigate to the home screen
-    Get.offAll(() => const HomeScreen());
+    // if (_formKey.currentState!.validate()) {
+    _authController.name.value = _nameController.text;
+    _authController.email.value = _emailController.text;
+    _authController.password.value = _passwordController.text;
+    _authController.dob.value = _dobController.text;
+    _authController.gender.value = _selectedGender;
+    _authController.about.value = _aboutController.text;
+    _authController.profession.value = _professionController.text;
+    _authController.height.value = selectedHeight ?? '';
+    _authController.languages.value = selectedLanguages;
+    _authController.location.value = {
+      'country': _country,
+      'state': _state,
+      'city': _city
+    };
+    _authController.interests.value = _selectedInterests;
+    _authController.panDetails.value = {
+      'panNumber': _panController.text,
+      'panImage': ''
+    };
+
+    _authController.register().then((_) {
+      if (_authController.errorMessage.isEmpty) {
+        Get.offAll(() => const HomeScreen());
+        Get.snackbar('Success', 'Registration successful!',
+            backgroundColor: Colors.green, colorText: Colors.white);
+      } else {
+        Get.snackbar('Error', _authController.errorMessage.value,
+            backgroundColor: Colors.red, colorText: Colors.white);
+      }
+    });
+    // }
   }
 
   // Your existing input decoration method
@@ -289,7 +318,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Step ${_currentPage + 1} of 5',
+          'Step ${_currentPage + 1} of 6',
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -303,18 +332,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
               )
             : null,
       ),
-      body: PageView(
-        controller: _pageController,
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          _buildBasicInfoPage(),
-          _buildAdditionalInfoPage(),
-          _buildPhotosPage(),
-          _buildLocationPage(),
-          _buildPreferencesPage(),
-          _buildEarningsPage(),
-        ],
-      ),
+      body: Obx(() {
+        if (_authController.isLoading.value) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (_authController.errorMessage.isNotEmpty) {
+          return Center(
+            child: Text(
+              _authController.errorMessage.value,
+              style: const TextStyle(color: Colors.red),
+            ),
+          );
+        }
+        return PageView(
+          controller: _pageController,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            _buildBasicInfoPage(),
+            _buildAdditionalInfoPage(),
+            _buildPhotosPage(),
+            _buildLocationPage(),
+            _buildPreferencesPage(),
+            _buildEarningsPage(),
+          ],
+        );
+      }),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
@@ -521,6 +563,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     );
   }
+
   Widget _buildAdditionalInfoPage() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),

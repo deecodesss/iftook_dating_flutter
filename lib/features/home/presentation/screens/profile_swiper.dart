@@ -3,10 +3,10 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:iftook/features/home/presentation/screens/main_home_screen.dart';
+import 'package:iftook/features/profile/data/models/user.dart';
 
 class TinderStyleProfileCard extends StatefulWidget {
-  final UserProfile profile;
+  final User profile;
   final VoidCallback? onLike;
   final VoidCallback? onDislike;
   final double? percentThresholdX;
@@ -36,7 +36,7 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
     if (details.primaryVelocity! > 0 && _currentImageIndex > 0) {
       carouselController.previousPage();
     } else if (details.primaryVelocity! < 0 &&
-        _currentImageIndex < widget.profile.imageUrls.length - 1) {
+        _currentImageIndex < widget.profile.photos!.length - 1) {
       carouselController.nextPage();
     }
   }
@@ -70,35 +70,37 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
             children: [
               // Full width image carousel
               CarouselSlider.builder(
-                carouselController: carouselController,
-                itemCount: widget.profile.imageUrls.length,
-                options: CarouselOptions(
-                  height: double.infinity,
-                  viewportFraction: 1.0,
-                  enableInfiniteScroll: false,
-                  onPageChanged: (index, _) {
-                    setState(() => _currentImageIndex = index);
-                  },
-                ),
-                itemBuilder: (context, index, _) {
-                  return CachedNetworkImage(
-                    imageUrl: widget.profile.imageUrls[index],
-                    fit: BoxFit.cover,
-                    width: double.infinity,
+                  carouselController: carouselController,
+                  itemCount: widget.profile.photos!.length,
+                  options: CarouselOptions(
                     height: double.infinity,
-                    placeholder: (context, url) => Container(
-                      color: Colors.grey[900],
-                      child: const Center(
-                        child: CircularProgressIndicator(),
+                    viewportFraction: 1.0,
+                    enableInfiniteScroll: false,
+                    onPageChanged: (index, _) {
+                      setState(() => _currentImageIndex = index);
+                    },
+                  ),
+                  itemBuilder: (context, index, _) {
+                    return CachedNetworkImage(
+                      imageUrl: widget.profile.photos != null &&
+                              widget.profile.photos!.isNotEmpty
+                          ? widget.profile.photos![index]
+                          : 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTl8fHBlcnNvbnxlbnwwfHwwfHx8MA%3D%3D', // Default network image
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      placeholder: (context, url) => Container(
+                        color: Colors.grey[900],
+                        child: const Center(
+                          child: CircularProgressIndicator(),
+                        ),
                       ),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[900],
-                      child: const Icon(Icons.error),
-                    ),
-                  );
-                },
-              ),
+                      errorWidget: (context, url, error) => Image.network(
+                        'https://via.placeholder.com/300', // Fallback image
+                        fit: BoxFit.cover,
+                      ),
+                    );
+                  }),
 
               // Gradient overlay with fade animation
               Opacity(
@@ -183,6 +185,18 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
     );
   }
 
+  int calculateAge(DateTime birthDate) {
+    final currentDate = DateTime.now();
+    int age = currentDate.year - birthDate.year;
+    final monthDiff = currentDate.month - birthDate.month;
+
+    if (monthDiff < 0 || (monthDiff == 0 && currentDate.day < birthDate.day)) {
+      age--;
+    }
+
+    return age;
+  }
+
   Widget _buildBottomSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -194,7 +208,7 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
             children: [
               if (!widget.isProfileScreen)
                 Text(
-                  '${widget.profile.name}, ${widget.profile.age}',
+                  '${widget.profile.name}, ${calculateAge(DateTime.parse(widget.profile.dob.toString()))}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 24,
@@ -211,7 +225,9 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
                       size: 18, color: Colors.white),
                   const SizedBox(width: 4),
                   Text(
-                    widget.profile.location,
+                    widget.profile.location!.city.toString() +
+                        ', ' +
+                        widget.profile.location!.state.toString(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -223,7 +239,7 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
                       size: 18, color: Colors.white),
                   const SizedBox(width: 4),
                   Text(
-                    widget.profile.profession,
+                    widget.profile.profession.toString(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -239,7 +255,7 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
         // Image indicators
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: widget.profile.imageUrls.asMap().entries.map((entry) {
+          children: widget.profile.photos!.asMap().entries.map((entry) {
             return Container(
               width: 8,
               height: 8,
@@ -260,8 +276,8 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
 }
 
 class ProfileSwiper extends StatefulWidget {
-  final List<UserProfile> profiles;
-  final Function(UserProfile, bool)? onSwipe;
+  final List<User> profiles;
+  final Function(User, bool)? onSwipe;
 
   const ProfileSwiper({
     Key? key,

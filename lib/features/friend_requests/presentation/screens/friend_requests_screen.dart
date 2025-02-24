@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:iftook/features/friend_requests/controller/friend_controller.dart';
+import 'package:iftook/features/friend_requests/data/models/friend_request.dart';
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
@@ -35,6 +37,8 @@ class FriendRequestsScreen extends StatefulWidget {
 
 class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     with SingleTickerProviderStateMixin {
+  FriendController controller = Get.put(FriendController());
+
   late TabController _tabController;
   late Timer _timer;
 
@@ -63,6 +67,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
       if (mounted) setState(() {});
     });
+    controller.fetchFriendRequests();
   }
 
   @override
@@ -113,7 +118,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     );
   }
 
-  void _showAcceptWarning(BuildContext context) {
+  void _showAcceptWarning(BuildContext context, String reqId) {
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -171,7 +176,9 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () {
+                        controller.acceptRequest(reqId, context);
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryColor,
                         foregroundColor: Colors.white,
@@ -181,6 +188,87 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                         ),
                       ),
                       child: const Text('Accept'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDeclineWarning(BuildContext context, String reqId) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: AppColors.secondaryBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryBackground,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.cancel_outlined,
+                  color: AppColors.primaryColor,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Decline Friend Request?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This action will remove the request, and the person will not be notified.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.accentColor,
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        controller.rejectRequest(reqId, context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: const Text('Decline'),
                     ),
                   ),
                 ],
@@ -203,7 +291,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           children: [
             InkWell(
               onTap: () {
-                Get.to(() => UserProfileScreen());
+                // Get.to(() => UserProfileScreen(profile:,));
               },
               child: Container(
                 decoration: BoxDecoration(
@@ -294,7 +382,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     );
   }
 
-  Widget _buildRequestCard(String name, String imageUrl) {
+  Widget _buildRequestCard(FriendRequest requestl) {
     return Card(
       color: Colors.blueGrey.withOpacity(0.1),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -305,7 +393,9 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           children: [
             InkWell(
               onTap: () {
-                Get.to(() => UserProfileScreen());
+                Get.to(() => UserProfileScreen(
+                      profile: requestl!.requester!,
+                    ));
               },
               child: Container(
                 decoration: BoxDecoration(
@@ -314,14 +404,17 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 ),
                 child: CircleAvatar(
                   radius: 30,
-                  backgroundImage: NetworkImage(imageUrl),
+                  backgroundImage: requestl.requester!.photos != null &&
+                          requestl.requester!.photos!.isNotEmpty
+                      ? NetworkImage(requestl.requester!.photos![0])
+                      : null,
                 ),
               ),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: Text(
-                name,
+                requestl.requester!.name.toString(),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -333,7 +426,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextButton(
-                  onPressed: () => _showAcceptWarning(context),
+                  onPressed: () =>
+                      _showAcceptWarning(context, requestl.sId.toString()),
                   style: TextButton.styleFrom(
                     backgroundColor: AppColors.greenColor.withOpacity(0.1),
                     foregroundColor: AppColors.greenColor,
@@ -349,7 +443,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                   ),
                 ),
                 TextButton(
-                  onPressed: () {}, // Handle reject
+                  onPressed: () =>
+                      _showDeclineWarning(context, requestl.sId.toString()),
                   style: TextButton.styleFrom(
                     backgroundColor: AppColors.redColor.withOpacity(0.1),
                     foregroundColor: AppColors.redColor,
@@ -412,15 +507,164 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             itemBuilder: (context, index) => _buildMeetingCard(meetings[index]),
           ),
           // Requests Tab
-          ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: meetings.length,
-            itemBuilder: (context, index) => _buildRequestCard(
-              meetings[index].name,
-              meetings[index].imageUrl,
-            ),
-          ),
+          Obx(() {
+            if (controller.isLoading.value) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return controller.friendRequests.length < 1
+                ? EmptyRequestsView()
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: controller.friendRequests.length,
+                    itemBuilder: (context, index) {
+                      final request = controller.friendRequests[index];
+                      return _buildRequestCard(request);
+                    },
+                  );
+          }),
         ],
+      ),
+    );
+  }
+}
+
+class EmptyRequestsView extends StatelessWidget {
+  const EmptyRequestsView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Icon container
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.people_outline_rounded,
+                  size: 48,
+                  color: AppColors.primaryColor,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Title
+              const Text(
+                'No Friend Requests',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Description
+              Text(
+                "You don't have any pending friend requests at the moment. When someone sends you a request, it will appear here.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Placeholder Cards
+              _buildPlaceholderCard(opacity: 1.0),
+              const SizedBox(height: 12),
+              _buildPlaceholderCard(opacity: 0.7),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderCard({required double opacity}) {
+    return Opacity(
+      opacity: opacity,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blueGrey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Row(
+          children: [
+            // Avatar placeholder
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.accentColor.withOpacity(0.3),
+                  width: 2,
+                ),
+              ),
+              child: const CircleAvatar(
+                radius: 30,
+                backgroundColor: Colors.black12,
+              ),
+            ),
+            const SizedBox(width: 16),
+
+            // Text placeholders
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 120,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 80,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Button placeholders
+            Column(
+              children: [
+                Container(
+                  width: 80,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.greenColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: 80,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.redColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

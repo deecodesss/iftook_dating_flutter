@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
-import 'package:iftook/features/friends/presentation/screens/chat_room.dart';
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
+import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
+
+import '../../../friend_requests/controller/friend_controller.dart';
+import 'chat_room_screen.dart';
 
 class FriendsListScreen extends StatefulWidget {
   const FriendsListScreen({super.key});
@@ -15,11 +18,13 @@ class FriendsListScreen extends StatefulWidget {
 class _FriendsListScreenState extends State<FriendsListScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final FriendController _friendController = Get.put(FriendController());
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _friendController.fetchFriends();
   }
 
   @override
@@ -28,40 +33,15 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     super.dispose();
   }
 
-  void _showChatBottomSheet(BuildContext context, UserProfile profile,
+  void _showChatBottomSheet(BuildContext context, User profile,
       {bool isTrial = false}) {
-    Get.to(() => ChatRoom(
+    Get.to(() => ChatRoomScreen(
           profile: profile,
           isTrial: isTrial,
         ));
-    // showModalBottomSheet(
-    //   context: context,
-    //   backgroundColor: AppColors.primaryBackground,
-    //   isScrollControlled: true, // This is crucial
-    //   useSafeArea: true, // Add this
-    //   shape: const RoundedRectangleBorder(
-    //     borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-    //   ),
-    //   builder: (context) => Padding(
-    //     padding: EdgeInsets.only(
-    //       bottom: MediaQuery.of(context).viewInsets.bottom, // Add this
-    //     ),
-    //     child: Container(
-    //       height: MediaQuery.of(context).size.height,
-    //       decoration: const BoxDecoration(
-    //         color: AppColors.primaryBackground,
-    //         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-    //       ),
-    //       child: ChatRoom(
-    //         profile: profile,
-    //         isTrial: isTrial,
-    //       ),
-    //     ),
-    //   ),
-    // );
   }
 
-  Widget _buildServiceButtons(UserProfile profile) {
+  Widget _buildServiceButtons(User profile) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -72,75 +52,74 @@ class _FriendsListScreenState extends State<FriendsListScreen>
             icon: HugeIcons.strokeRoundedAlarmClock,
             label: 'Trial',
             onTap: () {
-              if (profile.isOnline) {
+              if (profile.isOnline == true) {
                 _showChatBottomSheet(context, profile, isTrial: true);
               } else {
                 showDialog(
-                  context: context,
-                  builder: (context) => Dialog(
-                    backgroundColor: AppColors.secondaryBackground,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
+                    context: context,
+                    builder: (context) => Dialog(
+                          backgroundColor: AppColors.secondaryBackground,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Padding(
                             padding: const EdgeInsets.all(20),
-                            decoration: const BoxDecoration(
-                              color: AppColors.primaryBackground,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.mail_outline,
-                              color: AppColors.primaryColor,
-                              size: 32,
-                            ),
+                            child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(20),
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.primaryBackground,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.mail_outline,
+                                      color: AppColors.primaryColor,
+                                      size: 32,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'Trial Request Sent!',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Your trial request has been sent to ${profile.name}.\nThey will be notified when they come online.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.7),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    style: TextButton.styleFrom(
+                                      backgroundColor: AppColors.primaryColor,
+                                      minimumSize:
+                                          const Size(double.infinity, 45),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(25),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Got it',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ]),
                           ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Trial Request Sent!',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Your trial request has been sent to ${profile.name}.\nThey will be notified when they come online.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: TextButton.styleFrom(
-                              backgroundColor: AppColors.primaryColor,
-                              minimumSize: const Size(double.infinity, 45),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                            ),
-                            child: const Text(
-                              'Got it',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
+                        ));
               }
             },
             isTrial: true,
@@ -220,7 +199,6 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                     label,
                     style: const TextStyle(
                       fontSize: 12,
-                      // color: Colors.white,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -241,7 +219,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     );
   }
 
-  void _showDeleteDialog(UserProfile profile) {
+  void _showDeleteDialog(User profile) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -280,7 +258,19 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     );
   }
 
-  Widget _buildProfileCard(UserProfile profile, bool isWishlist) {
+  int calculateAge(DateTime birthDate) {
+    final currentDate = DateTime.now();
+    int age = currentDate.year - birthDate.year;
+    final monthDiff = currentDate.month - birthDate.month;
+
+    if (monthDiff < 0 || (monthDiff == 0 && currentDate.day < birthDate.day)) {
+      age--;
+    }
+
+    return age;
+  }
+
+  Widget _buildProfileCard(User profile, bool isWishlist) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -300,19 +290,26 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                     children: [
                       InkWell(
                         onTap: () {
-                          Get.to(() => const UserProfileScreen());
+                          Get.to(() => UserProfileScreen(
+                                profile: profile,
+                              ));
                         },
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            profile.imageUrl,
-                            width: 70,
-                            height: 70,
-                            fit: BoxFit.cover,
-                          ),
+                        child: ClipOval(
+                          // borderRadius: BorderRadius.circular(12),
+                          child: profile.photos != null &&
+                                  profile.photos!.isNotEmpty
+                              ? Image.network(
+                                  profile.photos![0],
+                                  width: 70,
+                                  height: 70,
+                                  fit: BoxFit.cover,
+                                )
+                              : CircleAvatar(
+                                  radius: 35,
+                                ),
                         ),
                       ),
-                      if (profile.isOnline)
+                      if (profile.isOnline == true)
                         Positioned(
                           right: 0,
                           bottom: 0,
@@ -340,7 +337,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                             Row(
                               children: [
                                 Text(
-                                  profile.name,
+                                  profile.name.toString(),
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -348,14 +345,13 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                if (profile.age != null)
-                                  Text(
-                                    '${profile.age}',
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.6),
-                                      fontSize: 16,
-                                    ),
+                                Text(
+                                  '${calculateAge(DateTime.parse(profile.dob.toString()))}',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.6),
+                                    fontSize: 16,
                                   ),
+                                ),
                               ],
                             ),
                             if (isWishlist)
@@ -376,7 +372,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          profile.location,
+                          profile.location!.city.toString(),
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.6),
                             fontSize: 14,
@@ -441,7 +437,6 @@ class _FriendsListScreenState extends State<FriendsListScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // backgroundColor: AppColors.primaryBackground,
       appBar: AppBar(
         elevation: 0,
         title: const Text(
@@ -476,59 +471,299 @@ class _FriendsListScreenState extends State<FriendsListScreen>
         controller: _tabController,
         children: [
           // Wishlist Tab
-          ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: dummyProfiles.length,
-            itemBuilder: (context, index) => _buildProfileCard(
-              dummyProfiles[index],
-              true,
-            ),
-          ),
+          Obx(() {
+            return _friendController.friends.length < 1
+                ? EmptyWishlistView()
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: _friendController.friends.length,
+                    itemBuilder: (context, index) => _buildProfileCard(
+                      _friendController.friends[index],
+                      true,
+                    ),
+                  );
+          }),
           // Friends Tab
-          ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: dummyProfiles.length,
-            itemBuilder: (context, index) => _buildProfileCard(
-              dummyProfiles[index],
-              false,
-            ),
-          ),
+          Obx(() {
+            return _friendController.friends.length < 1
+                ? EmptyFriendsView()
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: _friendController.friends.length,
+                    itemBuilder: (context, index) => _buildProfileCard(
+                      _friendController.friends[index],
+                      false,
+                    ),
+                  );
+          }),
         ],
       ),
     );
   }
 }
 
-class UserProfile {
-  final String name;
-  final int? age;
-  final String location;
-  final String imageUrl;
-  final bool isOnline;
+class EmptyWishlistView extends StatelessWidget {
+  const EmptyWishlistView({super.key});
 
-  UserProfile({
-    required this.name,
-    this.age,
-    required this.location,
-    required this.imageUrl,
-    this.isOnline = false,
-  });
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Icon container
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.favorite_border,
+                  size: 48,
+                  color: AppColors.primaryColor,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Title
+              const Text(
+                'Your Wishlist is Empty',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Description
+              Text(
+                "You haven't added anything to your wishlist yet. Start browsing and save your favorites here.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Placeholder Cards
+              _buildPlaceholderCard(opacity: 1.0),
+              const SizedBox(height: 12),
+              _buildPlaceholderCard(opacity: 0.7),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderCard({required double opacity}) {
+    return Opacity(
+      opacity: opacity,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blueGrey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Row(
+          children: [
+            // Image placeholder
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(width: 16),
+
+            // Text placeholders
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 120,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 80,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Button placeholder
+            Container(
+              width: 80,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.greenColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-// Dummy data
-final dummyProfiles = [
-  UserProfile(
-    name: 'Sarah',
-    age: 25,
-    location: 'Mumbai',
-    imageUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1',
-    isOnline: true,
-  ),
-  UserProfile(
-    name: 'Jessica',
-    age: 24,
-    location: 'Delhi',
-    imageUrl: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e',
-  ),
-  // Add more dummy profiles as needed
-];
+class EmptyFriendsView extends StatelessWidget {
+  const EmptyFriendsView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Icon container
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.person_add_alt_1_rounded,
+                  size: 48,
+                  color: AppColors.primaryColor,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Title
+              const Text(
+                'No Friends Yet',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Description
+              Text(
+                "You don't have any friends added yet. Start sending friend requests to connect with others.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Placeholder Cards
+              _buildPlaceholderCard(opacity: 1.0),
+              const SizedBox(height: 12),
+              _buildPlaceholderCard(opacity: 0.7),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderCard({required double opacity}) {
+    return Opacity(
+      opacity: opacity,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blueGrey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Row(
+          children: [
+            // Avatar placeholder
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.accentColor.withOpacity(0.3),
+                  width: 2,
+                ),
+              ),
+              child: const CircleAvatar(
+                radius: 30,
+                backgroundColor: Colors.black12,
+              ),
+            ),
+            const SizedBox(width: 16),
+
+            // Text placeholders
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 120,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 80,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Button placeholders
+            Column(
+              children: [
+                Container(
+                  width: 80,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.greenColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: 80,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.redColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

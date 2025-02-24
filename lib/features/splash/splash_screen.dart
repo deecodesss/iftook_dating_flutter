@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
+import 'package:iftook/features/home/presentation/screens/home_screen.dart';
 
 import '../../helpers/myassets.dart';
 
@@ -16,6 +18,7 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _controller;
   late Animation<double> _animation;
   String? token = '';
+  bool isLoggedIn = false;
 
   @override
   void initState() {
@@ -32,38 +35,17 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _controller.forward();
+    _checkIsLoggedIn();
     Future.delayed(Duration(seconds: 3), () {
-      Get.off(() => LoginScreen());
+      Get.off(() => isLoggedIn ? HomeScreen() : LoginScreen());
     });
 
     // fetchData();
   }
 
-  // Future<void> fetchData() async {
-  //   token = await SharedPrefs.getUserTokenSharedPreference();
-  //   bool isBiometricEnabled =
-  //       await SharedPrefs.getBiometricPreference() ?? false;
-  //
-  //   SchedulerBinding.instance.addPostFrameCallback((_) async {
-  //     Get.put(SubscriptionController()).checkForSubscription();
-  //     await updateFCMToken();
-  //
-  //     Future.delayed(const Duration(seconds: 3), () async {
-  //       if (token?.isNotEmpty ?? false) {
-  //         if (isBiometricEnabled) {
-  //           bool authenticated = await BiometricService.loginWithBiometric();
-  //           if (!authenticated) {
-  //             Get.offAll(() => const LoginScreen());
-  //             return;
-  //           }
-  //         }
-  //       }
-  //
-  //       Get.offAll(() =>
-  //       token?.isEmpty ?? true ? const LoginScreen() : const HomeScreen());
-  //     });
-  //   });
-  // }
+  void _checkIsLoggedIn() async {
+    isLoggedIn = await SharedPrefs.getUserTokenSharedPreference() != null;
+  }
 
   @override
   void dispose() {

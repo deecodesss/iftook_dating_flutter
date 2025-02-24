@@ -37,7 +37,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
             onPressed: () {
               // Navigate to search screen
-              Get.to(() => const SearchScreen());
+              Get.to(() => SearchScreen());
             },
           ),
         ],
