@@ -80,15 +80,17 @@ class NotificationHelper {
           // Navigate to the appropriate screen based on the call type
           if (_notificationBody.type == 'voice') {
             Get.to(VoiceCallScreen(
-              meetingId: message.data['meetingId'],
-              channel: message.data['channelName'],
-              token: message.data['token'],
+              channel: "1953648cfe27a07",
+              meetingId: "",
+              token:
+                  "007eJxTYAjuiYtVmnAhZ1vhjKkTrz9yDtiaknYppvTF5c9/DTt9TRIVGExTEk0MkiwNTVKS00wSDSwsUy2SklJTzU0TLY3MDM0tmI32pDcEMjKsXHOSkZEBAkF8fgZDS1NjMxOL5LRUI/NEA3MGBgBFwyNe",
             ));
           } else if (_notificationBody.type == 'video') {
             Get.to(VideoCallScreen(
-              meetingId: message.data['meetingId'],
-              channel: message.data['channelName'],
-              token: message.data['token'],
+              channel: "1953648cfe27a07",
+              meetingId: "",
+              token:
+                  "007eJxTYAjuiYtVmnAhZ1vhjKkTrz9yDtiaknYppvTF5c9/DTt9TRIVGExTEk0MkiwNTVKS00wSDSwsUy2SklJTzU0TLY3MDM0tmI32pDcEMjKsXHOSkZEBAkF8fgZDS1NjMxOL5LRUI/NEA3MGBgBFwyNe",
             ));
           }
         }
