@@ -45,6 +45,8 @@ class AuthController extends GetxController {
   // Error message
   var errorMessage = ''.obs;
 
+  var isEmailVerified = false.obs;
+
   // Register method
   Future<void> register() async {
     try {
@@ -136,6 +138,49 @@ class AuthController extends GetxController {
     } finally {
       isLoading(false);
     }
+  }
+
+  Future<Map<String, dynamic>> sendOtp(String email) async {
+    try {
+      isLoading(true);
+
+      final response = await ApiService.sendOtp(email);
+      final responseBody = response.body;
+
+      // Check if response contains HTML (error page)
+      if (responseBody.contains('<!DOCTYPE html>')) {
+        return {
+          'success': false,
+          'message': 'Server error. Please try again later.'
+        };
+      }
+
+      final data = jsonDecode(responseBody);
+
+      if (data['success']) {
+        return {
+          'success': true,
+          'message': 'OTP sent successfully',
+          'otp': data['data']['otp']
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to send OTP'
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Failed to connect to server. Please try again.'
+      };
+    } finally {
+      isLoading(false);
+    }
+  }
+
+  void setEmailVerified(bool value) {
+    isEmailVerified(value);
   }
 
   Future<bool> isLoggedIn() async {

@@ -6,6 +6,8 @@ import 'package:iftook/core/widgets/charges_bottom_sheet.dart';
 import 'package:iftook/features/home/presentation/screens/home_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 import '../../controllers/auth_controller.dart';
 
@@ -313,6 +315,139 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  bool _isEmailVerified = false;
+  final TextEditingController _otpController = TextEditingController();
+  bool _showOtpInput = false;
+  String? _sentOtp;
+
+  Future<void> _sendOtp() async {
+    if (_emailController.text.isEmpty) {
+      Get.snackbar(
+        'Error',
+        'Please enter an email address',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    try {
+      final result = await _authController.sendOtp(_emailController.text);
+
+      if (result['success']) {
+        setState(() {
+          _showOtpInput = true;
+          _sentOtp = result['otp'].toString();
+        });
+      } else {
+        Get.snackbar(
+          'Error',
+          result['message'] ?? 'Failed to send OTP',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to send OTP. Please try again.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  void _verifyOtp(String enteredOtp) {
+    if (enteredOtp == _sentOtp) {
+      setState(() {
+        _isEmailVerified = true;
+        _showOtpInput = false;
+      });
+      _authController.setEmailVerified(true);
+      Get.snackbar(
+        'Success',
+        'Email verified successfully!',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } else {
+      Get.snackbar(
+        'Error',
+        'Invalid OTP',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Widget _buildEmailSection() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _emailController,
+                decoration: _getInputDecoration('Email').copyWith(
+                  suffixIcon: _isEmailVerified
+                      ? Icon(Icons.verified, color: Colors.green)
+                      : null,
+                ),
+                style: const TextStyle(color: Colors.white),
+                keyboardType: TextInputType.emailAddress,
+                validator: _validateEmail,
+              ),
+            ),
+            if (!_isEmailVerified) ...[
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                onPressed: _authController.isLoading.value ? null : _sendOtp,
+                child: _authController.isLoading.value
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text('Verify'),
+              ),
+            ],
+          ],
+        ),
+        if (_showOtpInput && !_isEmailVerified) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _otpController,
+                  decoration: _getInputDecoration('Enter OTP').copyWith(
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.check),
+                      onPressed: () => _verifyOtp(_otpController.text),
+                      color: AppColors.primaryColor,
+                    ),
+                  ),
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -332,31 +467,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
               )
             : null,
       ),
-      body: Obx(() {
-        if (_authController.isLoading.value) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (_authController.errorMessage.isNotEmpty) {
-          return Center(
-            child: Text(
-              _authController.errorMessage.value,
-              style: const TextStyle(color: Colors.red),
-            ),
-          );
-        }
-        return PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            _buildBasicInfoPage(),
-            _buildAdditionalInfoPage(),
-            _buildPhotosPage(),
-            _buildLocationPage(),
-            _buildPreferencesPage(),
-            _buildEarningsPage(),
-          ],
-        );
-      }),
+      body: PageView(
+        // Replace the Obx widget with direct PageView
+        controller: _pageController,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          _buildBasicInfoPage(),
+          _buildAdditionalInfoPage(),
+          _buildPhotosPage(),
+          _buildLocationPage(),
+          _buildPreferencesPage(),
+          _buildEarningsPage(),
+        ],
+      ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
@@ -478,13 +601,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          TextFormField(
-            controller: _emailController,
-            decoration: _getInputDecoration('Email'),
-            style: const TextStyle(color: Colors.white),
-            keyboardType: TextInputType.emailAddress,
-            validator: _validateEmail,
-          ),
+          _buildEmailSection(),
           const SizedBox(height: 20),
           TextFormField(
             controller: _passwordController,

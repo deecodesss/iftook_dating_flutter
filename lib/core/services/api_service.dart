@@ -7,7 +7,7 @@ import 'package:iftook/features/friends/data/chatroom.dart';
 import '../../features/friends/data/message.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://iftook-backend.vercel.app/api';
+  static const String baseUrl = 'https://iftook-backend-new.vercel.app/api';
 
   static Future<http.Response> register(Map<String, dynamic> body) async {
     final response = await http.post(
@@ -270,6 +270,16 @@ class ApiService {
       body: jsonEncode(data),
     );
     print(response.body);
+    return response;
+  }
+
+  static Future<http.Response> sendOtp(String email) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/send-otp'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+    print("OTP Response: ${response.body}");
     return response;
   }
 }
