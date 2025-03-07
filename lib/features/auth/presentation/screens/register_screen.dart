@@ -323,7 +323,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _sendOtp() async {
     if (_emailController.text.isEmpty) {
       Get.snackbar(
-        'Error',
+        'Errorr',
         'Please enter an email address',
         backgroundColor: Colors.red,
         colorText: Colors.white,
