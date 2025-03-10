@@ -7,7 +7,7 @@ import 'package:iftook/features/friends/data/chatroom.dart';
 import '../../features/friends/data/message.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://iftook-backend-new.vercel.app/api';
+  static const String baseUrl = 'https://iftook-backend.vercel.app/api';
 
   static Future<http.Response> register(Map<String, dynamic> body) async {
     final response = await http.post(
@@ -203,7 +203,26 @@ class ApiService {
     return response;
   }
 
-  static Future<http.Response> addMoneyToWallet(double amount) async {
+  static Future<http.Response> makePayment(double amount) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final userId = await SharedPrefs.getUserIdSharedPreference();
+
+    final response = await http.post(
+      Uri.parse(
+          '$baseUrl/payments/create'), // Update the endpoint as per your API
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'amount': amount}), // Pass the amount in the body
+    );
+
+    print(response.body);
+    return response;
+  }
+
+  static Future<http.Response> addMoneyToWallet(
+      double amount, String paymentId) async {
     final token = await SharedPrefs.getUserTokenSharedPreference();
     final userId = await SharedPrefs.getUserIdSharedPreference();
 
@@ -214,8 +233,10 @@ class ApiService {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
-      body: jsonEncode(
-          {'userId': userId, 'amount': amount}), // Pass the amount in the body
+      body: jsonEncode({
+        'paymentId': paymentId,
+        'amount': amount
+      }), // Pass the amount in the body
     );
 
     print(response.body);

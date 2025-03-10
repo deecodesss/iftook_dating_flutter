@@ -6,8 +6,6 @@ import 'package:iftook/core/widgets/charges_bottom_sheet.dart';
 import 'package:iftook/features/home/presentation/screens/home_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 import '../../controllers/auth_controller.dart';
 
@@ -230,20 +228,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
       });
     }
   }
-
-  void _nextPage() {
-    if (_currentPage < 5) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-      setState(() {
-        _currentPage++;
-      });
-    } else {
-      _handleRegistration();
-    }
-  }
+  //
+  // void _nextPage() {
+  //   if (_currentPage < 5) {
+  //     _pageController.nextPage(
+  //       duration: const Duration(milliseconds: 300),
+  //       curve: Curves.easeInOut,
+  //     );
+  //     setState(() {
+  //       _currentPage++;
+  //     });
+  //   } else {
+  //     _handleRegistration();
+  //   }
+  // }
 
   void _previousPage() {
     if (_currentPage > 0) {
@@ -255,6 +253,140 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _currentPage--;
       });
     }
+  }
+
+  void _nextPage() {
+    bool isValid = true;
+
+    // Validate the current step based on the current page index
+    switch (_currentPage) {
+      case 0:
+        isValid = _validateBasicInfo();
+        break;
+      case 1:
+        isValid = _validateAdditionalInfo();
+        break;
+      case 2:
+        isValid = _validatePhotos();
+        break;
+      case 3:
+        isValid = _validateLocation();
+        break;
+      case 4:
+        isValid = _validatePreferences();
+        break;
+      case 5:
+        isValid = _validateEarnings();
+        break;
+    }
+
+    if (isValid) {
+      if (_currentPage < 5) {
+        _pageController.nextPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+        setState(() {
+          _currentPage++;
+        });
+      } else {
+        _handleRegistration();
+      }
+    }
+  }
+
+  bool _validateBasicInfo() {
+    if (_nameController.text.isEmpty) {
+      Get.snackbar('Error', 'Please enter your full name',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+    if (_dobController.text.isEmpty) {
+      Get.snackbar('Error', 'Please select your date of birth',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+    if (_selectedGender.isEmpty) {
+      Get.snackbar('Error', 'Please select your gender',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+    if (_emailController.text.isEmpty ||
+        !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+            .hasMatch(_emailController.text)) {
+      Get.snackbar('Error', 'Please enter a valid email',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+    if (_passwordController.text.isEmpty ||
+        _passwordController.text.length < 8) {
+      Get.snackbar('Error', 'Password must be at least 8 characters',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+    if (_confirmPasswordController.text.isEmpty ||
+        _confirmPasswordController.text != _passwordController.text) {
+      Get.snackbar('Error', 'Passwords do not match',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+    return true;
+  }
+
+  bool _validateAdditionalInfo() {
+    if (_aboutController.text.isEmpty) {
+      Get.snackbar('Error', 'Please enter something about yourself',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+    if (selectedHeight == null) {
+      Get.snackbar('Error', 'Please select your height',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+    if (selectedLanguages.isEmpty) {
+      Get.snackbar('Error', 'Please select at least one language',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+    if (_professionController.text.isEmpty) {
+      Get.snackbar('Error', 'Please enter your profession',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+    return true;
+  }
+
+  bool _validatePhotos() {
+    // if (_photos.length < 2) {
+    //   Get.snackbar('Error', 'Please add at least 2 photos',
+    //       backgroundColor: Colors.red, colorText: Colors.white);
+    //   return false;
+    // }
+    return true;
+  }
+
+  bool _validateLocation() {
+    if (_country.isEmpty || _state.isEmpty || _city.isEmpty) {
+      Get.snackbar('Error', 'Please ensure your location is correctly set',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+    return true;
+  }
+
+  bool _validatePreferences() {
+    if (_selectedInterests.isEmpty) {
+      Get.snackbar('Error', 'Please select at least one interest',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+    return true;
+  }
+
+  bool _validateEarnings() {
+    // Add validation logic for earnings if needed
+    return true;
   }
 
   void _handleRegistration() {
@@ -535,148 +667,151 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildBasicInfoPage() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _headerTitle("Basics"),
-          TextFormField(
-            controller: _nameController,
-            decoration: _getInputDecoration('Full Name'),
-            style: const TextStyle(color: Colors.white),
-          ),
-          const SizedBox(height: 20),
-          TextFormField(
-            controller: _dobController,
-            readOnly: true,
-            onTap: () => _selectDate(context),
-            decoration: _getInputDecoration('Date of Birth').copyWith(
-              suffixIcon: Icon(
-                Icons.calendar_today,
-                color: _primaryColor,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _headerTitle("Basics"),
+            TextFormField(
+              controller: _nameController,
+              decoration: _getInputDecoration('Full Name'),
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _dobController,
+              readOnly: true,
+              onTap: () => _selectDate(context),
+              decoration: _getInputDecoration('Date of Birth').copyWith(
+                suffixIcon: Icon(
+                  Icons.calendar_today,
+                  color: _primaryColor,
+                ),
               ),
+              style: const TextStyle(color: Colors.white),
             ),
-            style: const TextStyle(color: Colors.white),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _cardColor,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Gender',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Gender',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _genderOptions.map((gender) {
-                    return ChoiceChip(
-                      label: Text(gender),
-                      selected: _selectedGender == gender,
-                      onSelected: (selected) {
-                        setState(
-                            () => _selectedGender = selected ? gender : '');
-                      },
-                      selectedColor: _chipSelectedColor,
-                      backgroundColor: _chipUnselectedColor,
-                      labelStyle: TextStyle(
-                        color: _selectedGender == gender
-                            ? Colors.white
-                            : Colors.grey[300],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          _buildEmailSection(),
-          const SizedBox(height: 20),
-          TextFormField(
-            controller: _passwordController,
-            decoration: _getInputDecoration('Password').copyWith(
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                  color: _primaryColor,
-                ),
-                onPressed: () {
-                  setState(() {
-                    _obscurePassword = !_obscurePassword;
-                  });
-                },
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _genderOptions.map((gender) {
+                      return ChoiceChip(
+                        label: Text(gender),
+                        selected: _selectedGender == gender,
+                        onSelected: (selected) {
+                          setState(
+                              () => _selectedGender = selected ? gender : '');
+                        },
+                        selectedColor: _chipSelectedColor,
+                        backgroundColor: _chipUnselectedColor,
+                        labelStyle: TextStyle(
+                          color: _selectedGender == gender
+                              ? Colors.white
+                              : Colors.grey[300],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ),
             ),
-            style: const TextStyle(color: Colors.white),
-            obscureText: _obscurePassword,
-            validator: _validatePassword,
-          ),
-          const SizedBox(height: 20),
-          TextFormField(
-            controller: _confirmPasswordController,
-            decoration: _getInputDecoration('Confirm Password').copyWith(
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscureConfirmPassword
-                      ? Icons.visibility_off
-                      : Icons.visibility,
-                  color: _primaryColor,
+            const SizedBox(height: 20),
+            _buildEmailSection(),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _passwordController,
+              decoration: _getInputDecoration('Password').copyWith(
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    color: _primaryColor,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
                 ),
-                onPressed: () {
-                  setState(() {
-                    _obscureConfirmPassword = !_obscureConfirmPassword;
-                  });
-                },
               ),
+              style: const TextStyle(color: Colors.white),
+              obscureText: _obscurePassword,
+              validator: _validatePassword,
             ),
-            style: const TextStyle(color: Colors.white),
-            obscureText: _obscureConfirmPassword,
-            validator: _validateConfirmPassword,
-          ),
-          // const SizedBox(height: 20),
-          // Row(
-          //   children: [
-          //     Expanded(
-          //       child: TextFormField(
-          //         controller: _phoneController,
-          //         decoration: _getInputDecoration('Phone Number'),
-          //         style: const TextStyle(color: Colors.white),
-          //         keyboardType: TextInputType.phone,
-          //       ),
-          //     ),
-          //     const SizedBox(width: 8),
-          //     ElevatedButton(
-          //       style: ElevatedButton.styleFrom(
-          //           backgroundColor: AppColors.primaryColor,
-          //           foregroundColor: Colors.white,
-          //           padding: const EdgeInsets.symmetric(
-          //               horizontal: 12, vertical: 8)),
-          //       onPressed: () {
-          //         // Implement verification logic
-          //       },
-          //       child: const Row(
-          //         mainAxisSize: MainAxisSize.min,
-          //         children: [
-          //           Text('Verify'),
-          //           SizedBox(width: 2),
-          //           Icon(HugeIcons.strokeRoundedCheckmarkBadge01, size: 20)
-          //         ],
-          //       ),
-          //     ),
-          //   ],
-          // ),
-        ],
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _confirmPasswordController,
+              decoration: _getInputDecoration('Confirm Password').copyWith(
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureConfirmPassword
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                    color: _primaryColor,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscureConfirmPassword = !_obscureConfirmPassword;
+                    });
+                  },
+                ),
+              ),
+              style: const TextStyle(color: Colors.white),
+              obscureText: _obscureConfirmPassword,
+              validator: _validateConfirmPassword,
+            ),
+            // const SizedBox(height: 20),
+            // Row(
+            //   children: [
+            //     Expanded(
+            //       child: TextFormField(
+            //         controller: _phoneController,
+            //         decoration: _getInputDecoration('Phone Number'),
+            //         style: const TextStyle(color: Colors.white),
+            //         keyboardType: TextInputType.phone,
+            //       ),
+            //     ),
+            //     const SizedBox(width: 8),
+            //     ElevatedButton(
+            //       style: ElevatedButton.styleFrom(
+            //           backgroundColor: AppColors.primaryColor,
+            //           foregroundColor: Colors.white,
+            //           padding: const EdgeInsets.symmetric(
+            //               horizontal: 12, vertical: 8)),
+            //       onPressed: () {
+            //         // Implement verification logic
+            //       },
+            //       child: const Row(
+            //         mainAxisSize: MainAxisSize.min,
+            //         children: [
+            //           Text('Verify'),
+            //           SizedBox(width: 2),
+            //           Icon(HugeIcons.strokeRoundedCheckmarkBadge01, size: 20)
+            //         ],
+            //       ),
+            //     ),
+            //   ],
+            // ),
+          ],
+        ),
       ),
     );
   }
@@ -684,111 +819,114 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildAdditionalInfoPage() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _headerTitle("Additional Information"),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _headerTitle("Additional Information"),
 
-          // About Me
-          TextFormField(
-            controller: _aboutController,
-            decoration: _getInputDecoration('About Me'),
-            style: const TextStyle(color: Colors.white),
-            maxLines: 3,
-          ),
-          const SizedBox(height: 20),
-
-          // Height Selection
-          DropdownButtonFormField<String>(
-            value: selectedHeight,
-            items: heights.map((height) {
-              return DropdownMenuItem(
-                value: height,
-                child: Text(height),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                selectedHeight = value;
-              });
-            },
-            style: const TextStyle(color: Colors.white),
-            dropdownColor: _cardColor,
-            decoration: _getInputDecoration('Height'),
-          ),
-          const SizedBox(height: 20),
-
-          // Languages
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _cardColor,
-              borderRadius: BorderRadius.circular(12),
+            // About Me
+            TextFormField(
+              controller: _aboutController,
+              decoration: _getInputDecoration('About Me'),
+              style: const TextStyle(color: Colors.white),
+              maxLines: 3,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Languages',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+            const SizedBox(height: 20),
+
+            // Height Selection
+            DropdownButtonFormField<String>(
+              value: selectedHeight,
+              items: heights.map((height) {
+                return DropdownMenuItem(
+                  value: height,
+                  child: Text(height),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedHeight = value;
+                });
+              },
+              style: const TextStyle(color: Colors.white),
+              dropdownColor: _cardColor,
+              decoration: _getInputDecoration('Height'),
+            ),
+            const SizedBox(height: 20),
+
+            // Languages
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Languages',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  children: languages.map((language) {
-                    return FilterChip(
-                      label: Text(language),
-                      selected: selectedLanguages.contains(language),
-                      onSelected: (selected) {
-                        setState(() {
-                          if (selected) {
-                            selectedLanguages.add(language);
-                          } else {
-                            selectedLanguages.remove(language);
-                          }
-                        });
-                      },
-                      backgroundColor: _chipUnselectedColor,
-                      selectedColor: _chipSelectedColor,
-                    );
-                  }).toList(),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: languages.map((language) {
+                      return FilterChip(
+                        label: Text(language),
+                        selected: selectedLanguages.contains(language),
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              selectedLanguages.add(language);
+                            } else {
+                              selectedLanguages.remove(language);
+                            }
+                          });
+                        },
+                        backgroundColor: _chipUnselectedColor,
+                        selectedColor: _chipSelectedColor,
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // Profession
-          TextFormField(
-            controller: _professionController,
-            decoration: _getInputDecoration('Profession'),
-            style: const TextStyle(color: Colors.white),
-          ),
-          const SizedBox(height: 20),
+            // Profession
+            TextFormField(
+              controller: _professionController,
+              decoration: _getInputDecoration('Profession'),
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 20),
 
-          // PAN Details
-          // TextFormField(
-          //   controller: _panController,
-          //   decoration: _getInputDecoration('PAN Number (Optional)'),
-          //   style: const TextStyle(color: Colors.white),
-          // ),
-          // const SizedBox(height: 8),
-          // OutlinedButton.icon(
-          //   onPressed: () {
-          //     // Implement PAN photo upload logic
-          //   },
-          //   icon: const Icon(Icons.upload_file),
-          //   label: const Text('Upload PAN Photo (Optional)'),
-          //   style: OutlinedButton.styleFrom(
-          //     foregroundColor: Colors.white,
-          //     side: BorderSide(color: Colors.grey[700]!),
-          //   ),
-          // ),
-        ],
+            // PAN Details
+            // TextFormField(
+            //   controller: _panController,
+            //   decoration: _getInputDecoration('PAN Number (Optional)'),
+            //   style: const TextStyle(color: Colors.white),
+            // ),
+            // const SizedBox(height: 8),
+            // OutlinedButton.icon(
+            //   onPressed: () {
+            //     // Implement PAN photo upload logic
+            //   },
+            //   icon: const Icon(Icons.upload_file),
+            //   label: const Text('Upload PAN Photo (Optional)'),
+            //   style: OutlinedButton.styleFrom(
+            //     foregroundColor: Colors.white,
+            //     side: BorderSide(color: Colors.grey[700]!),
+            //   ),
+            // ),
+          ],
+        ),
       ),
     );
   }
@@ -835,57 +973,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildLocationPage() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          if (_isLoadingLocation)
-            const Center(
-              child: CircularProgressIndicator(),
-            )
-          else if (_locationError.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            if (_isLoadingLocation)
+              const Center(
+                child: CircularProgressIndicator(),
+              )
+            else if (_locationError.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _locationError,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              )
+            else ...[
+              TextFormField(
+                decoration: _getInputDecoration('Country'),
+                initialValue: _country,
+                readOnly: true,
+                style: const TextStyle(color: Colors.white),
               ),
-              child: Text(
-                _locationError,
-                style: const TextStyle(color: Colors.red),
+              const SizedBox(height: 20),
+              TextFormField(
+                decoration: _getInputDecoration('State'),
+                initialValue: _state,
+                readOnly: true,
+                style: const TextStyle(color: Colors.white),
               ),
-            )
-          else ...[
-            TextFormField(
-              decoration: _getInputDecoration('Country'),
-              initialValue: _country,
-              readOnly: true,
-              style: const TextStyle(color: Colors.white),
-            ),
+              const SizedBox(height: 20),
+              TextFormField(
+                decoration: _getInputDecoration('City'),
+                initialValue: _city,
+                readOnly: true,
+                style: const TextStyle(color: Colors.white),
+              ),
+            ],
             const SizedBox(height: 20),
-            TextFormField(
-              decoration: _getInputDecoration('State'),
-              initialValue: _state,
-              readOnly: true,
-              style: const TextStyle(color: Colors.white),
-            ),
-            const SizedBox(height: 20),
-            TextFormField(
-              decoration: _getInputDecoration('City'),
-              initialValue: _city,
-              readOnly: true,
-              style: const TextStyle(color: Colors.white),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: _getCurrentLocation,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh Location'),
             ),
           ],
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: _getCurrentLocation,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Refresh Location'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -899,46 +1040,49 @@ class _RegisterScreenState extends State<RegisterScreen> {
           color: _cardColor,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Looking for',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Looking for',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _interestAreas.map((interest) {
-                return FilterChip(
-                  label: Text(interest),
-                  selected: _selectedInterests.contains(interest),
-                  onSelected: (selected) {
-                    setState(() {
-                      if (selected) {
-                        _selectedInterests.add(interest);
-                      } else {
-                        _selectedInterests.remove(interest);
-                      }
-                    });
-                  },
-                  selectedColor: _chipSelectedColor,
-                  checkmarkColor: Colors.white,
-                  backgroundColor: _chipUnselectedColor,
-                  labelStyle: TextStyle(
-                    color: _selectedInterests.contains(interest)
-                        ? Colors.white
-                        : Colors.grey[300],
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _interestAreas.map((interest) {
+                  return FilterChip(
+                    label: Text(interest),
+                    selected: _selectedInterests.contains(interest),
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedInterests.add(interest);
+                        } else {
+                          _selectedInterests.remove(interest);
+                        }
+                      });
+                    },
+                    selectedColor: _chipSelectedColor,
+                    checkmarkColor: Colors.white,
+                    backgroundColor: _chipUnselectedColor,
+                    labelStyle: TextStyle(
+                      color: _selectedInterests.contains(interest)
+                          ? Colors.white
+                          : Colors.grey[300],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
         ),
       ),
     );

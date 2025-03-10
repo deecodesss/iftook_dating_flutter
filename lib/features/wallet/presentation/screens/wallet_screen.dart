@@ -314,7 +314,8 @@ class _WalletScreenState extends State<WalletScreen>
             onPressed: () {
               final amount = double.tryParse(amountController.text);
               if (amount != null && amount > 0) {
-                walletController.addMoney(amount); // Call the addMoney method
+                walletController
+                    .makePayment(amount); // Call the addMoney method
                 Get.back(); // Close the dialog
               } else {
                 Get.snackbar(

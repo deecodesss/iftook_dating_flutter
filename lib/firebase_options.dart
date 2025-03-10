@@ -58,8 +58,8 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCkKgu4ZmGUeKZlStJ-PZr9VAGKvCZOvQg',
-    appId: '1:857030913183:android:212d978755e76a90c306aa',
+    apiKey: 'AIzaSyDqdcfTKbKPZxAn6aKZaZvwdDNeOf-3hSU',
+    appId: '1:857030913183:ios:ada810a29643390cc306aa',
     messagingSenderId: '857030913183',
     projectId: 'iftook-flutter',
     storageBucket: 'iftook-flutter.firebasestorage.app',

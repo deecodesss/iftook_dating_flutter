@@ -37,13 +37,13 @@ class CallController extends GetxController {
                 channel: "1953648cfe27a07",
                 meetingId: meetingId.value,
                 token:
-                    "007eJxTYAjuiYtVmnAhZ1vhjKkTrz9yDtiaknYppvTF5c9/DTt9TRIVGExTEk0MkiwNTVKS00wSDSwsUy2SklJTzU0TLY3MDM0tmI32pDcEMjKsXHOSkZEBAkF8fgZDS1NjMxOL5LRUI/NEA3MGBgBFwyNe",
+                    "007eJxTYFjUWW9TIrwibovbvDuRsh0fbxxPm9pwznnNpskK7L42WW8UGExTEk0MkiwNTVKS00wSDSwsUy2SklJTzU0TLY3MDM0tmg+eS598/ly6eCs/KyMDIwMLAyMDCDCBSWYwyQIm+RkMLU2NzUwsktNSjcwTDcwlGMzMk4yMUgyMTA1Nk8xMzUwMU4xMjI1NjAHOBCiQ",
               )
             : VideoCallScreen(
                 channel: "1953648cfe27a07",
                 meetingId: meetingId.value,
                 token:
-                    "007eJxTYAjuiYtVmnAhZ1vhjKkTrz9yDtiaknYppvTF5c9/DTt9TRIVGExTEk0MkiwNTVKS00wSDSwsUy2SklJTzU0TLY3MDM0tmI32pDcEMjKsXHOSkZEBAkF8fgZDS1NjMxOL5LRUI/NEA3MGBgBFwyNe",
+                    "007eJxTYFjUWW9TIrwibovbvDuRsh0fbxxPm9pwznnNpskK7L42WW8UGExTEk0MkiwNTVKS00wSDSwsUy2SklJTzU0TLY3MDM0tmg+eS598/ly6eCs/KyMDIwMLAyMDCDCBSWYwyQIm+RkMLU2NzUwsktNSjcwTDcwlGMzMk4yMUgyMTA1Nk8xMzUwMU4xMjI1NjAHOBCiQ",
               ),
       );
     }

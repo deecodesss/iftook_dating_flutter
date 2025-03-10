@@ -59,7 +59,8 @@ dependencies:
   firebase_core:
   firebase_messaging:
   flutter_local_notifications:
-  cloud_firestore:
+  webview_flutter: ^4.10.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
