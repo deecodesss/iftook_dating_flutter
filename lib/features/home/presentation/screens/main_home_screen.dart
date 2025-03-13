@@ -6,10 +6,12 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/core/widgets/custom_app_bar.dart';
 import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
 import 'package:iftook/features/home/presentation/screens/profile_swiper.dart';
+import 'package:iftook/features/home/presentation/screens/schedule_meeting_screen.dart';
 import 'package:iftook/features/home/presentation/screens/swiper_animation.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/features/profile/presentation/screens/view_reviews_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
+import 'package:iftook/features/home/data/enums/meeting_type.dart';
 
 import '../../controllers/home_controller.dart';
 
@@ -226,23 +228,52 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     return Scaffold(
       body: Obx(() {
         if (_homeController.isLoading.value) {
-          return Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator());
+        } else if (_homeController.profiles.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.person_search, size: 64, color: Colors.grey[600]),
+                const SizedBox(height: 16),
+                Text(
+                  'No Profiles Found',
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_homeController.selectedCountry.value != 'All')
+                  Text(
+                    'Try selecting a different country',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+              ],
+            ),
+          );
         } else {
           return Column(
             children: [
-              // App Bar
               CustomAppBar(),
-              // Profile Swiper - Takes all available space
               Expanded(
                 child: ProfileSwiper(
                   profiles: _homeController.profiles,
                   onSwipe: (profile, isLike) {
-                    // print(
-                    //     '${profile!.name} was ${isLike ? 'liked' : 'disliked'}');
+                    // Handle swipe if needed
+                  },
+                  onIndexChanged: (index) {
+                    if (index >= 0 && index < _homeController.profiles.length) {
+                      _currentProfileIndex = index;
+                      _homeController.updateCurrentIndex(index);
+                    }
                   },
                 ),
               ),
-
               // Bottom Section - Service and Action buttons
               Container(
                 padding: const EdgeInsets.only(bottom: 16, top: 16),
@@ -277,7 +308,11 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
             color: AppColors.primaryColor,
             backgroundColor: Colors.transparent,
             onPressed: () {
-              Get.to(() => ViewReviewsScreen());
+              if (_homeController.profiles.isNotEmpty) {
+                final currentProfile =
+                    _homeController.profiles[_currentProfileIndex];
+                Get.to(() => ViewReviewsScreen(userId: currentProfile.sId!));
+              }
             },
             showRating: false,
           ),
@@ -286,7 +321,14 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
             label: 'Interested\nin Dating',
             color: AppColors.primaryColor,
             backgroundColor: Colors.transparent,
-            onPressed: () {},
+            onPressed: () {
+              if (_homeController.profiles.isNotEmpty) {
+                final currentProfile =
+                    _homeController.profiles[_currentProfileIndex];
+                _homeController
+                    .sendFriendRequest(currentProfile.sId.toString());
+              }
+            },
           ),
           _buildActionButtonWithLabel(
             icon: HugeIcons.strokeRoundedActivity01,
@@ -624,30 +666,185 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
   //   }
   // }
 
+  void _showMeetingDialog(MeetingType type) {
+    DateTime selectedDate = DateTime.now();
+    TimeOfDay selectedTime = TimeOfDay.now();
+    final currentProfile = _homeController.profiles[_currentProfileIndex];
+
+    Get.dialog(
+      Dialog(
+        child: Container(
+          padding: const EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            color: Colors.grey[900],
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Schedule',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Text(
+              //   type.price,
+              //   style: TextStyle(
+              //     fontSize: 16,
+              //     color: Colors.grey[400],
+              //   ),
+              // ),
+              const SizedBox(height: 20),
+              // Date Picker
+              ListTile(
+                title:
+                    Text('Select Date', style: TextStyle(color: Colors.white)),
+                trailing:
+                    Icon(Icons.calendar_today, color: AppColors.primaryColor),
+                onTap: () async {
+                  final DateTime? picked = await showDatePicker(
+                    context: Get.context!,
+                    initialDate: selectedDate,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(const Duration(days: 30)),
+                  );
+                  if (picked != null) {
+                    selectedDate = picked;
+                  }
+                },
+              ),
+              // Time Picker
+              ListTile(
+                title:
+                    Text('Select Time', style: TextStyle(color: Colors.white)),
+                trailing:
+                    Icon(Icons.access_time, color: AppColors.primaryColor),
+                onTap: () async {
+                  final TimeOfDay? picked = await showTimePicker(
+                    context: Get.context!,
+                    initialTime: selectedTime,
+                  );
+                  if (picked != null) {
+                    selectedTime = picked;
+                  }
+                },
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Get.back(),
+                    child: Text('Cancel',
+                        style: TextStyle(color: Colors.grey[400])),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      final DateTime scheduleTime = DateTime(
+                        selectedDate.year,
+                        selectedDate.month,
+                        selectedDate.day,
+                        selectedTime.hour,
+                        selectedTime.minute,
+                      );
+
+                      // print('Scheduling ${type.label}');
+                      print('Type value: ${type.value}');
+                      print('Participant ID: ${currentProfile.sId}');
+                      print('Scheduled Time: $scheduleTime');
+
+                      _homeController.createMeeting(
+                        currentProfile.sId!,
+                        type.value,
+                        scheduleTime,
+                        getCurrentRate(
+                            type, currentProfile.earnings), // Add rate here
+                      );
+
+                      Get.back();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryColor,
+                    ),
+                    child: const Text('Schedule'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  double getCurrentRate(MeetingType type, Earnings? earnings) {
+    if (earnings == null)
+      return type == MeetingType.chat
+          ? 150
+          : type == MeetingType.voice
+              ? 300
+              : 450;
+    return type == MeetingType.chat
+        ? earnings.chat.toDouble()
+        : type == MeetingType.voice
+            ? earnings.voice.toDouble()
+            : earnings.video.toDouble();
+  }
+
+  void _navigateToSchedule(MeetingType type) {
+    if (_homeController.profiles.isEmpty) return;
+
+    final currentProfile = _homeController.profiles[_currentProfileIndex];
+    print(
+        'Navigating to schedule with user earnings: ${currentProfile.earnings?.toJson()}');
+    print('User wallet balance: ${currentProfile.walletBalance}');
+
+    // Check if earnings exist
+    if (currentProfile.earnings == null) {
+      print('Warning: User has no earnings set, using defaults');
+    }
+
+    Get.to(() => ScheduleMeetingScreen(
+          participant: currentProfile,
+          type: type,
+        ));
+  }
+
   Widget _buildServiceButtons() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildServiceButton(
-            icon: HugeIcons.strokeRoundedComment01,
-            label: 'Chat\n₹100/30min',
-            onTap: () {},
-          ),
-          _buildServiceButton(
-            icon: HugeIcons.strokeRoundedCall02,
-            label: 'Call\n₹300/30min',
-            onTap: () {},
-          ),
-          _buildServiceButton(
-            icon: HugeIcons.strokeRoundedVideo01,
-            label: 'Video\n₹400/30min',
-            onTap: () {},
-          ),
-          _buildTrialDropdown(),
-        ],
-      ),
+      child: Obx(() {
+        final currentProfile = _homeController.profiles.isEmpty
+            ? null
+            : _homeController.profiles[_homeController.currentIndex.value];
+        final earnings = currentProfile?.earnings;
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildServiceButton(
+              icon: HugeIcons.strokeRoundedComment01,
+              label: 'Chat\n₹${earnings?.chatRate.toInt() ?? 150}',
+              onTap: () => _navigateToSchedule(MeetingType.chat),
+            ),
+            _buildServiceButton(
+              icon: HugeIcons.strokeRoundedCall02,
+              label: 'Call\n₹${earnings?.voiceRate.toInt() ?? 300}',
+              onTap: () => _navigateToSchedule(MeetingType.voice),
+            ),
+            _buildServiceButton(
+              icon: HugeIcons.strokeRoundedVideo01,
+              label: 'Video\n₹${earnings?.videoRate.toInt() ?? 450}',
+              onTap: () => _navigateToSchedule(MeetingType.video),
+            ),
+            _buildTrialDropdown(),
+          ],
+        );
+      }),
     );
   }
 

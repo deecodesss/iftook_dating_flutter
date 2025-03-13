@@ -1,41 +1,83 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
-class ViewReviewsScreen extends StatelessWidget {
-  ViewReviewsScreen({Key? key}) : super(key: key);
+import '../../../../core/services/api_service.dart';
 
-  // Mock data - replace with actual data in production
-  final Map<String, double> ratings = {
-    'Politeness': 4.5,
-    'Compatibility': 4.0,
-    'Problem Solving': 4.2,
-    'Interactiveness': 4.8,
-    'Energetic': 4.3,
-  };
+class ViewReviewsScreen extends StatefulWidget {
+  final String userId;
 
-  final List<Review> reviews = [
-    Review(
-      name: "Sarah M.",
-      rating: 4.5,
-      comment:
-          "Great personality and very engaging in conversation! Really enjoyed our interaction.",
-      date: "2024-01-10",
-    ),
-    Review(
-      name: "John D.",
-      rating: 4.0,
-      comment: "Very polite and respectful. Good communication skills.",
-      date: "2024-01-08",
-    ),
-    // Add more mock reviews as needed
-  ];
+  const ViewReviewsScreen({
+    Key? key,
+    required this.userId,
+  }) : super(key: key);
 
-  double get averageRating {
-    return ratings.values.reduce((a, b) => a + b) / ratings.length;
+  @override
+  State<ViewReviewsScreen> createState() => _ViewReviewsScreenState();
+}
+
+class _ViewReviewsScreenState extends State<ViewReviewsScreen> {
+  bool isLoading = true;
+  List<Review> reviews = [];
+  Map<String, double> ratings = {};
+  double averageRating = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserRatings();
+  }
+
+  Future<void> _fetchUserRatings() async {
+    try {
+      setState(() => isLoading = true);
+      final response = await ApiService.getRatings(widget.userId);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // Parse ratings
+        if (data['ratings'] != null) {
+          final Map<String, dynamic> ratingsData = data['ratings'];
+          ratings = {
+            'Overall': ratingsData['average']?.toDouble() ?? 0.0,
+            'Politeness': ratingsData['politeness']?.toDouble() ?? 0.0,
+            'Communication': ratingsData['communication']?.toDouble() ?? 0.0,
+            'Professionalism':
+                ratingsData['professionalism']?.toDouble() ?? 0.0,
+            'Punctuality': ratingsData['punctuality']?.toDouble() ?? 0.0,
+          };
+          averageRating = ratings['Overall'] ?? 0.0;
+        }
+
+        // Parse reviews
+        if (data['reviews'] != null) {
+          reviews = (data['reviews'] as List)
+              .map((review) => Review(
+                    name: review['userName'] ?? 'Anonymous',
+                    rating: review['rating']?.toDouble() ?? 0.0,
+                    comment: review['comment'] ?? '',
+                    date: review['createdAt'] ?? '',
+                  ))
+              .toList();
+        }
+      }
+    } catch (e) {
+      print('Error fetching ratings: $e');
+    } finally {
+      setState(() => isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ratings & Reviews')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ratings & Reviews'),

@@ -22,7 +22,7 @@ class User {
   String? createdAt;
   String? updatedAt;
   dynamic iV;
-  dynamic? walletBalance;
+  dynamic walletBalance; // Change to dynamic to handle both int and double
   bool? isBlocked;
   String? blockReason;
   bool? isPromoted;
@@ -30,37 +30,38 @@ class User {
   List<Reviews>? reviews;
   bool? isFriend;
 
-  User(
-      {this.location,
-      this.panDetails,
-      this.earnings,
-      this.sId,
-      this.name,
-      this.email,
-      this.dob,
-      this.gender,
-      this.interestedIn,
-      this.about,
-      this.profession,
-      this.height,
-      this.languages,
-      this.photos,
-      this.interests,
-      this.isOnline,
-      this.role,
-      this.likes,
-      this.dislikes,
-      this.matches,
-      this.createdAt,
-      this.updatedAt,
-      this.iV,
-      this.walletBalance,
-      this.isBlocked,
-      this.blockReason,
-      this.isPromoted,
-      this.averageRating,
-      this.isFriend,
-      this.reviews});
+  User({
+    this.location,
+    this.panDetails,
+    this.earnings,
+    this.sId,
+    this.name,
+    this.email,
+    this.dob,
+    this.gender,
+    this.interestedIn,
+    this.about,
+    this.profession,
+    this.height,
+    this.languages,
+    this.photos,
+    this.interests,
+    this.isOnline,
+    this.role,
+    this.likes,
+    this.dislikes,
+    this.matches,
+    this.createdAt,
+    this.updatedAt,
+    this.iV,
+    this.walletBalance = 0,
+    this.isBlocked,
+    this.blockReason,
+    this.isPromoted,
+    this.averageRating,
+    this.isFriend,
+    this.reviews,
+  });
 
   User.fromJson(Map<String, dynamic> json) {
     location = json['location'] != null
@@ -70,8 +71,14 @@ class User {
         ? new PanDetails.fromJson(json['panDetails'])
         : null;
     earnings = json['earnings'] != null
-        ? new Earnings.fromJson(json['earnings'])
-        : null;
+        ? Earnings.fromJson(json['earnings'])
+        : Earnings(
+            chat: 150, // Default values
+            voice: 300,
+            video: 450,
+            live: 5,
+            subscription: 700,
+          );
     sId = json['_id'];
     name = json['name'];
     isFriend = json['isFriend'];
@@ -87,28 +94,12 @@ class User {
     interests = json['interests'].cast<String>();
     isOnline = json['isOnline'];
     role = json['role'];
-    // if (json['likes'] != null) {
-    //   likes = <Null>[];
-    //   json['likes'].forEach((v) {
-    //     likes!.add(new Null.fromJson(v));
-    //   });
-    // }
-    // if (json['dislikes'] != null) {
-    //   dislikes = <Null>[];
-    //   json['dislikes'].forEach((v) {
-    //     dislikes!.add(new Null.fromJson(v));
-    //   });
-    // }
-    // if (json['matches'] != null) {
-    //   matches = <Null>[];
-    //   json['matches'].forEach((v) {
-    //     matches!.add(new Null.fromJson(v));
-    //   });
-    // }
     createdAt = json['createdAt'];
     updatedAt = json['updatedAt'];
     iV = json['__v'];
-    walletBalance = json['walletBalance'];
+    walletBalance = json['walletBalance'] != null
+        ? (json['walletBalance'] as num).toDouble()
+        : 0.0;
     isBlocked = json['isBlocked'];
     blockReason = json['blockReason'];
     isPromoted = json['isPromoted'];
@@ -147,15 +138,6 @@ class User {
     data['interests'] = this.interests;
     data['isOnline'] = this.isOnline;
     data['role'] = this.role;
-    // if (this.likes != null) {
-    //   data['likes'] = this.likes!.map((v) => v.toJson()).toList();
-    // }
-    // if (this.dislikes != null) {
-    //   data['dislikes'] = this.dislikes!.map((v) => v.toJson()).toList();
-    // }
-    // if (this.matches != null) {
-    //   data['matches'] = this.matches!.map((v) => v.toJson()).toList();
-    // }
     data['createdAt'] = this.createdAt;
     data['updatedAt'] = this.updatedAt;
     data['__v'] = this.iV;
@@ -168,6 +150,31 @@ class User {
       data['reviews'] = this.reviews!.map((v) => v.toJson()).toList();
     }
     return data;
+  }
+
+  User copyWith({
+    String? sId,
+    String? name,
+    String? email,
+    String? phone,
+    String? dob,
+    String? gender,
+    String? profession,
+    bool? isFriend,
+    List<String>? photos,
+    Location? location,
+  }) {
+    return User(
+      sId: sId ?? this.sId,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      dob: dob ?? this.dob,
+      gender: gender ?? this.gender,
+      profession: profession ?? this.profession,
+      isFriend: isFriend ?? this.isFriend,
+      photos: photos ?? this.photos,
+      location: location ?? this.location,
+    );
   }
 }
 
@@ -213,31 +220,46 @@ class PanDetails {
 }
 
 class Earnings {
-  dynamic chat;
-  dynamic voice;
-  dynamic video;
-  dynamic live;
-  dynamic subscription;
+  final num chat;
+  final num voice;
+  final num video;
+  final num live;
+  final num subscription;
 
-  Earnings({this.chat, this.voice, this.video, this.live, this.subscription});
+  Earnings({
+    this.chat = 150,
+    this.voice = 300,
+    this.video = 450,
+    this.live = 5,
+    this.subscription = 700,
+  });
 
-  Earnings.fromJson(Map<String, dynamic> json) {
-    chat = json['chat'];
-    voice = json['voice'];
-    video = json['video'];
-    live = json['live'];
-    subscription = json['subscription'];
+  factory Earnings.fromJson(Map<String, dynamic> json) {
+    return Earnings(
+      chat: json['chat'] ?? 150,
+      voice: json['voice'] ?? 300,
+      video: json['video'] ?? 450,
+      live: json['live'] ?? 5,
+      subscription: json['subscription'] ?? 700,
+    );
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['chat'] = this.chat;
-    data['voice'] = this.voice;
-    data['video'] = this.video;
-    data['live'] = this.live;
-    data['subscription'] = this.subscription;
-    return data;
+    return {
+      'chat': chat,
+      'voice': voice,
+      'video': video,
+      'live': live,
+      'subscription': subscription,
+    };
   }
+
+  // Add toDouble methods for safe conversion
+  double get chatRate => chat.toDouble();
+  double get voiceRate => voice.toDouble();
+  double get videoRate => video.toDouble();
+  double get liveRate => live.toDouble();
+  double get subscriptionRate => subscription.toDouble();
 }
 
 class Reviews {
@@ -265,5 +287,31 @@ class Reviews {
     data['_id'] = this.sId;
     data['createdAt'] = this.createdAt;
     return data;
+  }
+}
+
+class UserEarnings {
+  final double chat;
+  final double voice;
+  final double video;
+  final double live;
+  final double subscription;
+
+  UserEarnings({
+    this.chat = 140,
+    this.voice = 290,
+    this.video = 440,
+    this.live = 5,
+    this.subscription = 700,
+  });
+
+  factory UserEarnings.fromJson(Map<String, dynamic> json) {
+    return UserEarnings(
+      chat: (json['chat'] ?? 140).toDouble(),
+      voice: (json['voice'] ?? 290).toDouble(),
+      video: (json['video'] ?? 440).toDouble(),
+      live: (json['live'] ?? 5).toDouble(),
+      subscription: (json['subscription'] ?? 700).toDouble(),
+    );
   }
 }

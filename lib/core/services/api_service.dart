@@ -7,7 +7,8 @@ import 'package:iftook/features/friends/data/chatroom.dart';
 import '../../features/friends/data/message.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://iftook-backend.vercel.app/api';
+  // static const String baseUrl = 'https://iftook-backend.vercel.app/api';
+  static const String baseUrl = 'https://iftookbackendcopy.vercel.app/api';
 
   static Future<http.Response> register(Map<String, dynamic> body) async {
     final response = await http.post(
@@ -77,6 +78,33 @@ class ApiService {
       headers: {'Authorization': 'Bearer $token'},
     );
     print(response.body);
+    return response;
+  }
+
+  static Future<http.Response> getRatings(String userId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final userId = await SharedPrefs.getUserIdSharedPreference();
+    print("userid: $userId");
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/users/reviews/$userId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    print(response.body);
+    return response;
+  }
+
+  static Future<http.Response> getSentFriendRequests() async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final userId = await SharedPrefs.getUserIdSharedPreference();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/friend/requests/sent/$userId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    print(
+        "Sent Friend REQUESTS are here ---------------------------\n \n\n\n\n HERE" +
+            response.body);
     return response;
   }
 
@@ -243,6 +271,24 @@ class ApiService {
     return response;
   }
 
+  static Future<http.Response> deductMoneyToWallet(double amount) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final userId = await SharedPrefs.getUserIdSharedPreference();
+
+    final response = await http.put(
+      Uri.parse(
+          '$baseUrl/users/wallet/deduct/$userId'), // Update the endpoint as per your API
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'amount': amount}), // Pass the amount in the body
+    );
+
+    print(response.body);
+    return response;
+  }
+
   static Future<http.Response> updateFCMToken(String fcmToken) async {
     String? token = await SharedPrefs.getUserTokenSharedPreference();
     try {
@@ -294,6 +340,31 @@ class ApiService {
     return response;
   }
 
+  static Future<http.Response> createMeeting(
+      String participantId, String type, DateTime scheduleTime) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final userId = await SharedPrefs.getUserIdSharedPreference();
+    Map<String, dynamic> data = {
+      "userId": userId,
+      "participantId": participantId,
+      "type": type,
+      "scheduledTime": scheduleTime.toIso8601String(),
+    };
+
+    print(data);
+    final response = await http.post(
+      Uri.parse('$baseUrl/meeting/create-meeting'),
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(data),
+    );
+    print(response.body);
+    return response;
+  }
+
   static Future<http.Response> sendOtp(String email) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/send-otp'),
@@ -301,6 +372,45 @@ class ApiService {
       body: jsonEncode({'email': email}),
     );
     print("OTP Response: ${response.body}");
+    return response;
+  }
+
+  static Future<http.Response> getUserById(String userId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/users/profile/$userId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+    return response;
+  }
+
+  static Future<http.Response> getUserMeetings(String userId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/meeting/$userId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+    return response;
+  }
+
+  static Future<http.Response> updateProfile(Map<String, dynamic> data) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.put(
+      Uri.parse('$baseUrl/users/update'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(data),
+    );
+    print('Update profile response: ${response.body}');
     return response;
   }
 }

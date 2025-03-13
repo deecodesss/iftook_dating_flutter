@@ -6,16 +6,22 @@ import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/features/friend_requests/data/models/friend_request.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 
+import '../../../core/services/shared_prefs.dart';
+
 class FriendController extends GetxController {
   var friendRequests = <FriendRequest>[].obs;
   var friends = <User>[].obs;
   var isLoading = false.obs;
+  var sentRequests = <FriendRequest>[].obs;
+  var meetings = <dynamic>[].obs;
 
   @override
   void onInit() {
     super.onInit();
     fetchFriendRequests();
     fetchFriends();
+    fetchSentRequests();
+    fetchMeetings();
   }
 
   Future<void> fetchFriendRequests() async {
@@ -57,6 +63,57 @@ class FriendController extends GetxController {
       }
     } catch (e) {
       print("Error fetching friend requests: $e");
+    } finally {
+      isLoading(false);
+    }
+  }
+
+  Future<void> fetchSentRequests() async {
+    try {
+      isLoading(true);
+      final response = await ApiService.getSentFriendRequests();
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('Raw sent requests data: ${response.body}');
+
+        if (data['success'] == true && data['requests'] is List) {
+          final requests = data['requests'] as List;
+          final parsedRequests = requests
+              .map((request) => FriendRequest.fromJson(request))
+              .toList();
+
+          sentRequests.assignAll(parsedRequests);
+          print('Processed ${parsedRequests.length} sent requests');
+        }
+      }
+    } catch (e) {
+      print('Error in fetchSentRequests: $e');
+      sentRequests.clear();
+    } finally {
+      isLoading(false);
+    }
+  }
+
+  Future<void> fetchMeetings() async {
+    try {
+      isLoading(true);
+      final userId = await SharedPrefs.getUserIdSharedPreference();
+      print('Fetching meetings for user: $userId');
+
+      final response = await ApiService.getUserMeetings(userId!);
+      print('Meetings response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        meetings.assignAll(data['meetings'] ?? []);
+        print('Fetched ${meetings.length} meetings');
+      } else {
+        print('Failed to fetch meetings: ${response.statusCode}');
+        throw Exception('Failed to load meetings');
+      }
+    } catch (e) {
+      print('Error fetching meetings: $e');
     } finally {
       isLoading(false);
     }

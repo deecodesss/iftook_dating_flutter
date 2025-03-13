@@ -1,6 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iftook/helpers/app_colors.dart';
+
+import '../../features/profile/data/models/user.dart';
+import '../services/api_service.dart';
 
 class PriceBottomSheet extends StatefulWidget {
   const PriceBottomSheet({Key? key}) : super(key: key);
@@ -29,6 +34,41 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
   bool _isSubscriptionFree = false;
   bool _isSaving = false;
 
+  bool isLoading = true;
+  User? currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentRates();
+  }
+
+  Future<void> _loadCurrentRates() async {
+    try {
+      setState(() => isLoading = true);
+      final response = await ApiService.fetchMyProfile();
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        currentUser = User.fromJson(data['user']);
+
+        // Set initial values from currentUser's earnings
+        if (currentUser?.earnings != null) {
+          _chatController.text = currentUser!.earnings!.chat.toString();
+          _voiceController.text = currentUser!.earnings!.voice.toString();
+          _videoController.text = currentUser!.earnings!.video.toString();
+          _liveController.text = currentUser!.earnings!.live.toString();
+          _subscriptionController.text =
+              currentUser!.earnings!.subscription.toString();
+        }
+      }
+    } catch (e) {
+      print('Error loading rates: $e');
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
   @override
   void dispose() {
     _chatController.dispose();
@@ -40,21 +80,52 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
   }
 
   Future<void> _saveChanges(BuildContext context) async {
-    setState(() {
-      _isSaving = true;
-    });
+    try {
+      setState(() => _isSaving = true);
 
-    await Future.delayed(const Duration(seconds: 1));
+      Map<String, dynamic> updateData = {
+        'earnings': {
+          'chat': _isChatFree ? 0 : int.parse(_chatController.text),
+          'voice': _isVoiceFree ? 0 : int.parse(_voiceController.text),
+          'video': _isVideoFree ? 0 : int.parse(_videoController.text),
+          'live': _isLiveFree ? 0 : int.parse(_liveController.text),
+          'subscription':
+              _isSubscriptionFree ? 0 : int.parse(_subscriptionController.text),
+        }
+      };
 
-    setState(() {
-      _isSaving = false;
-    });
+      final response = await ApiService.updateProfile(updateData);
 
-    Navigator.pop(context, true);
+      if (response.statusCode == 200) {
+        Navigator.pop(context, true);
+      } else {
+        throw Exception(jsonDecode(response.body)['message']);
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        e.toString(),
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      setState(() => _isSaving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: const BoxDecoration(
@@ -99,35 +170,11 @@ class _PriceBottomSheetState extends State<PriceBottomSheet> {
                   Icons.close,
                 ),
               )
-              // SizedBox(width: 12),
-              // Container(
-              //   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              //   decoration: BoxDecoration(
-              //     color: Color(0xFF2E7D32),
-              //     borderRadius: BorderRadius.circular(16),
-              //     boxShadow: [
-              //       BoxShadow(
-              //         color: Color(0xFF2E7D32).withOpacity(0.3),
-              //         blurRadius: 8,
-              //         offset: Offset(0, 2),
-              //       ),
-              //     ],
-              //   ),
-              //   child: Text(
-              //     'FREE',
-              //     style: TextStyle(
-              //       color: Colors.white,
-              //       fontSize: 14,
-              //       fontWeight: FontWeight.w600,
-              //       letterSpacing: 0.5,
-              //     ),
-              //   ),
-              // ),
             ],
           ),
           const SizedBox(height: 20),
           Text(
-            'Hi Sarah!',
+            'Hi ${currentUser?.name ?? ""}!',
             style: TextStyle(
               color: Colors.grey[400],
               fontSize: 24,

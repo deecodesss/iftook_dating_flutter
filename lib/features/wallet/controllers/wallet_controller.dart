@@ -20,19 +20,29 @@ class WalletController extends GetxController {
   Future<void> fetchWalletData() async {
     try {
       isLoading(true);
-      final token = await SharedPrefs.getUserTokenSharedPreference();
       final response = await ApiService.fetchUSerWallet();
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        balance.value = data['data']['balance'].toDouble();
-        transactions.value =
-            List<Map<String, dynamic>>.from(data['data']['transactions']);
+        print('Wallet data response: ${response.body}');
+
+        // Update to match the actual API response structure
+        balance.value = data['data']['balance'] != null
+            ? (data['data']['balance'] as num).toDouble()
+            : 0.0;
+
+        if (data['data']['transactions'] != null) {
+          transactions.value =
+              List<Map<String, dynamic>>.from(data['data']['transactions']);
+        }
+
+        print('Updated balance: ${balance.value}');
+        print('Transactions count: ${transactions.length}');
       } else {
         throw Exception('Failed to load wallet data');
       }
     } catch (e) {
-      print(e);
+      print('Error in fetchWalletData: $e');
     } finally {
       isLoading(false);
     }

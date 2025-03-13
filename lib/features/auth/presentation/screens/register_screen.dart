@@ -318,6 +318,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           backgroundColor: Colors.red, colorText: Colors.white);
       return false;
     }
+    if (!_isEmailVerified) {
+      Get.snackbar('Error', 'Please verify your email address first',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
     if (_passwordController.text.isEmpty ||
         _passwordController.text.length < 8) {
       Get.snackbar('Error', 'Password must be at least 8 characters',
@@ -520,12 +525,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
             Expanded(
               child: TextFormField(
                 controller: _emailController,
+                enabled: !_isEmailVerified, // Disable field after verification
                 decoration: _getInputDecoration('Email').copyWith(
                   suffixIcon: _isEmailVerified
                       ? Icon(Icons.verified, color: Colors.green)
                       : null,
                 ),
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(
+                  color: _isEmailVerified ? Colors.grey : Colors.white,
+                ),
                 keyboardType: TextInputType.emailAddress,
                 validator: _validateEmail,
               ),
@@ -537,7 +545,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   backgroundColor: AppColors.primaryColor,
                   foregroundColor: Colors.white,
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 ),
                 onPressed: _authController.isLoading.value ? null : _sendOtp,
                 child: _authController.isLoading.value
@@ -574,6 +582,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Please verify your email to continue',
+            style: TextStyle(
+              color: Colors.yellow[700],
+              fontSize: 12,
+            ),
           ),
         ],
       ],

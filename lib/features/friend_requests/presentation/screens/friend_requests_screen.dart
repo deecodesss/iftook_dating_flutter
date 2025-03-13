@@ -7,6 +7,7 @@ import 'package:iftook/features/friend_requests/data/models/friend_request.dart'
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
 class Meeting {
   final String name;
@@ -63,11 +64,14 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController =
+        TabController(length: 3, vsync: this); // Changed from 2 to 3
     _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
       if (mounted) setState(() {});
     });
     controller.fetchFriendRequests();
+    controller.fetchSentRequests();
+    controller.fetchMeetings(); // Add this
   }
 
   @override
@@ -382,7 +386,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     );
   }
 
-  Widget _buildRequestCard(FriendRequest requestl) {
+  Widget _buildRequestCard(FriendRequest request) {
     return Card(
       color: Colors.blueGrey.withOpacity(0.1),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -393,9 +397,9 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           children: [
             InkWell(
               onTap: () {
-                Get.to(() => UserProfileScreen(
-                      profile: requestl!.requester!,
-                    ));
+                if (request.requester != null) {
+                  Get.to(() => UserProfileScreen(profile: request.requester!));
+                }
               },
               child: Container(
                 decoration: BoxDecoration(
@@ -404,9 +408,13 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 ),
                 child: CircleAvatar(
                   radius: 30,
-                  backgroundImage: requestl.requester!.photos != null &&
-                          requestl.requester!.photos!.isNotEmpty
-                      ? NetworkImage(requestl.requester!.photos![0])
+                  backgroundImage: request.requester?.photos != null &&
+                          request.requester!.photos!.isNotEmpty
+                      ? NetworkImage(request.requester!.photos![0])
+                      : null,
+                  child: (request.requester?.photos == null ||
+                          request.requester!.photos!.isEmpty)
+                      ? const Icon(Icons.person, color: Colors.white70)
                       : null,
                 ),
               ),
@@ -414,7 +422,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             const SizedBox(width: 16),
             Expanded(
               child: Text(
-                requestl.requester!.name.toString(),
+                request.requester?.name ?? 'Unknown',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -427,7 +435,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
               children: [
                 TextButton(
                   onPressed: () =>
-                      _showAcceptWarning(context, requestl.sId.toString()),
+                      _showAcceptWarning(context, request.sId ?? ''),
                   style: TextButton.styleFrom(
                     backgroundColor: AppColors.greenColor.withOpacity(0.1),
                     foregroundColor: AppColors.greenColor,
@@ -444,7 +452,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 ),
                 TextButton(
                   onPressed: () =>
-                      _showDeclineWarning(context, requestl.sId.toString()),
+                      _showDeclineWarning(context, request.sId ?? ''),
                   style: TextButton.styleFrom(
                     backgroundColor: AppColors.redColor.withOpacity(0.1),
                     foregroundColor: AppColors.redColor,
@@ -494,6 +502,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           tabs: const [
             Tab(text: 'Meetings'),
             Tab(text: 'Requests'),
+            Tab(text: 'Sent'),
           ],
         ),
       ),
@@ -501,11 +510,30 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         controller: _tabController,
         children: [
           // Meetings Tab
-          ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: meetings.length,
-            itemBuilder: (context, index) => _buildMeetingCard(meetings[index]),
-          ),
+          Obx(() {
+            if (controller.isLoading.value) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return controller.meetings.isEmpty
+                ? _buildEmptyMeetingsView()
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: controller.meetings.length,
+                    itemBuilder: (context, index) {
+                      final meeting = controller.meetings[index];
+                      return _buildMeetingCard(
+                        Meeting(
+                          name: meeting['participant']['name'] ?? 'Unknown',
+                          imageUrl:
+                              meeting['participant']['photos']?.first ?? '',
+                          callType: _getCallTypeLabel(meeting['type']),
+                          meetingTime: DateTime.parse(meeting['scheduledTime']),
+                          charges: (meeting['amount'] ?? '0').toString(),
+                        ),
+                      );
+                    },
+                  );
+          }),
           // Requests Tab
           Obx(() {
             if (controller.isLoading.value) {
@@ -522,6 +550,150 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                     },
                   );
           }),
+          // Sent Requests Tab
+          Obx(() {
+            if (controller.isLoading.value) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return controller.sentRequests.isEmpty
+                ? EmptySentRequestsView()
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: controller.sentRequests.length,
+                    itemBuilder: (context, index) {
+                      final request = controller.sentRequests[index];
+                      return _buildSentRequestCard(request);
+                    },
+                  );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSentRequestCard(FriendRequest request) {
+    final receiver = request.receiver;
+    if (receiver == null) return SizedBox.shrink();
+
+    return Card(
+      color: Colors.blueGrey.withOpacity(0.1),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            InkWell(
+              onTap: () {
+                if (receiver != null) {
+                  Get.to(() => UserProfileScreen(profile: receiver));
+                }
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.accentColor, width: 2),
+                ),
+                child: CircleAvatar(
+                  radius: 30,
+                  backgroundImage: receiver.photos?.isNotEmpty == true
+                      ? NetworkImage(receiver.photos!.first)
+                      : null,
+                  child: receiver.photos?.isEmpty ?? true
+                      ? const Icon(Icons.person, color: Colors.white70)
+                      : null,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    receiver.name ?? 'Unknown User',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (receiver.location != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '${receiver.location?.city ?? ''}, ${receiver.location?.state ?? ''}',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    ),
+                  ],
+                  if (request.createdAt != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Sent ${timeago.format(DateTime.parse(request.createdAt!))}',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'Pending',
+                style: TextStyle(
+                  color: AppColors.primaryColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getCallTypeLabel(String type) {
+    switch (type.toLowerCase()) {
+      case 'video':
+        return 'Video Call';
+      case 'voice':
+        return 'Voice Call';
+      default:
+        return 'Chat';
+    }
+  }
+
+  Widget _buildEmptyMeetingsView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.calendar_today_outlined,
+            size: 64,
+            color: Colors.grey[600],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Meetings Scheduled',
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Your scheduled meetings will appear here',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 14,
+            ),
+          ),
         ],
       ),
     );
@@ -662,6 +834,52 @@ class EmptyRequestsView extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class EmptySentRequestsView extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.primaryColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.send_rounded,
+                size: 48,
+                color: AppColors.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'No Sent Requests',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "You haven't sent any friend requests yet. Find people you'd like to connect with and send them a request!",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 14,
+              ),
             ),
           ],
         ),

@@ -278,11 +278,13 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
 class ProfileSwiper extends StatefulWidget {
   final List<User> profiles;
   final Function(User, bool)? onSwipe;
+  final Function(int)? onIndexChanged; // Add this
 
   const ProfileSwiper({
     Key? key,
     required this.profiles,
     this.onSwipe,
+    this.onIndexChanged, // Add this
   }) : super(key: key);
 
   @override
@@ -315,6 +317,9 @@ class _ProfileSwiperState extends State<ProfileSwiper> {
                 widget.profiles[previousIndex],
                 direction == CardSwiperDirection.right,
               );
+            }
+            if (widget.onIndexChanged != null) {
+              widget.onIndexChanged!(currentIndex ?? previousIndex);
             }
             return true;
           },

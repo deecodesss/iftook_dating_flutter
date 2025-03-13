@@ -169,7 +169,9 @@ class ProfileScreen extends StatelessWidget {
                   icon: Icons.star_outline,
                   title: 'Rating & Review',
                   onTap: () {
-                    Get.to(() => ViewReviewsScreen());
+                    Get.to(() => ViewReviewsScreen(
+                          userId: '',
+                        ));
                   },
                   iconColor: AppColors.greenColor,
                 ),
