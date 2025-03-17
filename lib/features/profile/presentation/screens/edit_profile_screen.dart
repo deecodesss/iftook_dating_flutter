@@ -25,13 +25,40 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _panController = TextEditingController();
 
+  // Bank details controllers
+  final TextEditingController _accountHolderNameController =
+      TextEditingController();
+  final TextEditingController _bankNameController = TextEditingController();
+  final TextEditingController _accountNumberController =
+      TextEditingController();
+  final TextEditingController _ifscCodeController = TextEditingController();
+  final TextEditingController _swiftCodeController = TextEditingController();
+  final TextEditingController _ibanController = TextEditingController();
+  final TextEditingController _routingNumberController =
+      TextEditingController();
+
   String? selectedHeight;
   List<String> selectedLanguages = [];
   String? profileImagePath;
   String? panImagePath;
+  String selectedCountry = 'India'; // Default country
 
   bool isLoading = true;
   User? currentUser;
+
+  // Country list
+  final List<String> countries = [
+    'India',
+    'United States',
+    'United Kingdom',
+    'Canada',
+    'Australia',
+    'Germany',
+    'France',
+    'Japan',
+    'China',
+    'Other',
+  ];
 
   final List<String> heights = List.generate(
     81, // 4'10" to 7'0"
@@ -73,6 +100,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         selectedLanguages = currentUser?.languages?.toList() ?? [];
         _panController.text = currentUser?.panDetails?.panNumber ?? '';
 
+        // Set country
+        selectedCountry = currentUser?.location?.country ?? 'India';
+
+        // Load bank details if available
+        if (currentUser?.bankDetails != null) {
+          _accountHolderNameController.text =
+              currentUser?.bankDetails?.accountHolderName ?? '';
+          _bankNameController.text = currentUser?.bankDetails?.bankName ?? '';
+          _accountNumberController.text =
+              currentUser?.bankDetails?.accountNumber ?? '';
+          _ifscCodeController.text = currentUser?.bankDetails?.ifscCode ?? '';
+          _swiftCodeController.text = currentUser?.bankDetails?.swiftCode ?? '';
+          _ibanController.text = currentUser?.bankDetails?.iban ?? '';
+          _routingNumberController.text =
+              currentUser?.bankDetails?.routingNumber ?? '';
+        }
+
         // Update state
         setState(() => isLoading = false);
       }
@@ -113,14 +157,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'height': selectedHeight,
         'languages': selectedLanguages,
         'location': {
-          'country': 'India', // Add proper location data
+          'country': selectedCountry,
           'state': 'State',
           'city': _locationController.text,
         },
         'panDetails': {
           'panNumber': _panController.text,
         },
+        'bankDetails': {
+          'accountType':
+              selectedCountry == 'India' ? 'indian' : 'international',
+          'accountHolderName': _accountHolderNameController.text,
+          'bankName': _bankNameController.text,
+          'accountNumber': _accountNumberController.text,
+        }
       };
+
+      // Add country-specific bank details
+      if (selectedCountry == 'India') {
+        updateData['bankDetails']['ifscCode'] = _ifscCodeController.text;
+      } else {
+        updateData['bankDetails']['swiftCode'] = _swiftCodeController.text;
+        updateData['bankDetails']['iban'] = _ibanController.text;
+        updateData['bankDetails']['routingNumber'] =
+            _routingNumberController.text;
+      }
 
       // Add profile image if selected
       if (profileImagePath != null) {
@@ -129,7 +190,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         updateData['image'] = base64Image;
       }
 
-      // Add PAN image if selected
+      // Add PAN/Government ID image if selected
       if (panImagePath != null) {
         final bytes = await File(panImagePath!).readAsBytes();
         final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
@@ -236,13 +297,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                       const SizedBox(height: 16),
 
-                      // Contact Card - Removed phone field
+                      // Contact Card
                       _buildCard('Contact Details', [
+                        _buildCountryDropdown(),
+                        const SizedBox(height: 16),
                         _buildTextField(
                           label: 'Location',
                           controller: _locationController,
                           prefix: const Icon(Icons.location_on_outlined,
                               color: Colors.white70),
+                          enabled: false, // Make the field uneditable
                         ),
                       ]),
 
@@ -251,6 +315,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       // Languages Card
                       _buildCard('Languages', [
                         _buildLanguagesSelector(),
+                      ]),
+
+                      const SizedBox(height: 16),
+
+                      // Bank Details Card
+                      _buildCard('Bank Account Details', [
+                        _buildBankDetails(),
                       ]),
 
                       const SizedBox(height: 16),
@@ -385,12 +456,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required TextEditingController controller,
     int maxLines = 1,
     Widget? prefix,
+    bool enabled = true, // Add enabled parameter with default true
   }) {
     return TextField(
       controller: controller,
       maxLines: maxLines,
-      style: const TextStyle(
-        color: Colors.white,
+      enabled: enabled, // Use the parameter
+      style: TextStyle(
+        color: enabled
+            ? Colors.white
+            : Colors.white.withOpacity(0.7), // Dim the text if disabled
         fontSize: 16,
       ),
       decoration: InputDecoration(
@@ -408,6 +483,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: AppColors.primaryColor),
+        ),
+        fillColor: enabled
+            ? Colors.grey[900]?.withOpacity(0.5)
+            : Colors.grey[900]?.withOpacity(0.3), // Darker when disabled
+      ),
+    );
+  }
+
+  Widget _buildCountryDropdown() {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: 'Country',
+        labelStyle: const TextStyle(color: Colors.white70),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+        ),
+        filled: true,
+        fillColor:
+            Colors.grey[900]?.withOpacity(0.3), // Darker to indicate disabled
+        contentPadding: const EdgeInsets.all(16),
+      ),
+      child: Text(
+        selectedCountry,
+        style: TextStyle(
+          color: Colors.white
+              .withOpacity(0.7), // Slightly dimmed to show disabled state
+          fontSize: 16,
         ),
       ),
     );
@@ -469,19 +576,68 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _buildPanVerification() {
+  Widget _buildBankDetails() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildTextField(
-          label: 'PAN Number',
+          label: 'Account Holder Name',
+          controller: _accountHolderNameController,
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          label: 'Bank Name',
+          controller: _bankNameController,
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          label: 'Account Number',
+          controller: _accountNumberController,
+        ),
+        const SizedBox(height: 16),
+        // Conditional fields based on country
+        if (selectedCountry == 'India')
+          _buildTextField(
+            label: 'IFSC Code',
+            controller: _ifscCodeController,
+          )
+        else ...[
+          _buildTextField(
+            label: 'SWIFT Code',
+            controller: _swiftCodeController,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            label: 'IBAN',
+            controller: _ibanController,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            label: 'Routing Number',
+            controller: _routingNumberController,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPanVerification() {
+    final isIndian = selectedCountry == 'India';
+    final documentLabel = isIndian ? 'PAN Number' : 'Government ID Number';
+    final uploadLabel = isIndian ? 'Upload PAN Photo' : 'Upload Government ID';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildTextField(
+          label: documentLabel,
           controller: _panController,
         ),
         const SizedBox(height: 16),
         OutlinedButton.icon(
           onPressed: () => _pickImage(false),
           icon: const Icon(Icons.upload_file),
-          label: const Text('Upload PAN Photo (Optional)'),
+          label: Text(uploadLabel),
         ),
       ],
     );

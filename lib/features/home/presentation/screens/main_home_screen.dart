@@ -318,7 +318,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
           ),
           _buildActionButtonWithLabel(
             icon: HugeIcons.strokeRoundedInLove,
-            label: 'Interested\nin Dating',
+            label: 'Interested\nin Friendship',
             color: AppColors.primaryColor,
             backgroundColor: Colors.transparent,
             onPressed: () {
@@ -341,7 +341,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
           ),
           _buildActionButtonWithLabel(
             icon: HugeIcons.strokeRoundedVideo02,
-            label: 'Go Live',
+            label: 'Live',
             color: AppColors.primaryColor,
             backgroundColor: Colors.transparent,
             onPressed: () {},
@@ -828,17 +828,17 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
           children: [
             _buildServiceButton(
               icon: HugeIcons.strokeRoundedComment01,
-              label: 'Chat\n₹${earnings?.chatRate.toInt() ?? 150}',
+              label: 'Chat\n₹${earnings?.chatRate.toInt() ?? 150}/ 30m',
               onTap: () => _navigateToSchedule(MeetingType.chat),
             ),
             _buildServiceButton(
               icon: HugeIcons.strokeRoundedCall02,
-              label: 'Call\n₹${earnings?.voiceRate.toInt() ?? 300}',
+              label: 'Call\n₹${earnings?.voiceRate.toInt() ?? 300}/ 30m',
               onTap: () => _navigateToSchedule(MeetingType.voice),
             ),
             _buildServiceButton(
               icon: HugeIcons.strokeRoundedVideo01,
-              label: 'Video\n₹${earnings?.videoRate.toInt() ?? 450}',
+              label: 'Video\n₹${earnings?.videoRate.toInt() ?? 450}/ 30m',
               onTap: () => _navigateToSchedule(MeetingType.video),
             ),
             _buildTrialDropdown(),

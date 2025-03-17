@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -15,6 +16,10 @@ class FriendController extends GetxController {
   var sentRequests = <FriendRequest>[].obs;
   var meetings = <dynamic>[].obs;
 
+  // Add new observable for current time
+  final currentTime = DateTime.now().obs;
+  Timer? _timeUpdateTimer;
+
   @override
   void onInit() {
     super.onInit();
@@ -22,6 +27,17 @@ class FriendController extends GetxController {
     fetchFriends();
     fetchSentRequests();
     fetchMeetings();
+
+    // Start timer to update current time every minute
+    _timeUpdateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      currentTime.value = DateTime.now();
+    });
+  }
+
+  @override
+  void onClose() {
+    _timeUpdateTimer?.cancel();
+    super.onClose();
   }
 
   Future<void> fetchFriendRequests() async {
@@ -171,5 +187,47 @@ class FriendController extends GetxController {
       Get.snackbar('Error', 'Something went wrong. Try again later.',
           backgroundColor: Colors.red, colorText: Colors.white);
     }
+  }
+
+  // Add method to get meeting status
+  String getMeetingStatus(DateTime scheduledTime, String currentStatus) {
+    final now = currentTime.value;
+    final adjustedScheduledTime =
+        scheduledTime.subtract(const Duration(hours: 5, minutes: 30));
+    final minutesDifference = now.difference(adjustedScheduledTime).inMinutes;
+
+    if (minutesDifference > 30) {
+      if (currentStatus == 'completed') return 'Completed';
+      if (currentStatus == 'cancelled') return 'Cancelled';
+      return 'Expired';
+    }
+
+    if (minutesDifference >= 0 && minutesDifference <= 30) {
+      if (currentStatus == 'completed') return 'Completed';
+      if (currentStatus == 'cancelled') return 'Cancelled';
+      return 'Join Now';
+    }
+
+    return 'Scheduled';
+  }
+
+  // Add this method to update time in a controlled way
+  void updateCurrentTime() {
+    currentTime.value = DateTime.now();
+    // Update meeting statuses if needed without rebuilding the entire list
+    if (meetings.isNotEmpty) {
+      refreshMeetingStatuses();
+    }
+  }
+
+  // Add this method to refresh only meeting statuses without rebuilding the entire list
+  void refreshMeetingStatuses() {
+    // This will trigger a more targeted update
+    meetings.refresh();
+  }
+
+  // Add this method for a non-reactive access to meetings
+  List<Map<String, dynamic>> getMeetingsSnapshot() {
+    return List<Map<String, dynamic>>.from(meetings);
   }
 }

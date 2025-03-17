@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -137,6 +138,18 @@ class ApiService {
 
     final response = await http.put(
       Uri.parse('$baseUrl/friend/requests/reject/$requestId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    print(response.body);
+    return response;
+  }
+
+  static Future<http.Response> removeFriend(
+      String userId, String friendId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.delete(
+      Uri.parse('$baseUrl/friend/remove/$userId/$friendId'),
       headers: {'Authorization': 'Bearer $token'},
     );
     print(response.body);
@@ -289,6 +302,25 @@ class ApiService {
     return response;
   }
 
+  static Future<http.Response> addMoneyToReceiverWallet(
+      double amount, String receiverId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+    // final userId = await SharedPrefs.getUserIdSharedPreference();
+
+    final response = await http.put(
+      Uri.parse(
+          '$baseUrl/users/wallet/give/$receiverId'), // Update the endpoint as per your API
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'amount': amount}), // Pass the amount in the body
+    );
+
+    print(response.body);
+    return response;
+  }
+
   static Future<http.Response> updateFCMToken(String fcmToken) async {
     String? token = await SharedPrefs.getUserTokenSharedPreference();
     try {
@@ -376,15 +408,30 @@ class ApiService {
   }
 
   static Future<http.Response> getUserById(String userId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    try {
+      final token = await SharedPrefs.getUserTokenSharedPreference();
+      print('Fetching user profile for ID: $userId');
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/users/profile/$userId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-    return response;
+      // Add timeout to the request
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/profile/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Connection timed out');
+        },
+      );
+
+      print('User profile response status: ${response.statusCode}');
+      print('User profile response body: ${response.body}');
+      return response;
+    } catch (e) {
+      print('Error in getUserById: $e');
+      rethrow; // Rethrow to handle in the UI
+    }
   }
 
   static Future<http.Response> getUserMeetings(String userId) async {
@@ -396,6 +443,47 @@ class ApiService {
         'Authorization': 'Bearer $token',
       },
     );
+    return response;
+  }
+
+  static Future<http.Response> addToWishlist(String userId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/users/wishlist/add'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'userId': userId}),
+    );
+    print('Add to wishlist response: ${response.body}');
+    return response;
+  }
+
+  static Future<http.Response> removeFromWishlist(String userId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.delete(
+      Uri.parse('$baseUrl/users/wishlist/remove/$userId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+    print('Remove from wishlist response: ${response.body}');
+    return response;
+  }
+
+  static Future<http.Response> getWishlist() async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/users/wishlist'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+    print('Get wishlist response: ${response.body}');
     return response;
   }
 

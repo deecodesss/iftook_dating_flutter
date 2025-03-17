@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:iftook/features/home/controllers/home_controller.dart'; // Add HomeController import
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
 import '../../../friend_requests/controller/friend_controller.dart';
 import 'chat_room_screen.dart';
+import '../../../home/data/enums/meeting_type.dart';
+import '../../../home/presentation/screens/schedule_meeting_screen.dart';
 
 class FriendsListScreen extends StatefulWidget {
   const FriendsListScreen({super.key});
@@ -19,12 +22,15 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final FriendController _friendController = Get.put(FriendController());
+  final HomeController _homeController =
+      Get.find<HomeController>(); // Add HomeController
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _friendController.fetchFriends();
+    _homeController.fetchWishlist(); // Fetch wishlist users
   }
 
   @override
@@ -41,7 +47,35 @@ class _FriendsListScreenState extends State<FriendsListScreen>
         ));
   }
 
+  void _navigateToSchedule(User participant, MeetingType type) {
+    Get.to(() => ScheduleMeetingScreen(
+          participant: participant,
+          type: type,
+        ));
+  }
+
+  double getCurrentRate(MeetingType type, Earnings? earnings) {
+    if (earnings == null) {
+      return type == MeetingType.chat
+          ? 150
+          : type == MeetingType.voice
+              ? 300
+              : 450;
+    }
+    return type == MeetingType.chat
+        ? earnings.chat.toDouble()
+        : type == MeetingType.voice
+            ? earnings.voice.toDouble()
+            : earnings.video.toDouble();
+  }
+
   Widget _buildServiceButtons(User profile) {
+    // Detailed logging for debugging earnings data
+    print('🔥 SERVICE RATES for ${profile.name}:');
+    print('🔥 Earnings object: ${profile.earnings?.toJson()}');
+    print(
+        '🔥 Raw rates - Chat: ${profile.earnings?.chat}, Voice: ${profile.earnings?.voice}, Video: ${profile.earnings?.video}');
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -49,99 +83,40 @@ class _FriendsListScreenState extends State<FriendsListScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildServiceButton(
-            icon: HugeIcons.strokeRoundedAlarmClock,
-            label: 'Trial',
-            onTap: () {
-              if (profile.isOnline == true) {
-                _showChatBottomSheet(context, profile, isTrial: true);
-              } else {
-                showDialog(
-                    context: context,
-                    builder: (context) => Dialog(
-                          backgroundColor: AppColors.secondaryBackground,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(20),
-                                    decoration: const BoxDecoration(
-                                      color: AppColors.primaryBackground,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.mail_outline,
-                                      color: AppColors.primaryColor,
-                                      size: 32,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                    'Trial Request Sent!',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Your trial request has been sent to ${profile.name}.\nThey will be notified when they come online.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7),
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    style: TextButton.styleFrom(
-                                      backgroundColor: AppColors.primaryColor,
-                                      minimumSize:
-                                          const Size(double.infinity, 45),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(25),
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      'Got it',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ]),
-                          ),
-                        ));
-              }
-            },
-            isTrial: true,
-          ),
-          _buildServiceButton(
             icon: HugeIcons.strokeRoundedComment01,
-            label: 'Chat\n₹100/30min',
-            onTap: () {},
+            label:
+                'Chat\n₹${_getSimpleRate(profile.earnings?.chat ?? 150)}/30min',
+            onTap: () => _navigateToSchedule(profile, MeetingType.chat),
           ),
           _buildServiceButton(
             icon: HugeIcons.strokeRoundedCall02,
-            label: 'Call\n₹300/30min',
-            onTap: () {},
+            label:
+                'Call\n₹${_getSimpleRate(profile.earnings?.voice ?? 300)}/30min',
+            onTap: () => _navigateToSchedule(profile, MeetingType.voice),
           ),
           _buildServiceButton(
             icon: HugeIcons.strokeRoundedVideo01,
-            label: 'Video\n₹400/30min',
-            onTap: () {},
+            label:
+                'Video\n₹${_getSimpleRate(profile.earnings?.video ?? 450)}/30min',
+            onTap: () => _navigateToSchedule(profile, MeetingType.video),
           ),
         ],
       ),
     );
+  }
+
+  // Simplified rate display helper
+  String _getSimpleRate(dynamic rate) {
+    if (rate == null) return '0';
+    try {
+      if (rate is num) {
+        return rate.toInt().toString();
+      }
+      return rate.toString();
+    } catch (e) {
+      print('Error formatting rate: $e');
+      return '0';
+    }
   }
 
   String _selectedTrialOption = 'Chat';
@@ -245,8 +220,11 @@ class _FriendsListScreenState extends State<FriendsListScreen>
           ),
           TextButton(
             onPressed: () {
-              // Handle unfriend logic here
-              Navigator.pop(context); // Close chat
+              // Call the HomeController's removeFromWishlist method
+              if (profile.sId != null) {
+                _homeController.removeFromWishlist(profile.sId!);
+              }
+              Navigator.pop(context); // Close dialog
             },
             child: const Text(
               'Remove',
@@ -258,19 +236,83 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     );
   }
 
-  int calculateAge(DateTime birthDate) {
-    final currentDate = DateTime.now();
-    int age = currentDate.year - birthDate.year;
-    final monthDiff = currentDate.month - birthDate.month;
-
-    if (monthDiff < 0 || (monthDiff == 0 && currentDate.day < birthDate.day)) {
-      age--;
+  int calculateAge(String? dobString) {
+    if (dobString == null || dobString.isEmpty) {
+      print('DOB is null or empty for friend/wishlist item');
+      return 0; // Default age if DOB is missing
     }
 
-    return age;
+    try {
+      print('Trying to parse DOB: $dobString');
+      final DateTime birthDate = DateTime.parse(dobString);
+      final currentDate = DateTime.now();
+      int age = currentDate.year - birthDate.year;
+      final monthDiff = currentDate.month - birthDate.month;
+
+      if (monthDiff < 0 ||
+          (monthDiff == 0 && currentDate.day < birthDate.day)) {
+        age--;
+      }
+
+      print('Successfully calculated age: $age from DOB: $dobString');
+      return age;
+    } catch (e) {
+      print('Invalid date format: "$dobString" - $e');
+      return 0; // Default age if date parsing fails
+    }
+  }
+
+  // Add a helper method to safely navigate to the profile screen
+  void _navigateToProfile(User profile) {
+    try {
+      // Create a complete user object with fallbacks for all required fields
+      final safeProfile = User(
+        sId: profile.sId ?? '',
+        name: profile.name ?? 'User',
+        email: profile.email ?? '',
+        dob: profile.dob ?? '',
+        gender: profile.gender ?? '',
+        interestedIn: profile.interestedIn ?? '',
+        about: profile.about ?? 'No information available',
+        profession: profile.profession ?? 'Not specified',
+        height: profile.height ?? '',
+        languages: profile.languages ?? [],
+        photos: profile.photos ?? [],
+        interests: profile.interests ?? [],
+        isOnline: profile.isOnline ?? false,
+        role: profile.role ?? 'user',
+        location: profile.location ??
+            Location(country: 'Unknown', state: '', city: ''),
+        earnings: profile.earnings ?? Earnings(),
+        walletBalance: profile.walletBalance ?? 0,
+      );
+
+      print('Navigating to profile with safe data: ${safeProfile.name}');
+      Get.to(() => UserProfileScreen(profile: safeProfile));
+    } catch (e) {
+      print('Error navigating to profile: $e');
+      Get.snackbar(
+        'Error',
+        'Could not load profile details',
+        backgroundColor: Colors.red.withOpacity(0.7),
+        colorText: Colors.white,
+      );
+    }
   }
 
   Widget _buildProfileCard(User profile, bool isWishlist) {
+    // Check if essential properties exist
+    if (profile.sId == null) {
+      print('Warning: Profile has null ID');
+    }
+
+    if (profile.name == null || profile.name!.isEmpty) {
+      print('Warning: Profile has null or empty name');
+    }
+
+    print('Building profile card for: ${profile.name} (DOB: ${profile.dob})');
+    print('Location data: ${profile.location}');
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -289,13 +331,9 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                   Stack(
                     children: [
                       InkWell(
-                        onTap: () {
-                          Get.to(() => UserProfileScreen(
-                                profile: profile,
-                              ));
-                        },
+                        onTap: () => _navigateToProfile(
+                            profile), // Use the safe navigation method
                         child: ClipOval(
-                          // borderRadius: BorderRadius.circular(12),
                           child: profile.photos != null &&
                                   profile.photos!.isNotEmpty
                               ? Image.network(
@@ -304,8 +342,11 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                                   height: 70,
                                   fit: BoxFit.cover,
                                 )
-                              : CircleAvatar(
+                              : const CircleAvatar(
                                   radius: 35,
+                                  backgroundColor: Colors.grey,
+                                  child: Icon(Icons.person,
+                                      color: Colors.white, size: 40),
                                 ),
                         ),
                       ),
@@ -337,7 +378,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                             Row(
                               children: [
                                 Text(
-                                  profile.name.toString(),
+                                  profile.name?.toString() ?? 'No Name',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -345,13 +386,6 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Text(
-                                  '${calculateAge(DateTime.parse(profile.dob.toString()))}',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.6),
-                                    fontSize: 16,
-                                  ),
-                                ),
                               ],
                             ),
                             if (isWishlist)
@@ -371,8 +405,10 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                           ],
                         ),
                         const SizedBox(height: 4),
+                        // Fix this line - safely handle null location
                         Text(
-                          profile.location!.city.toString(),
+                          profile.location?.city?.toString() ??
+                              'Location unknown',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.6),
                             fontSize: 14,
@@ -394,13 +430,100 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                   ),
-                                  child: const Text('Date me'),
+                                  child: const Text('Become Friends'),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: OutlinedButton(
-                                  onPressed: () {},
+                                  onPressed: () {
+                                    if (profile.isOnline == true) {
+                                      _showChatBottomSheet(context, profile,
+                                          isTrial: true);
+                                    } else {
+                                      // Show offline dialog
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) => Dialog(
+                                          backgroundColor:
+                                              AppColors.secondaryBackground,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(20),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.all(20),
+                                                  decoration:
+                                                      const BoxDecoration(
+                                                    color: AppColors
+                                                        .primaryBackground,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.mail_outline,
+                                                    color:
+                                                        AppColors.primaryColor,
+                                                    size: 32,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 16),
+                                                const Text(
+                                                  'Trial Request Sent!',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  'Your trial request has been sent to ${profile.name}.\nThey will be notified when they come online.',
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    color: Colors.white
+                                                        .withOpacity(0.7),
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 20),
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(context),
+                                                  style: TextButton.styleFrom(
+                                                    backgroundColor:
+                                                        AppColors.primaryColor,
+                                                    minimumSize: const Size(
+                                                        double.infinity, 45),
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              25),
+                                                    ),
+                                                  ),
+                                                  child: const Text(
+                                                    'Got it',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: AppColors.primaryColor,
                                     side: const BorderSide(
@@ -411,7 +534,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                   ),
-                                  child: const Text('Book Meeting'),
+                                  child: const Text('Insta Talk'),
                                 ),
                               ),
                             ],
@@ -470,16 +593,16 @@ class _FriendsListScreenState extends State<FriendsListScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Wishlist Tab
+          // Wishlist Tab - Use HomeController's wishlistUsers
           Obx(() {
-            return _friendController.friends.length < 1
+            return _homeController.wishlistUsers.isEmpty
                 ? EmptyWishlistView()
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: _friendController.friends.length,
+                    itemCount: _homeController.wishlistUsers.length,
                     itemBuilder: (context, index) => _buildProfileCard(
-                      _friendController.friends[index],
-                      true,
+                      _homeController.wishlistUsers[index],
+                      true, // isWishlist = true
                     ),
                   );
           }),

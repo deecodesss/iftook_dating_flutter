@@ -2,8 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
+import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:iftook/features/home/controllers/home_controller.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
+import 'package:iftook/helpers/app_colors.dart';
 
 class TinderStyleProfileCard extends StatefulWidget {
   final User profile;
@@ -29,6 +32,7 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
   int _currentImageIndex = 0;
   final CarouselSliderController carouselController =
       CarouselSliderController();
+  final HomeController _homeController = Get.find<HomeController>();
 
   void _handleHorizontalDrag(DragEndDetails details) {
     if (details.primaryVelocity == null) return;
@@ -168,33 +172,103 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(
-              HugeIcons.strokeRoundedStar,
-              size: 20,
-              color: Colors.white,
-            ),
+          Row(
+            children: [
+              // Add wishlist/favorite button
+              _buildWishlistButton(),
+              // const SizedBox(width: 8),
+              // Container(
+              //   padding:
+              //       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              //   decoration: BoxDecoration(
+              //     color: Colors.black.withOpacity(0.6),
+              //     borderRadius: BorderRadius.circular(20),
+              //   ),
+              //   child: const Icon(
+              //     HugeIcons.strokeRoundedStar,
+              //     size: 20,
+              //     color: Colors.white,
+              //   ),
+              // ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  int calculateAge(DateTime birthDate) {
-    final currentDate = DateTime.now();
-    int age = currentDate.year - birthDate.year;
-    final monthDiff = currentDate.month - birthDate.month;
+  Widget _buildWishlistButton() {
+    return Obx(() {
+      final isInWishlist =
+          _homeController.isUserInWishlist(widget.profile.sId ?? '');
 
-    if (monthDiff < 0 || (monthDiff == 0 && currentDate.day < birthDate.day)) {
-      age--;
+      // Enhanced logging to track wishlist state
+      print('📋 WISHLIST STATE CHECK:');
+      print('📋 Profile: ${widget.profile.name} (ID: ${widget.profile.sId})');
+      print('📋 Is in wishlist: $isInWishlist');
+      print('📋 Wishlist count: ${_homeController.wishlistUsers.length}');
+      if (_homeController.wishlistUsers.isNotEmpty) {
+        print(
+            '📋 Wishlist IDs: ${_homeController.wishlistUsers.map((u) => u.sId).toList()}');
+      }
+
+      return GestureDetector(
+        onTap: () {
+          if (widget.profile.sId == null) return;
+
+          print(
+              '📋 WISHLIST BUTTON TAPPED for ${widget.profile.name} (${widget.profile.sId})');
+          print('📋 Current wishlist status: $isInWishlist');
+
+          if (isInWishlist) {
+            print('📋 Removing from wishlist...');
+            _homeController.removeFromWishlist(widget.profile.sId!);
+          } else {
+            print('📋 Adding to wishlist...');
+            _homeController.addToWishlist(widget.profile.sId!);
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Icon(
+            // Use different icons for each state
+            HugeIcons.strokeRoundedStar, // Outline star for not wishlisted
+            size: 20,
+            color: isInWishlist ? Colors.amber : Colors.white,
+          ),
+        ),
+      );
+    });
+  }
+
+  int calculateAge(String? dobString) {
+    if (dobString == null || dobString.isEmpty) {
+      print('DOB is null or empty for profile card');
+      return 0; // Default age if DOB is missing
     }
 
-    return age;
+    try {
+      print('Parsing DOB in profile card: $dobString');
+      final DateTime birthDate = DateTime.parse(dobString);
+      final currentDate = DateTime.now();
+      int age = currentDate.year - birthDate.year;
+      final monthDiff = currentDate.month - birthDate.month;
+
+      if (monthDiff < 0 ||
+          (monthDiff == 0 && currentDate.day < birthDate.day)) {
+        age--;
+      }
+
+      print('Successfully calculated age in profile card: $age');
+      return age;
+    } catch (e) {
+      print('Invalid date format in profile card: "$dobString" - $e');
+      return 0; // Default age if date parsing fails
+    }
   }
 
   Widget _buildBottomSection() {
@@ -208,7 +282,8 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
             children: [
               if (!widget.isProfileScreen)
                 Text(
-                  '${widget.profile.name}, ${calculateAge(DateTime.parse(widget.profile.dob.toString()))}',
+                  // Safely handle potential null values
+                  '${widget.profile.name ?? "No Name"}, ${calculateAge(widget.profile.dob)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 24,
@@ -219,15 +294,16 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
                   ),
                 ),
               const SizedBox(height: 8),
+              // Safely handle potentially null location
               Row(
                 children: [
                   const Icon(HugeIcons.strokeRoundedLocation01,
                       size: 18, color: Colors.white),
                   const SizedBox(width: 4),
                   Text(
-                    widget.profile.location!.city.toString() +
-                        ', ' +
-                        widget.profile.location!.state.toString(),
+                    widget.profile.location != null
+                        ? "${widget.profile.location!.city ?? 'Unknown'}, ${widget.profile.location!.state ?? ''}"
+                        : "Location unknown",
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -239,7 +315,7 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
                       size: 18, color: Colors.white),
                   const SizedBox(width: 4),
                   Text(
-                    widget.profile.profession.toString(),
+                    widget.profile.profession?.toString() ?? 'Not specified',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,

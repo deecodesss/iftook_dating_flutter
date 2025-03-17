@@ -15,12 +15,15 @@ class HomeController extends GetxController {
   var countries = <String>[].obs;
   var selectedCountry = 'All'.obs;
   var allProfiles = <User>[].obs;
+  var wishlistUsers = <User>[].obs;
+  var isWishlistLoading = false.obs;
 
   @override
   void onInit() {
     super.onInit();
     fetchProfiles();
     fetchWalletBalance();
+    fetchWishlist();
   }
 
   Future<void> fetchProfiles() async {
@@ -283,5 +286,197 @@ class HomeController extends GetxController {
       currentIndex.value = 0;
       print('Invalid index, reset to 0');
     }
+  }
+
+  Future<void> addToWishlist(String userId) async {
+    try {
+      Get.dialog(
+        const Center(child: CircularProgressIndicator()),
+        barrierDismissible: false,
+      );
+
+      final response = await ApiService.addToWishlist(userId);
+
+      Get.back(); // Close loading dialog
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // Update UI if needed or refresh wishlist
+        await fetchWishlist();
+
+        Get.snackbar(
+          'Success',
+          'Added to favorites',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 2),
+        );
+      } else {
+        final errorMsg = jsonDecode(response.body)['message']?.toString() ??
+            'Failed to add to favorites';
+        throw Exception(errorMsg);
+      }
+    } catch (e) {
+      print('Error adding to wishlist: $e');
+      Get.snackbar(
+        'Error',
+        e.toString(),
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
+  Future<void> removeFromWishlist(String userId) async {
+    try {
+      Get.dialog(
+        const Center(child: CircularProgressIndicator()),
+        barrierDismissible: false,
+      );
+
+      final response = await ApiService.removeFromWishlist(userId);
+
+      Get.back(); // Close loading dialog
+
+      if (response.statusCode == 200) {
+        // Remove from local list if it exists
+        wishlistUsers.removeWhere((user) => user.sId == userId);
+        wishlistUsers.refresh();
+
+        Get.snackbar(
+          'Success',
+          'Removed from favorites',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 2),
+        );
+      } else {
+        final errorMsg = jsonDecode(response.body)['message']?.toString() ??
+            'Failed to remove from favorites';
+        throw Exception(errorMsg);
+      }
+    } catch (e) {
+      print('Error removing from wishlist: $e');
+      Get.snackbar(
+        'Error',
+        e.toString(),
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
+  Future<void> fetchWishlist() async {
+    try {
+      isWishlistLoading(true);
+      final response = await ApiService.getWishlist();
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('RAW WISHLIST RESPONSE: ${response.body}');
+        final wishlistData = data['wishlist'] as List;
+
+        // Create proper User objects based on the structure in the response
+        wishlistUsers.clear();
+        for (var item in wishlistData) {
+          try {
+            print('Processing wishlist item: $item');
+
+            // Create safe values for potential null fields
+            final String itemId = item['_id']?.toString() ?? '';
+            final String name = item['name']?.toString() ?? 'No Name';
+            final String email = item['email']?.toString() ?? '';
+            final String dob = item['dob']?.toString() ?? '';
+
+            // Handle potential different formats in the API response
+            List<String>? photosList;
+            if (item['photos'] is List) {
+              photosList =
+                  (item['photos'] as List).map((p) => p.toString()).toList();
+            } else if (item['profilePicture'] != null &&
+                item['profilePicture'].toString().isNotEmpty) {
+              photosList = [item['profilePicture'].toString()];
+            } else {
+              photosList = [];
+            }
+
+            // Extract earnings data if available
+            Earnings? earnings;
+            if (item['earnings'] is Map) {
+              var earningsData = item['earnings'] as Map;
+              earnings = Earnings(
+                chat: earningsData['chat'] ?? 150,
+                voice: earningsData['voice'] ?? 300,
+                video: earningsData['video'] ?? 450,
+                live: earningsData['live'] ?? 5,
+                subscription: earningsData['subscription'] ?? 700,
+              );
+              print('Created earnings object: ${earnings.toJson()}');
+            } else {
+              earnings = Earnings(); // Use defaults
+              print('Using default earnings');
+            }
+
+            // Build location data if available
+            Location? location;
+            if (item['location'] != null && item['location'] is Map) {
+              var loc = item['location'] as Map;
+              location = Location(
+                city: loc['city']?.toString() ?? 'Unknown',
+                state: loc['state']?.toString() ?? '',
+                country: loc['country']?.toString() ?? '',
+              );
+            }
+
+            final user = User(
+              sId: itemId,
+              name: name,
+              email: email,
+              dob: dob,
+              photos: photosList,
+              location: location,
+              earnings: earnings, // Add earnings object explicitly
+            );
+
+            wishlistUsers.add(user);
+            print(
+                'Successfully added user to wishlist: $name ($itemId) with earnings: ${earnings.toJson()}');
+          } catch (e) {
+            print('Error processing wishlist user: $e');
+            print('Problematic item data: $item');
+          }
+        }
+
+        print('Wishlist fetched: ${wishlistUsers.length} users');
+      } else {
+        throw Exception('Failed to load wishlist');
+      }
+    } catch (e) {
+      print('Error fetching wishlist: $e');
+      _showSnackbar(
+        'Error',
+        'Failed to fetch favorites: ${e.toString()}',
+        isError: true,
+      );
+    } finally {
+      isWishlistLoading(false);
+    }
+  }
+
+  // Add a convenient method to check if a user is in wishlist with better logging
+  bool isUserInWishlist(String userId) {
+    if (userId.isEmpty) {
+      print('⚠️ Warning: Checking empty userId for wishlist');
+      return false;
+    }
+
+    final result = wishlistUsers.any((user) => user.sId == userId);
+    print('🔍 Checking if user $userId is in wishlist: $result');
+    return result;
   }
 }

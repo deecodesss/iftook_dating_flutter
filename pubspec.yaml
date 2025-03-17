@@ -36,7 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   get:
   google_fonts:
-  hugeicons:
+  hugeicons: ^0.0.10
   carousel_slider:
   cached_network_image:
   flutter_card_swiper:

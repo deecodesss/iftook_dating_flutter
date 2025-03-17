@@ -1,6 +1,7 @@
 class User {
   Location? location;
   PanDetails? panDetails;
+  BankDetails? bankDetails; // Added bank details
   Earnings? earnings;
   String? sId;
   String? name;
@@ -13,6 +14,7 @@ class User {
   String? height;
   List<String>? languages;
   List<String>? photos;
+  List<String>? wishlist;
   List<String>? interests;
   bool? isOnline;
   String? role;
@@ -33,6 +35,7 @@ class User {
   User({
     this.location,
     this.panDetails,
+    this.bankDetails, // Added bank details
     this.earnings,
     this.sId,
     this.name,
@@ -61,6 +64,7 @@ class User {
     this.averageRating,
     this.isFriend,
     this.reviews,
+    this.wishlist,
   });
 
   User.fromJson(Map<String, dynamic> json) {
@@ -70,6 +74,9 @@ class User {
     panDetails = json['panDetails'] != null
         ? new PanDetails.fromJson(json['panDetails'])
         : null;
+    bankDetails = json['bankDetails'] != null
+        ? new BankDetails.fromJson(json['bankDetails'])
+        : null; // Added bank details parsing
     earnings = json['earnings'] != null
         ? Earnings.fromJson(json['earnings'])
         : Earnings(
@@ -91,6 +98,7 @@ class User {
     height = json['height'];
     languages = json['languages'].cast<String>();
     photos = json['photos'].cast<String>();
+    wishlist = json['wishlist'].cast<String>();
     interests = json['interests'].cast<String>();
     isOnline = json['isOnline'];
     role = json['role'];
@@ -120,6 +128,10 @@ class User {
     if (this.panDetails != null) {
       data['panDetails'] = this.panDetails!.toJson();
     }
+    if (this.bankDetails != null) {
+      data['bankDetails'] =
+          this.bankDetails!.toJson(); // Added bank details serialization
+    }
     if (this.earnings != null) {
       data['earnings'] = this.earnings!.toJson();
     }
@@ -135,6 +147,7 @@ class User {
     data['languages'] = this.languages;
     data['isFriend'] = this.isFriend;
     data['photos'] = this.photos;
+    data['wishlist'] = this.wishlist;
     data['interests'] = this.interests;
     data['isOnline'] = this.isOnline;
     data['role'] = this.role;
@@ -313,5 +326,58 @@ class UserEarnings {
       live: (json['live'] ?? 5).toDouble(),
       subscription: (json['subscription'] ?? 700).toDouble(),
     );
+  }
+}
+
+// Added new class for bank details
+class BankDetails {
+  String? accountType;
+  String? accountHolderName;
+  String? bankName;
+  String? accountNumber;
+  // For Indian Banks
+  String? ifscCode;
+  // For International Banks
+  String? swiftCode;
+  String? iban;
+  String? routingNumber;
+  bool? isVerified;
+
+  BankDetails({
+    this.accountType,
+    this.accountHolderName,
+    this.bankName,
+    this.accountNumber,
+    this.ifscCode,
+    this.swiftCode,
+    this.iban,
+    this.routingNumber,
+    this.isVerified = false,
+  });
+
+  BankDetails.fromJson(Map<String, dynamic> json) {
+    accountType = json['accountType'];
+    accountHolderName = json['accountHolderName'];
+    bankName = json['bankName'];
+    accountNumber = json['accountNumber'];
+    ifscCode = json['ifscCode'];
+    swiftCode = json['swiftCode'];
+    iban = json['iban'];
+    routingNumber = json['routingNumber'];
+    isVerified = json['isVerified'] ?? false;
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = new Map<String, dynamic>();
+    data['accountType'] = this.accountType;
+    data['accountHolderName'] = this.accountHolderName;
+    data['bankName'] = this.bankName;
+    data['accountNumber'] = this.accountNumber;
+    if (this.ifscCode != null) data['ifscCode'] = this.ifscCode;
+    if (this.swiftCode != null) data['swiftCode'] = this.swiftCode;
+    if (this.iban != null) data['iban'] = this.iban;
+    if (this.routingNumber != null) data['routingNumber'] = this.routingNumber;
+    data['isVerified'] = this.isVerified;
+    return data;
   }
 }

@@ -9,6 +9,7 @@ import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/services/api_service.dart';
 import '../../controllers/chat_controller.dart';
 
 class ChatRoomScreen extends StatefulWidget {
@@ -25,6 +26,7 @@ class ChatRoomScreen extends StatefulWidget {
 class _ChatRoomScreenState extends State<ChatRoomScreen> {
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
+
   // final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   final ChatController _chatController = Get.put(ChatController());
@@ -41,8 +43,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   void _onFocusChange() {
     if (_focusNode.hasFocus) {
-      Future.delayed(
-          const Duration(milliseconds: 300), _chatController.scrollToBottom());
+      Future.delayed(const Duration(milliseconds: 300),
+          () => _chatController.scrollToBottom());
     }
   }
 
@@ -83,6 +85,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Obx(() => Text(
+                  'Available Balance: ₹${_chatController.userWalletBalance.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                )),
+            const SizedBox(height: 15),
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
@@ -112,22 +122,51 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               style: TextStyle(color: Colors.white70),
             ),
           ),
-          TextButton(
-            onPressed: () {
-              final amount = double.tryParse(_amountController.text);
-              if (amount != null && amount > 0) {
-                _sendMoneyMessage(amount);
-                Navigator.pop(context);
-              }
-            },
-            child: const Text(
-              'Send',
-              style: TextStyle(color: AppColors.primaryColor),
-            ),
-          ),
+          Obx(() => TextButton(
+                onPressed: _chatController.isTransferring.value
+                    ? null
+                    : () async {
+                        final amount = double.tryParse(_amountController.text);
+                        if (amount != null && amount > 0) {
+                          Navigator.pop(context);
+                          bool success = await _chatController.sendMoney(
+                              widget.profile.sId.toString(), amount);
+                          if (success) {
+                            _sendMoneyMessage(amount);
+                          }
+                        } else {
+                          Get.snackbar(
+                            'Invalid Amount',
+                            'Please enter a valid amount',
+                            backgroundColor: Colors.red,
+                            colorText: Colors.white,
+                          );
+                        }
+                      },
+                child: _chatController.isTransferring.value
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primaryColor,
+                        ),
+                      )
+                    : const Text(
+                        'Send',
+                        style: TextStyle(color: AppColors.primaryColor),
+                      ),
+              )),
         ],
       ),
     );
+  }
+
+  void _sendMoneyMessage(double amount) {
+    _chatController.sendMessage(
+        currentUserId.toString(),
+        _chatController.chatRoom.value!.sId.toString(),
+        "Sent ₹${amount.toStringAsFixed(2)}");
   }
 
   // Show payment required popup for sending message
@@ -169,13 +208,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         false;
   }
 
-  void _sendMoneyMessage(double amount) {
-    _chatController.sendMessage(
-        currentUserId.toString(),
-        _chatController.chatRoom.value!.sId.toString(),
-        "Sent \₹${amount.toStringAsFixed(2)}");
-  }
-
   void _showUnfriendDialog() {
     // Hide keyboard if showing
     FocusScope.of(context).unfocus();
@@ -203,15 +235,72 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               style: TextStyle(color: Colors.white70),
             ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Close chat
+          StatefulBuilder(
+            builder: (context, setState) {
+              bool isLoading = false;
+              return TextButton(
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        try {
+                          // Set loading state
+                          setState(() => isLoading = true);
+
+                          // Use the controller instead of direct API call
+                          final success = await _chatController.unfriend(
+                              currentUserId.toString(),
+                              widget.profile.sId.toString());
+
+                          if (success) {
+                            // Close dialog
+                            Navigator.pop(context);
+
+                            // Show success message
+                            Get.snackbar(
+                              'Success',
+                              '${widget.profile.name} has been unfriended',
+                              backgroundColor: Colors.green,
+                              colorText: Colors.white,
+                            );
+
+                            // Close chat screen and return to previous screen
+                            Navigator.pop(context);
+                          } else {
+                            // Show error message
+                            Navigator.pop(context);
+                            Get.snackbar(
+                              'Error',
+                              'Failed to unfriend. Please try again.',
+                              backgroundColor: Colors.red,
+                              colorText: Colors.white,
+                            );
+                          }
+                        } catch (e) {
+                          // Show error message
+                          Navigator.pop(context);
+                          Get.snackbar(
+                            'Error',
+                            'An error occurred: ${e.toString()}',
+                            backgroundColor: Colors.red,
+                            colorText: Colors.white,
+                          );
+                        }
+                      },
+                child: isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.redColor,
+                        ),
+                      )
+                    : const Text(
+                        'Unfriend',
+                        style: TextStyle(color: AppColors.redColor),
+                      ),
+              );
             },
-            child: const Text(
-              'Unfriend',
-              style: TextStyle(color: AppColors.redColor),
-            ),
           ),
         ],
       ),

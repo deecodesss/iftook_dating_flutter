@@ -1,5 +1,5 @@
 import 'dart:convert';
-
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
@@ -90,6 +90,48 @@ class WalletController extends GetxController {
       Get.snackbar('Error', 'Failed to make payment: $e');
     } finally {
       isLoading(false);
+    }
+  }
+
+  Future<void> transferToBank(double amount) async {
+    try {
+      isLoading.value = true;
+
+      // Implement API call to transfer money to bank
+      // For example:
+      // final response = await ApiService.transferToBank(amount);
+
+      // For demonstration, we'll just update the balance
+      final newBalance = balance.value - amount;
+      balance.value = newBalance;
+
+      // Add a transaction record for this transfer
+      final transferTx = {
+        '_id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'amount': amount,
+        'paymentType': 'bankTransfer',
+        'paymentDate': DateTime.now().toIso8601String(),
+        'status': 'completed'
+      };
+
+      transactions.insert(0, transferTx);
+
+      Get.snackbar(
+        'Success',
+        'Transfer request submitted successfully. It may take 2-3 business days to reflect in your account.',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to process transfer: ${e.toString()}',
+        backgroundColor: Colors.redAccent,
+        colorText: Colors.white,
+      );
+    } finally {
+      isLoading.value = false;
     }
   }
 }

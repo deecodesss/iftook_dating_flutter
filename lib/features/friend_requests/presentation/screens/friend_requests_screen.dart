@@ -1,13 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/features/friend_requests/controller/friend_controller.dart';
 import 'package:iftook/features/friend_requests/data/models/friend_request.dart';
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
 import 'package:timeago/timeago.dart' as timeago;
+
+import '../../../../core/services/shared_prefs.dart';
+import '../../../profile/data/models/user.dart';
 
 class Meeting {
   final String name;
@@ -83,15 +88,36 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
 
   String _formatMeetingTime(DateTime meetingTime) {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final meetingDate =
-        DateTime(meetingTime.year, meetingTime.month, meetingTime.day);
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
 
-    if (meetingDate == today) {
-      return DateFormat('h:mm a').format(meetingTime);
-    } else {
-      return DateFormat('MMM d, h:mm a').format(meetingTime);
+    // If meeting time is within last 30 minutes
+    if (now.difference(meetingTime).inMinutes <= 30 &&
+        now.difference(meetingTime).inMinutes >= 0) {
+      return 'Join Now';
     }
+
+    // If meeting is coming up within next hour
+    if (meetingTime.difference(now).inMinutes <= 60 &&
+        meetingTime.isAfter(now)) {
+      return 'In ${meetingTime.difference(now).inMinutes} min';
+    }
+
+    // If meeting is today
+    if (meetingTime.year == now.year &&
+        meetingTime.month == now.month &&
+        meetingTime.day == now.day) {
+      return 'Today, ${DateFormat('h:mm a').format(meetingTime)}';
+    }
+
+    // If meeting is tomorrow
+    if (meetingTime.year == tomorrow.year &&
+        meetingTime.month == tomorrow.month &&
+        meetingTime.day == tomorrow.day) {
+      return 'Tomorrow, ${DateFormat('h:mm a').format(meetingTime)}';
+    }
+
+    // Otherwise show full date
+    return DateFormat('MMM d, h:mm a').format(meetingTime);
   }
 
   Widget _buildMeetingTimeIndicator(DateTime meetingTime) {
@@ -284,105 +310,417 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     );
   }
 
-  Widget _buildMeetingCard(Meeting meeting) {
-    return Card(
-      color: Colors.blueGrey.withOpacity(0.1),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            InkWell(
-              onTap: () {
-                // Get.to(() => UserProfileScreen(profile:,));
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.accentColor, width: 2),
-                ),
-                child: CircleAvatar(
-                  radius: 30,
-                  backgroundImage: NetworkImage(meeting.imageUrl),
-                ),
+  // Add this helper method to convert UTC to IST
+  DateTime _convertToIST(DateTime utc) {
+    // Subtract 5 hours and 30 minutes to compensate for IST difference
+    return utc.subtract(const Duration(hours: 5, minutes: 30));
+  }
+
+  String _getMeetingStatus(DateTime scheduledTime, String currentStatus) {
+    // Convert scheduled time to correct time by subtracting IST offset
+    final adjustedScheduledTime = _convertToIST(scheduledTime);
+    final now = DateTime.now();
+    final minutesDifference = now.difference(adjustedScheduledTime).inMinutes;
+
+    print('Current time: ${now.toString()}');
+    print('Original scheduled time: ${scheduledTime.toString()}');
+    print('Adjusted scheduled time: ${adjustedScheduledTime.toString()}');
+    print('Time difference in minutes: $minutesDifference');
+
+    // Meeting is in the past (more than 30 mins past scheduled time)
+    if (minutesDifference > 30) {
+      if (currentStatus == 'completed') return 'Completed';
+      if (currentStatus == 'cancelled') return 'Cancelled';
+      return 'Expired';
+    }
+
+    // Meeting is live (within 30 mins window after scheduled time)
+    if (minutesDifference >= 0 && minutesDifference <= 30) {
+      if (currentStatus == 'completed') return 'Completed';
+      if (currentStatus == 'cancelled') return 'Cancelled';
+      return 'Join Now';
+    }
+
+    // Meeting is in the future
+    return 'Scheduled';
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return Colors.green;
+      case 'expired':
+        return Colors.red[400]!;
+      case 'cancelled':
+        return Colors.orange;
+      case 'join now':
+        return Colors.green;
+      case 'scheduled':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Future<void> _handleProfileNavigation(String userId) async {
+    try {
+      print('Loading profile for user ID: $userId');
+
+      Get.dialog(
+        WillPopScope(
+          onWillPop: () async => false, // Prevent dismissal on back press
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+        barrierDismissible: false,
+      );
+
+      final response = await ApiService.getUserById(userId);
+
+      if (!response.body.contains('success')) {
+        throw Exception('Invalid response format');
+      }
+
+      final data = jsonDecode(response.body);
+      if (data['success'] == true && data['data'] != null) {
+        final userProfile = User.fromJson(data['data']);
+        Get.back(); // Close loading dialog
+        Get.to(() => UserProfileScreen(profile: userProfile));
+      } else {
+        throw Exception('Failed to load profile data');
+      }
+    } catch (e) {
+      print('Failed to load profile: $e');
+      Get.back(); // Close loading dialog
+      Get.snackbar(
+        'Error',
+        'Could not load profile. Please try again.',
+        backgroundColor: Colors.red.withOpacity(0.8),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+    }
+  }
+
+  Widget _buildMeetingCard(Map<String, dynamic> meeting) {
+    final scheduledTime = DateTime.parse(meeting['scheduledTime']);
+    final participant = meeting['participant'] as Map<String, dynamic>;
+    final user =
+        meeting['user'] as Map<String, dynamic>; // Get the user/sender data
+    final status = meeting['status'];
+    final type = meeting['type'];
+    final userId = user['_id'];
+    final amount = (meeting['amount'] ?? 0).toDouble();
+
+    print('Building meeting card with meeting data: $meeting');
+
+    return FutureBuilder<String?>(
+      future: SharedPrefs.getUserIdSharedPreference(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+
+        final currentUserId = snapshot.data!;
+        final isCreator = userId == currentUserId;
+
+        // Determine which name to display based on whether it's incoming or outgoing
+        final displayName = isCreator
+            ? participant['name'] ??
+                'Unknown' // Outgoing meeting: show participant name
+            : user['name'] ?? 'Unknown'; // Incoming meeting: show sender name
+
+        return Obx(() {
+          final currentStatus =
+              controller.getMeetingStatus(scheduledTime, status);
+          final now = controller.currentTime.value;
+          final minutesDifference = now
+              .difference(
+                  scheduledTime.subtract(const Duration(hours: 5, minutes: 30)))
+              .inMinutes;
+          final canJoin = minutesDifference >= 0 && minutesDifference <= 30;
+
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.blueGrey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _getStatusColor(currentStatus).withOpacity(0.3),
+                width: 1,
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    meeting.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+            child: Column(
+              children: [
+                // Debug Time Info (Only in Debug Mode)
+                if (false) // Change to !kReleaseMode for production
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Current: ${DateFormat('MMM d, h:mm:ss a').format(now)}',
+                          style:
+                              TextStyle(color: Colors.grey[400], fontSize: 12),
+                        ),
+                        Text(
+                          'Original scheduled time: ${DateFormat('MMM d, h:mm a').format(scheduledTime)}',
+                          style:
+                              TextStyle(color: Colors.grey[400], fontSize: 12),
+                        ),
+                        Text(
+                          'Adjusted (-5:30): ${DateFormat('MMM d, h:mm a').format(scheduledTime.subtract(const Duration(hours: 5, minutes: 30)))}',
+                          style:
+                              TextStyle(color: Colors.grey[400], fontSize: 12),
+                        ),
+                        Text(
+                          'Minutes Until/Past: ${DateTime.now().difference(scheduledTime.subtract(const Duration(hours: 5, minutes: 30))).inMinutes}',
+                          style: TextStyle(
+                            color: Colors.orange,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        meeting.callType == 'Video Call'
-                            ? Icons.videocam_outlined
-                            : Icons.phone_outlined,
-                        color: AppColors.accentColor,
-                        size: 20,
+                      // User Info Row
+                      Row(
+                        children: [
+                          // Profile Picture - Direct navigation approach
+                          InkWell(
+                            onTap: () {
+                              try {
+                                // Create User object with essential fields and safe fallbacks
+                                final safeProfile = User(
+                                  sId: participant['_id']?.toString() ?? '',
+                                  name: participant['name']?.toString() ??
+                                      'Unknown',
+                                  email: participant['email']?.toString() ?? '',
+                                  dob: participant['dob']?.toString() ?? '',
+                                  gender:
+                                      participant['gender']?.toString() ?? '',
+                                  profession:
+                                      participant['profession']?.toString() ??
+                                          'Not specified',
+                                  about: participant['about']?.toString() ??
+                                      'No information available',
+                                  interestedIn:
+                                      participant['interestedIn']?.toString() ??
+                                          '',
+                                  photos: participant['photos'] is List
+                                      ? List<String>.from(participant['photos'])
+                                      : [],
+                                  location: participant['location'] is Map
+                                      ? Location(
+                                          city: participant['location']['city']
+                                                  ?.toString() ??
+                                              'Unknown',
+                                          state: participant['location']
+                                                      ['state']
+                                                  ?.toString() ??
+                                              '',
+                                          country: participant['location']
+                                                      ['country']
+                                                  ?.toString() ??
+                                              '',
+                                        )
+                                      : Location(
+                                          city: 'Unknown',
+                                          state: '',
+                                          country: ''),
+                                  // Add other fields with safe defaults
+                                  walletBalance: 0,
+                                  earnings: Earnings(),
+                                  isOnline: participant['isOnline'] ?? false,
+                                );
+
+                                print(
+                                    'Navigating to meeting participant profile: ${safeProfile.name}');
+                                Get.to(() =>
+                                    UserProfileScreen(profile: safeProfile));
+                              } catch (e) {
+                                print(
+                                    'Error navigating to meeting participant profile: $e');
+                                Get.snackbar(
+                                  'Error',
+                                  'Could not open profile details',
+                                  backgroundColor: Colors.red.withOpacity(0.7),
+                                  colorText: Colors.white,
+                                );
+                              }
+                            },
+                            child: CircleAvatar(
+                              radius: 30,
+                              backgroundImage: participant['photos'] != null &&
+                                      participant['photos'].isNotEmpty
+                                  ? NetworkImage(participant['photos'][0])
+                                  : null,
+                              child: participant['photos'] == null ||
+                                      participant['photos'].isEmpty
+                                  ? const Icon(Icons.person,
+                                      color: Colors.white70, size: 30)
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+
+                          // Meeting Info - Update the name display
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  displayName, // Use our conditional name logic
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      type == 'video'
+                                          ? Icons.videocam
+                                          : type == 'voice'
+                                              ? Icons.phone
+                                              : Icons.chat,
+                                      size: 16,
+                                      color: Colors.grey[400],
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '₹$amount',
+                                      style: const TextStyle(
+                                        color: AppColors.primaryColor,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Status Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _getStatusColor(currentStatus)
+                                  .withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              currentStatus,
+                              style: TextStyle(
+                                color: _getStatusColor(currentStatus),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        meeting.callType,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 14,
+
+                      // Time Display
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          _formatMeetingTime(scheduledTime),
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 14,
+                          ),
                         ),
+                      ),
+
+                      // Add Direction Indicator (Incoming/Outgoing)
+                      Row(
+                        children: [
+                          Icon(
+                            isCreator
+                                ? Icons.call_made_rounded // Outgoing arrow
+                                : Icons.call_received_rounded, // Incoming arrow
+                            size: 16,
+                            color: isCreator
+                                ? Colors.blue.withOpacity(0.7)
+                                : Colors.green.withOpacity(0.7),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isCreator
+                                ? 'You requested meeting with ${participant['name'] ?? "them"}'
+                                : 'Meeting request from ${user['name'] ?? "someone"}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: isCreator
+                                  ? Colors.blue.withOpacity(0.7)
+                                  : Colors.green.withOpacity(0.7),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                ),
+
+                // Join button for active meetings
+                if (currentStatus == 'Join Now')
                   Container(
+                    width: double.infinity,
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: AppColors.primaryColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(4),
+                      border: Border(
+                        top: BorderSide(
+                          color: Colors.grey[850]!,
+                          width: 1,
+                        ),
+                      ),
                     ),
-                    child: Text(
-                      '₹${meeting.charges}',
-                      style: TextStyle(
-                        color: AppColors.primaryColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        // Handle join meeting
+                      },
+                      icon: Icon(
+                        type == 'video'
+                            ? Icons.videocam
+                            : type == 'voice'
+                                ? Icons.phone
+                                : Icons.chat,
+                        size: 20,
+                      ),
+                      label: const Text('Join Now'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _buildMeetingTimeIndicator(meeting.meetingTime),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: meeting.hasStarted ? () {} : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    minimumSize: const Size(80, 36),
-                  ),
-                  child: Text(meeting.hasStarted ? 'Join' : 'Waiting'),
-                ),
               ],
             ),
-          ],
-        ),
-      ),
+          );
+        });
+      },
     );
   }
 
@@ -397,6 +735,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           children: [
             InkWell(
               onTap: () {
+                print("Requester: $request.requester!");
                 if (request.requester != null) {
                   Get.to(() => UserProfileScreen(profile: request.requester!));
                 }
@@ -508,64 +847,27 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       ),
       body: TabBarView(
         controller: _tabController,
+        // Use physics that don't interfere with inner scrolling
+        physics: const NeverScrollableScrollPhysics(),
         children: [
-          // Meetings Tab
-          Obx(() {
-            if (controller.isLoading.value) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            return controller.meetings.isEmpty
-                ? _buildEmptyMeetingsView()
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: controller.meetings.length,
-                    itemBuilder: (context, index) {
-                      final meeting = controller.meetings[index];
-                      return _buildMeetingCard(
-                        Meeting(
-                          name: meeting['participant']['name'] ?? 'Unknown',
-                          imageUrl:
-                              meeting['participant']['photos']?.first ?? '',
-                          callType: _getCallTypeLabel(meeting['type']),
-                          meetingTime: DateTime.parse(meeting['scheduledTime']),
-                          charges: (meeting['amount'] ?? '0').toString(),
-                        ),
-                      );
-                    },
-                  );
-          }),
+          // Meetings Tab - Use a separate widget with keep-alive behavior
+          MeetingsTabView(
+            controller: controller,
+            buildMeetingCard: _buildMeetingCard,
+            buildEmptyView: _buildEmptyMeetingsView,
+          ),
+
           // Requests Tab
-          Obx(() {
-            if (controller.isLoading.value) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            return controller.friendRequests.length < 1
-                ? EmptyRequestsView()
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: controller.friendRequests.length,
-                    itemBuilder: (context, index) {
-                      final request = controller.friendRequests[index];
-                      return _buildRequestCard(request);
-                    },
-                  );
-          }),
+          FriendRequestsTabView(
+            controller: controller,
+            buildRequestCard: _buildRequestCard,
+          ),
+
           // Sent Requests Tab
-          Obx(() {
-            if (controller.isLoading.value) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            return controller.sentRequests.isEmpty
-                ? EmptySentRequestsView()
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: controller.sentRequests.length,
-                    itemBuilder: (context, index) {
-                      final request = controller.sentRequests[index];
-                      return _buildSentRequestCard(request);
-                    },
-                  );
-          }),
+          SentRequestsTabView(
+            controller: controller,
+            buildSentRequestCard: _buildSentRequestCard,
+          ),
         ],
       ),
     );
@@ -585,6 +887,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           children: [
             InkWell(
               onTap: () {
+                print("Receiver: $receiver!");
                 if (receiver != null) {
                   Get.to(() => UserProfileScreen(profile: receiver));
                 }
@@ -697,6 +1000,227 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         ],
       ),
     );
+  }
+
+  String _getTimeUntilMeeting(DateTime scheduledTime) {
+    final now = DateTime.now();
+    // Convert scheduled time to local if it's in UTC
+    final localScheduledTime = scheduledTime.toLocal();
+    final difference = localScheduledTime.difference(now);
+
+    if (difference.isNegative) {
+      final past = -difference.inMinutes;
+      if (past < 60) {
+        return '$past minutes ago';
+      } else if (past < 1440) {
+        // Less than 24 hours
+        return '${(past / 60).round()} hours ago';
+      } else {
+        return '${(past / 1440).round()} days ago';
+      }
+    } else {
+      if (difference.inMinutes < 60) {
+        return 'In ${difference.inMinutes} minutes';
+      } else if (difference.inHours < 24) {
+        return 'In ${difference.inHours} hours';
+      } else {
+        return 'In ${difference.inDays} days';
+      }
+    }
+  }
+
+  Color _getTimeColor(int minutesDifference) {
+    if (minutesDifference > 30) return Colors.red[400]!;
+    if (minutesDifference >= 0) return Colors.green;
+    return Colors.blue;
+  }
+}
+
+// Add these new widget classes for each tab:
+
+class MeetingsTabView extends StatefulWidget {
+  final FriendController controller;
+  final Function(Map<String, dynamic>) buildMeetingCard;
+  final Widget Function() buildEmptyView;
+
+  const MeetingsTabView({
+    Key? key,
+    required this.controller,
+    required this.buildMeetingCard,
+    required this.buildEmptyView,
+  }) : super(key: key);
+
+  @override
+  State<MeetingsTabView> createState() => _MeetingsTabViewState();
+}
+
+class _MeetingsTabViewState extends State<MeetingsTabView>
+    with AutomaticKeepAliveClientMixin {
+  // Store meetings in local state to avoid reactive rebuilds
+  final List<Map<String, dynamic>> _meetings = [];
+  bool _isLoading = true;
+
+  // Use a GlobalKey for better persistence
+  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Fetch data once and store in local state
+    _fetchMeetings();
+  }
+
+  Future<void> _fetchMeetings() async {
+    setState(() => _isLoading = true);
+
+    // Wait for a short delay to ensure everything is properly initialized
+    await Future.delayed(Duration.zero);
+
+    // Make a local copy of meetings to avoid reactivity issues
+    if (widget.controller.meetings.isNotEmpty) {
+      _meetings.clear();
+      _meetings.addAll(widget.controller.meetings.cast<Map<String, dynamic>>());
+    }
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_meetings.isEmpty) {
+      return widget.buildEmptyView();
+    }
+
+    // Use a more stable scrolling solution
+    return RefreshIndicator(
+      onRefresh: _fetchMeetings,
+      child: NotificationListener<ScrollNotification>(
+        // Prevent scroll notifications from propagating upwards
+        onNotification: (ScrollNotification scrollInfo) => true,
+        child: CustomScrollView(
+          // Disable physics that might interfere
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final meeting = _meetings[index];
+                    // Use stable, non-reactive build method
+                    return widget.buildMeetingCard(meeting);
+                  },
+                  childCount: _meetings.length,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class FriendRequestsTabView extends StatefulWidget {
+  final FriendController controller;
+  final Function(FriendRequest) buildRequestCard;
+
+  const FriendRequestsTabView({
+    Key? key,
+    required this.controller,
+    required this.buildRequestCard,
+  }) : super(key: key);
+
+  @override
+  State<FriendRequestsTabView> createState() => _FriendRequestsTabViewState();
+}
+
+class _FriendRequestsTabViewState extends State<FriendRequestsTabView>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    return Obx(() {
+      if (widget.controller.isLoading.value) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      return widget.controller.friendRequests.length < 1
+          ? const EmptyRequestsView()
+          : ListView.builder(
+              key: const PageStorageKey<String>('requests_list'),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              physics: const ClampingScrollPhysics(),
+              itemCount: widget.controller.friendRequests.length,
+              itemBuilder: (context, index) {
+                final request = widget.controller.friendRequests[index];
+                return KeyedSubtree(
+                  key: ValueKey('request_${request.sId ?? index}'),
+                  child: widget.buildRequestCard(request),
+                );
+              },
+            );
+    });
+  }
+}
+
+class SentRequestsTabView extends StatefulWidget {
+  final FriendController controller;
+  final Function(FriendRequest) buildSentRequestCard;
+
+  const SentRequestsTabView({
+    Key? key,
+    required this.controller,
+    required this.buildSentRequestCard,
+  }) : super(key: key);
+
+  @override
+  State<SentRequestsTabView> createState() => _SentRequestsTabViewState();
+}
+
+class _SentRequestsTabViewState extends State<SentRequestsTabView>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    return Obx(() {
+      if (widget.controller.isLoading.value) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      return widget.controller.sentRequests.isEmpty
+          ? EmptySentRequestsView()
+          : ListView.builder(
+              key: const PageStorageKey<String>('sent_requests_list'),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              physics: const ClampingScrollPhysics(),
+              itemCount: widget.controller.sentRequests.length,
+              itemBuilder: (context, index) {
+                final request = widget.controller.sentRequests[index];
+                return KeyedSubtree(
+                  key: ValueKey('sent_request_${request.sId ?? index}'),
+                  child: widget.buildSentRequestCard(request),
+                );
+              },
+            );
+    });
   }
 }
 

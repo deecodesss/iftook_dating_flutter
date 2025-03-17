@@ -3,7 +3,10 @@ import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
 
+import '../../../../core/services/api_service.dart';
+import '../../../../features/profile/data/models/user.dart';
 import '../../controllers/wallet_controller.dart';
 
 class WalletScreen extends StatefulWidget {
@@ -17,6 +20,7 @@ class _WalletScreenState extends State<WalletScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final WalletController walletController = Get.put(WalletController());
+
   String convertToIST(String utcDate) {
     DateTime utcDateTime = DateTime.parse(utcDate).toUtc();
     DateTime istDateTime =
@@ -28,6 +32,184 @@ class _WalletScreenState extends State<WalletScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+  }
+
+  Future<bool> _validateBankTransfer() async {
+    try {
+      // Show loading dialog
+      Get.dialog(
+        const Center(child: CircularProgressIndicator()),
+        barrierDismissible: false,
+      );
+
+      // Fetch user profile to check bank details and PAN
+      final response = await ApiService.fetchMyProfile();
+
+      // Remove loading dialog
+      Get.back();
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final user = User.fromJson(data['user']);
+
+        // Check if bank details exist
+        if (user.bankDetails == null ||
+            user.bankDetails!.accountNumber == null ||
+            user.bankDetails!.accountNumber!.isEmpty) {
+          Get.snackbar(
+            'Missing Bank Details',
+            'Please add your bank account details in your profile before transferring money',
+            backgroundColor: Colors.amber[700],
+            colorText: Colors.white,
+            duration: const Duration(seconds: 4),
+          );
+          return false;
+        }
+
+        // Check if PAN/Government ID details exist
+        if (user.panDetails == null ||
+            user.panDetails!.panNumber == null ||
+            user.panDetails!.panNumber!.isEmpty) {
+          Get.snackbar(
+            'Verification Required',
+            'Please add your PAN/Government ID details in your profile for verification',
+            backgroundColor: Colors.amber[700],
+            colorText: Colors.white,
+            duration: const Duration(seconds: 4),
+          );
+          return false;
+        }
+
+        return true; // All validations passed
+      } else {
+        Get.snackbar(
+          'Error',
+          'Failed to load user data. Please try again.',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return false;
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Something went wrong: ${e.toString()}',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+  }
+
+  void _handleTransferToBank() async {
+    bool isValid = await _validateBankTransfer();
+
+    if (isValid) {
+      _showTransferDialog();
+    } else {
+      // Show dialog to direct user to profile page
+      Get.dialog(
+        AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text(
+            'Complete Your Profile',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'Would you like to update your profile with the required bank details and ID verification?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(),
+              child: const Text('Later', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () {
+                Get.back();
+                Get.toNamed('/edit-profile');
+              },
+              child: const Text('Update Profile',
+                  style: TextStyle(color: Colors.blue)),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  void _showTransferDialog() {
+    final amountController = TextEditingController();
+
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text(
+          'Transfer to Bank',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Amount',
+                hintText: 'Enter amount to transfer',
+                labelStyle: const TextStyle(color: Colors.grey),
+                hintStyle: const TextStyle(color: Colors.grey),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.grey.shade700),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.blueAccent),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child:
+                const Text('Cancel', style: TextStyle(color: Colors.redAccent)),
+          ),
+          TextButton(
+            onPressed: () {
+              final amount = double.tryParse(amountController.text);
+              if (amount == null || amount <= 0) {
+                Get.snackbar(
+                  'Error',
+                  'Please enter a valid amount',
+                  backgroundColor: Colors.redAccent,
+                  colorText: Colors.white,
+                );
+                return;
+              }
+
+              if (amount > walletController.balance.value) {
+                Get.snackbar(
+                  'Insufficient Balance',
+                  'Your wallet balance is less than the requested amount',
+                  backgroundColor: Colors.redAccent,
+                  colorText: Colors.white,
+                );
+                return;
+              }
+
+              // Process transfer
+              walletController.transferToBank(amount);
+              Get.back();
+            },
+            child: const Text('Transfer',
+                style: TextStyle(color: Colors.greenAccent)),
+          ),
+        ],
+      ),
+    );
   }
 
   List<Map<String, dynamic>> getFilteredTransactions() {
@@ -115,8 +297,7 @@ class _WalletScreenState extends State<WalletScreen>
                               child: _buildActionButton(
                                 icon: HugeIcons.strokeRoundedWalletAdd02,
                                 label: 'Add Money',
-                                onTap:
-                                    _showAddMoneyDialog, // Call the dialog here
+                                onTap: _showAddMoneyDialog,
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -124,9 +305,7 @@ class _WalletScreenState extends State<WalletScreen>
                               child: _buildActionButton(
                                 icon: HugeIcons.strokeRoundedBank,
                                 label: 'Transfer to Bank',
-                                onTap: () {
-                                  // Transfer to bank logic
-                                },
+                                onTap: _handleTransferToBank,
                               ),
                             ),
                           ],
@@ -277,46 +456,42 @@ class _WalletScreenState extends State<WalletScreen>
 
     Get.dialog(
       AlertDialog(
-        backgroundColor: Colors.grey[900], // Dark background
+        backgroundColor: Colors.grey[900],
         title: const Text(
           'Add Money to Wallet',
-          style: TextStyle(color: Colors.white), // Light text
+          style: TextStyle(color: Colors.white),
         ),
         content: TextField(
           controller: amountController,
           keyboardType: TextInputType.number,
-          style: const TextStyle(color: Colors.white), // Light text input
+          style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'Amount',
             hintText: 'Enter amount',
-            labelStyle: const TextStyle(color: Colors.grey), // Light label
-            hintStyle: const TextStyle(color: Colors.grey), // Light hint
+            labelStyle: const TextStyle(color: Colors.grey),
+            hintStyle: const TextStyle(color: Colors.grey),
             enabledBorder: OutlineInputBorder(
-              borderSide:
-                  BorderSide(color: Colors.grey.shade700), // Border color
+              borderSide: BorderSide(color: Colors.grey.shade700),
             ),
             focusedBorder: OutlineInputBorder(
-              borderSide:
-                  BorderSide(color: Colors.blueAccent), // Highlight color
+              borderSide: BorderSide(color: Colors.blueAccent),
             ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () {
-              Get.back(); // Close the dialog
+              Get.back();
             },
-            child: const Text('Cancel',
-                style: TextStyle(
-                    color: Colors.redAccent)), // Dark mode friendly button
+            child:
+                const Text('Cancel', style: TextStyle(color: Colors.redAccent)),
           ),
           TextButton(
             onPressed: () {
               final amount = double.tryParse(amountController.text);
               if (amount != null && amount > 0) {
-                walletController
-                    .makePayment(amount); // Call the addMoney method
-                Get.back(); // Close the dialog
+                walletController.makePayment(amount);
+                Get.back();
               } else {
                 Get.snackbar(
                   'Error',
@@ -326,9 +501,8 @@ class _WalletScreenState extends State<WalletScreen>
                 );
               }
             },
-            child: const Text('Add',
-                style: TextStyle(
-                    color: Colors.greenAccent)), // Green for confirmation
+            child:
+                const Text('Add', style: TextStyle(color: Colors.greenAccent)),
           ),
         ],
       ),
