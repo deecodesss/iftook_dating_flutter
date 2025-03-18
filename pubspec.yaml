@@ -60,6 +60,7 @@ dependencies:
   flutter_local_notifications:
   webview_flutter: ^4.10.0
   timeago: ^3.6.0
+  no_screenshot: ^0.3.1
 
 dev_dependencies:
   flutter_test:

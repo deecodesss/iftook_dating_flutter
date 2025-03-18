@@ -9,93 +9,143 @@ class VoiceCallScreen extends StatefulWidget {
   final String meetingId;
   final String token;
   final String channel;
-  const VoiceCallScreen(
-      {Key? key,
-      required this.meetingId,
-      required this.token,
-      required this.channel})
-      : super(key: key);
+  const VoiceCallScreen({
+    Key? key,
+    required this.meetingId,
+    required this.token,
+    required this.channel,
+  }) : super(key: key);
 
   @override
   State<VoiceCallScreen> createState() => _VoiceCallScreenState();
 }
 
 class _VoiceCallScreenState extends State<VoiceCallScreen> {
-  String appId = "5da40b914dcf4a089e8bbee75a926178";
-
-  bool _validateError = false;
-  ClientRoleType? _role = ClientRoleType.clientRoleBroadcaster;
-
-  CallController _callController = Get.put(CallController());
-
-  final users = [];
-  final infoStrings = [];
-  bool muted = false;
-  bool viewPanel = false;
-  late RtcEngine? _engine;
-  int? _remoteUid; // Stores the remote user's UID
+  final String appId = "5da40b914dcf4a089e8bbee75a926178";
+  int? _remoteUid;
+  bool _isMuted = false;
+  bool _localUserJoined = false;
+  late RtcEngine _engine;
 
   @override
   void initState() {
-    _callController.handleCameraAndMic(Permission.microphone);
-    initialize();
     super.initState();
+    print(
+        "Initializing Voice Call with token: ${widget.token}, channel: ${widget.channel}");
+    _initAgora();
   }
 
-  Future<void> initialize() async {
-    _engine = createAgoraRtcEngine();
-    await _engine!.initialize(RtcEngineContext(
-      appId: appId,
-      channelProfile: ChannelProfileType.channelProfileCommunication,
-    ));
-    _setupEventHandlers();
-    await _joinChannel();
+  // Initialize Agora SDK
+  Future<void> _initAgora() async {
+    try {
+      await _requestPermissions();
+
+      _engine = createAgoraRtcEngine();
+      await _engine.initialize(RtcEngineContext(
+        appId: appId,
+        channelProfile: ChannelProfileType.channelProfileCommunication,
+      ));
+
+      _setupEventHandlers();
+
+      // Join the channel - Voice specific configuration
+      await _engine.joinChannel(
+        token: widget.token,
+        channelId: widget.channel,
+        uid: 0,
+        options: const ChannelMediaOptions(
+          autoSubscribeAudio: true, // Auto subscribe to audio
+          publishMicrophoneTrack: true, // Publish microphone audio
+          publishCameraTrack: false, // Don't publish camera for voice call
+          clientRoleType: ClientRoleType.clientRoleBroadcaster,
+        ),
+      );
+    } catch (e) {
+      print("Error in voice call: $e");
+      Get.snackbar('Error', 'Failed to initialize voice call');
+    }
   }
 
-  Future<void> _joinChannel() async {
-    await _engine!.joinChannel(
-      token: widget.token,
-      channelId: widget.channel,
-      options: const ChannelMediaOptions(
-        autoSubscribeAudio:
-            true, // Automatically subscribe to all audio streams
-        publishMicrophoneTrack: true, // Publish microphone-captured audio
-        // Use clientRoleBroadcaster to act as a host or clientRoleAudience for audience
-        clientRoleType: ClientRoleType.clientRoleBroadcaster,
-      ),
-      uid: 0,
+  // Request microphone permission
+  Future<void> _requestPermissions() async {
+    final micStatus = await Permission.microphone.request();
+    if (!micStatus.isGranted) {
+      _showPermissionDeniedDialog();
+    }
+  }
+
+  // Show a dialog if permissions are denied
+  void _showPermissionDeniedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Microphone Permission Required'),
+          content:
+              const Text('Microphone permission is required for voice calls. '
+                  'Please enable it in your device settings.'),
+          actions: [
+            TextButton(
+              child: const Text('Open Settings'),
+              onPressed: () {
+                openAppSettings();
+                Navigator.pop(context);
+              },
+            ),
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
-  // Register an event handler for Agora RTC
+  // Set up event handlers for Agora RTC
   void _setupEventHandlers() {
-    _engine!.registerEventHandler(
+    _engine.registerEventHandler(
       RtcEngineEventHandler(
         onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
           debugPrint("Local user ${connection.localUid} joined");
+          setState(() => _localUserJoined = true);
         },
         onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
           debugPrint("Remote user $remoteUid joined");
-          setState(() {
-            _remoteUid = remoteUid; // Store remote user ID
-          });
+          setState(() => _remoteUid = remoteUid);
         },
         onUserOffline: (RtcConnection connection, int remoteUid,
             UserOfflineReasonType reason) {
           debugPrint("Remote user $remoteUid left");
-          setState(() {
-            _remoteUid = null; // Remove remote user ID
-          });
+          setState(() => _remoteUid = null);
         },
       ),
     );
   }
 
+  // Toggle microphone mute
+  void _toggleMute() {
+    setState(() {
+      _isMuted = !_isMuted;
+    });
+    _engine.muteLocalAudioStream(_isMuted);
+  }
+
+  // End the call
+  void _endCall() {
+    _engine.leaveChannel();
+    _engine.release();
+    Get.off(() => AddReviewScreen());
+  }
+
   @override
   void dispose() {
-    users.clear();
-    _engine!.leaveChannel();
-    _engine!.release();
+    _engine.leaveChannel();
+    _engine.release();
     super.dispose();
   }
 
@@ -116,49 +166,47 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
               children: [
                 Text(
                   _remoteUid != null
-                      ? "Remote user $_remoteUid joined"
-                      : "No remote user in the channel", // Show appropriate message
-                  style: const TextStyle(fontSize: 18),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Calling...',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
+                      ? "Connected"
+                      : _localUserJoined
+                          ? "Waiting for other user to join..."
+                          : "Connecting...",
+                  style: const TextStyle(
+                    fontSize: 18,
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  '00:32',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
+                if (_remoteUid != null)
+                  const Text(
+                    'Call in progress',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
                   ),
-                ),
               ],
             ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _buildCallButton(
-                  icon: Icons.mic_off,
+                  icon: _isMuted ? Icons.mic_off : Icons.mic,
                   color: Colors.white,
-                  backgroundColor: Colors.grey[800]!,
+                  backgroundColor: _isMuted ? Colors.red : Colors.grey[800]!,
+                  onTap: _toggleMute,
                 ),
                 _buildCallButton(
-                  onTap: () {
-                    Get.off(() => AddReviewScreen());
-                  },
                   icon: Icons.call_end,
                   color: Colors.white,
                   backgroundColor: Colors.red,
+                  onTap: _endCall,
                   size: 65,
                 ),
                 _buildCallButton(
                   icon: Icons.volume_up,
                   color: Colors.white,
                   backgroundColor: Colors.grey[800]!,
+                  onTap: () {}, // Speaker toggle could be implemented here
                 ),
               ],
             ),
@@ -173,7 +221,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     required IconData icon,
     required Color color,
     required Color backgroundColor,
-    VoidCallback? onTap,
+    required VoidCallback onTap,
     double size = 50,
   }) {
     return InkWell(
@@ -184,6 +232,13 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: backgroundColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+          ],
         ),
         child: Icon(
           icon,

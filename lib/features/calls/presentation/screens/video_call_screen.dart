@@ -1,6 +1,7 @@
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:no_screenshot/no_screenshot.dart';
 
 class VideoCallScreen extends StatefulWidget {
   final String meetingId;
@@ -24,13 +25,50 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   bool _localUserJoined =
       false; // Indicates if local user has joined the channel
   late RtcEngine _engine;
+  final _noScreenshot = NoScreenshot.instance;
 
-  // Agora credentials
+  // Get Agora app ID from environment or config
+  // This should ideally be loaded from a config file or environment
   final String appId = "5da40b914dcf4a089e8bbee75a926178";
+
   @override
   void initState() {
     super.initState();
+    _preventScreenshots();
+    _setupScreenshotDetection();
+    print(
+        "Initializing with token: ${widget.token}, channel: ${widget.channel}");
     _initAgora();
+  }
+
+  // Prevent screenshots using the no_screenshot package
+  void _preventScreenshots() async {
+    await _noScreenshot.screenshotOff();
+  }
+
+  // Set up screenshot detection
+  void _setupScreenshotDetection() {
+    // Start listening for screenshot events
+    _noScreenshot.startScreenshotListening();
+
+    // Listen for screenshots
+    _noScreenshot.screenshotStream.listen((value) {
+      if (value.wasScreenshotTaken) {
+        // Show alert or take action when screenshot is detected
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Screenshots are not allowed during video calls'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    });
+  }
+
+  // Re-enable screenshots when leaving
+  void _allowScreenshots() async {
+    await _noScreenshot.screenshotOn();
+    await _noScreenshot.stopScreenshotListening();
   }
 
   // Initialize Agora SDK
@@ -160,12 +198,14 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   // End the call and navigate back
   void _endCall() {
     _leaveChannel();
+    _allowScreenshots();
     Navigator.pop(context);
   }
 
   @override
   void dispose() {
     _leaveChannel();
+    _allowScreenshots();
     super.dispose();
   }
 
