@@ -6,6 +6,9 @@ import 'package:iftook/features/about_us/presentation/screens/cancellation_and_r
 import 'package:iftook/features/about_us/presentation/screens/privacy_policy_screen.dart';
 import 'package:iftook/features/about_us/presentation/screens/terms_and_conditions_screen.dart';
 import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
+import 'package:iftook/features/live/controllers/live_controller.dart';
+
+import 'package:iftook/features/live/screens/broadcaster_screen.dart';
 import 'package:iftook/features/profile/controllers/profile_controller.dart'; // Import the ProfileController
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/features/profile/presentation/screens/availability_screen.dart';
@@ -19,8 +22,119 @@ import 'package:iftook/helpers/app_colors.dart';
 
 class ProfileScreen extends StatelessWidget {
   final ProfileController _profileController = Get.put(ProfileController());
+  final LiveController _liveController = Get.put(LiveController());
 
   ProfileScreen({super.key});
+
+  void _handleGoLive() async {
+    // Create controllers to capture input
+    final titleController = TextEditingController(text: 'My Live Stream');
+    final descriptionController = TextEditingController();
+
+    // Show dialog to enter title and description
+    final result = await showDialog<Map<String, String>>(
+      context: Get.context!,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Start Live Stream',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Title',
+                labelStyle: TextStyle(color: Colors.grey[400]),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[700]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primaryColor),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: descriptionController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Description (optional)',
+                labelStyle: TextStyle(color: Colors.grey[400]),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[700]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primaryColor),
+                ),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              // Use the controllers to get the text values
+              Navigator.pop(context, {
+                'title': titleController.text.isNotEmpty
+                    ? titleController.text
+                    : 'My Live Stream',
+                'description': descriptionController.text,
+              });
+            },
+            child: const Text(
+              'Start',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      final liveStream = await _liveController.startLiveStream(
+        title: result['title'] ?? 'My Live Stream',
+        description: result['description'] ?? '',
+      );
+
+      if (liveStream != null) {
+        Get.to(() => BroadcasterScreen(liveStream: liveStream));
+      } else {
+        Get.snackbar(
+          'Error',
+          _liveController.errorMessage.value,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    }
+
+    // Dispose controllers to prevent memory leaks
+    titleController.dispose();
+    descriptionController.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +177,7 @@ class ProfileScreen extends StatelessWidget {
                 _buildProfileOption(
                   icon: Icons.live_tv,
                   title: 'Go Live',
-                  onTap: () {},
+                  onTap: _handleGoLive,
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,

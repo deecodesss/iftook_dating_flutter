@@ -501,4 +501,123 @@ class ApiService {
     print('Update profile response: ${response.body}');
     return response;
   }
+
+  // Live streaming endpoints
+  static Future<http.Response> startLiveStream(
+      {String title = 'Live Stream', String description = ''}) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/live-stream/start'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'title': title,
+        'description': description,
+      }),
+    );
+    print('Start live stream response: ${response.body}');
+    return response;
+  }
+
+  static Future<http.Response> endLiveStream(String liveStreamId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.put(
+      Uri.parse('$baseUrl/live-stream/end/$liveStreamId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+    print('End live stream response: ${response.body}');
+    return response;
+  }
+
+  static Future<http.Response> getActiveLiveStreams({
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/live-stream/active?page=$page&limit=$limit'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+    print('Get active live streams response: ${response.body}');
+    return response;
+  }
+
+  static Future<http.Response> joinLiveStream(String liveStreamId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/live-stream/join/$liveStreamId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+    print('Join live stream response: ${response.body}');
+    return response;
+  }
+
+  static Future<http.Response> leaveLiveStream(String liveStreamId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/live-stream/leave/$liveStreamId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+    print('Leave live stream response: ${response.body}');
+    return response;
+  }
+
+  static Future<http.Response> subscribeToCreator(
+      String creatorId, String paymentId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/live-stream/subscribe/$creatorId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'paymentId': paymentId,
+      }),
+    );
+    print('Subscribe to creator response: ${response.body}');
+    return response;
+  }
+
+  static Future<http.Response> getUserActiveLiveStream(String userId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/live-stream/user/$userId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+    print('Get user active live stream response: ${response.body}');
+    return response;
+  }
+
+  static Future<http.Response> getUserSubscriptions() async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/live-stream/subscriptions'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+    print('Get user subscriptions response: ${response.body}');
+    return response;
+  }
 }

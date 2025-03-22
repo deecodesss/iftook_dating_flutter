@@ -10,6 +10,7 @@ class WalletController extends GetxController {
   var balance = 0.0.obs;
   var transactions = <Map<String, dynamic>>[].obs;
   var isLoading = true.obs;
+  var errorMessage = ''.obs;
 
   @override
   void onInit() {
@@ -20,6 +21,7 @@ class WalletController extends GetxController {
   Future<void> fetchWalletData() async {
     try {
       isLoading(true);
+      errorMessage('');
       final response = await ApiService.fetchUSerWallet();
 
       if (response.statusCode == 200) {
@@ -39,9 +41,12 @@ class WalletController extends GetxController {
         print('Updated balance: ${balance.value}');
         print('Transactions count: ${transactions.length}');
       } else {
+        final data = jsonDecode(response.body);
+        errorMessage(data['message'] ?? 'Failed to fetch wallet balance');
         throw Exception('Failed to load wallet data');
       }
     } catch (e) {
+      errorMessage('An error occurred: $e');
       print('Error in fetchWalletData: $e');
     } finally {
       isLoading(false);
@@ -133,5 +138,68 @@ class WalletController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  Future<bool> sendTip(String receiverId, double amount) async {
+    try {
+      isLoading(true);
+      errorMessage('');
+
+      // Check if user has enough balance
+      if (balance.value < amount) {
+        errorMessage('Insufficient wallet balance');
+        Get.snackbar(
+          'Error',
+          'Insufficient wallet balance. Please add funds to your wallet.',
+          backgroundColor: Colors.redAccent,
+          colorText: Colors.white,
+        );
+        return false;
+      }
+
+      // First deduct from user's wallet
+      final deductResponse = await ApiService.deductMoneyToWallet(amount);
+
+      if (deductResponse.statusCode != 200) {
+        throw Exception('Failed to deduct from wallet');
+      }
+
+      // Then add to receiver's wallet
+      final addResponse =
+          await ApiService.addMoneyToReceiverWallet(amount, receiverId);
+
+      if (addResponse.statusCode != 200) {
+        // If adding to receiver fails, we should refund the user
+        // This would require a refund API endpoint
+        throw Exception('Failed to add to receiver wallet');
+      }
+
+      // Update local balance
+      balance.value -= amount;
+
+      Get.snackbar(
+        'Success',
+        'Tip sent successfully!',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+
+      return true;
+    } catch (e) {
+      errorMessage('An error occurred: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to send tip: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return false;
+    } finally {
+      isLoading(false);
+    }
+  }
+
+  bool hasEnoughBalance(double amount) {
+    return balance.value >= amount;
   }
 }
