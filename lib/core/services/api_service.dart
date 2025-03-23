@@ -155,6 +155,17 @@ class ApiService {
     print(response.body);
     return response;
   }
+  static Future<http.Response> deleteSentRequest(
+      String id) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.delete(
+      Uri.parse('$baseUrl/friend/remove/sent/$id'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    print(response.body);
+    return response;
+  }
 
   Future<Chatroom> createOrGetChatRoom(
       String userId, String participantId) async {

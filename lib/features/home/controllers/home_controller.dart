@@ -479,4 +479,64 @@ class HomeController extends GetxController {
     print('🔍 Checking if user $userId is in wishlist: $result');
     return result;
   }
+
+  // Add a method for creating instant meetings
+  Future<bool> createInstantMeeting(
+    String participantId,
+    String type,
+    double rate,
+  ) async {
+    try {
+      isLoading(true);
+      final scheduleTime = DateTime.now();
+      
+      final response = await ApiService.createMeeting(
+        participantId, 
+        type, 
+        scheduleTime
+      );
+      
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        
+        Get.snackbar(
+          'Success',
+          'Instant session created successfully',
+          backgroundColor: Colors.green.withOpacity(0.8),
+          colorText: Colors.white,
+        );
+        
+        // Here you would navigate to the actual meeting interface
+        // For example:
+        // Get.to(() => MeetingRoom(meetingData: data));
+        
+        return true;
+      } else {
+        final data = jsonDecode(response.body);
+        errorMessage(data['message'] ?? 'Failed to create instant session');
+        
+        Get.snackbar(
+          'Error',
+          errorMessage.value,
+          backgroundColor: Colors.red.withOpacity(0.8),
+          colorText: Colors.white,
+        );
+        
+        return false;
+      }
+    } catch (e) {
+      errorMessage('An error occurred: $e');
+      
+      Get.snackbar(
+        'Error',
+        errorMessage.value,
+        backgroundColor: Colors.red.withOpacity(0.8),
+        colorText: Colors.white,
+      );
+      
+      return false;
+    } finally {
+      isLoading(false);
+    }
+  }
 }

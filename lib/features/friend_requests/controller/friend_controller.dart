@@ -15,6 +15,7 @@ class FriendController extends GetxController {
   var isLoading = false.obs;
   var sentRequests = <FriendRequest>[].obs;
   var meetings = <dynamic>[].obs;
+  var errorMessage = ''.obs;
 
   // Add new observable for current time
   final currentTime = DateTime.now().obs;
@@ -186,6 +187,21 @@ class FriendController extends GetxController {
       print("Error rejecting friend request: $e");
       Get.snackbar('Error', 'Something went wrong. Try again later.',
           backgroundColor: Colors.red, colorText: Colors.white);
+    }
+  }
+
+  Future<bool> deleteSentRequest(String id) async {
+    try {
+      final response = await ApiService.deleteSentRequest(id);
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        errorMessage.value = 'Failed to delete sent request: ${response.body}';
+        return false;
+      }
+    } catch (e) {
+      errorMessage.value = e.toString();
+      return false;
     }
   }
 

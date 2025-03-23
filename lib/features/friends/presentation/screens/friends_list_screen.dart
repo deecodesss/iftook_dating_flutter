@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:iftook/core/services/api_service.dart';
+import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/home/controllers/home_controller.dart'; // Add HomeController import
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
@@ -298,6 +300,150 @@ class _FriendsListScreenState extends State<FriendsListScreen>
         colorText: Colors.white,
       );
     }
+  }
+
+  void _handleInstaChat(User friend) {
+    _showInstaOptions(friend);
+  }
+
+  void _showInstaOptions(User friend) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Insta Talk',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Start an instant session with ${friend.name}',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildInstaOption(
+                  icon: Icons.chat_bubble_outline,
+                  label: 'Chat',
+                  price: friend.earnings?.chatRate.toInt() ?? 150,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateToChat(friend);
+                  },
+                ),
+                _buildInstaOption(
+                  icon: Icons.call_outlined,
+                  label: 'Call',
+                  price: friend.earnings?.voiceRate.toInt() ?? 300,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateToMeeting(friend, MeetingType.voice);
+                  },
+                ),
+                _buildInstaOption(
+                  icon: Icons.videocam_outlined,
+                  label: 'Video',
+                  price: friend.earnings?.videoRate.toInt() ?? 450,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateToMeeting(friend, MeetingType.video);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInstaOption({
+    required IconData icon,
+    required String label,
+    required int price,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 90,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: AppColors.primaryColor, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '₹$price/30m',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _navigateToChat(User friend) {
+    // Fix: Create an instance of ApiService first
+    final apiService = ApiService();
+
+    // Use the instance method instead of static access
+    apiService
+        .createOrGetChatRoom(SharedPrefs.sharedPreferenceUserIdKey, friend.sId!)
+        .then((chatRoom) {
+      // Fix: Add the required 'profile' parameter to ChatRoomScreen
+      Get.to(() => ChatRoomScreen(profile: friend));
+    }).catchError((error) {
+      print('Error creating chat room: $error');
+      Get.snackbar(
+        'Error',
+        'Could not start chat session',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    });
+  }
+
+  void _navigateToMeeting(User friend, MeetingType type) {
+    // Use Schedule Meeting Screen but set isInstant to true
+    Get.to(() => ScheduleMeetingScreen(
+          participant: friend,
+          type: type,
+          isInstant: true, // Add this parameter to ScheduleMeetingScreen
+        ));
   }
 
   Widget _buildProfileCard(User profile, bool isWishlist) {

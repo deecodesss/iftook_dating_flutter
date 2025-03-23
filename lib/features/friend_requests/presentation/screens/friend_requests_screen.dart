@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../../../core/services/shared_prefs.dart';
+import '../../../friends/controllers/chat_controller.dart';
 import '../../../profile/data/models/user.dart';
 
 class Meeting {
@@ -44,6 +45,7 @@ class FriendRequestsScreen extends StatefulWidget {
 class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     with SingleTickerProviderStateMixin {
   FriendController controller = Get.put(FriendController());
+  final ChatController _chatController = Get.put(ChatController());
 
   late TabController _tabController;
   late Timer _timer;
@@ -287,8 +289,35 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () {
-                        controller.rejectRequest(reqId, context);
+                      onPressed: () async {
+                        // Get current user ID
+                        final currentUserId =
+                            await SharedPrefs.getUserIdSharedPreference();
+                        if (currentUserId != null) {
+                          // Get friend request to find the requester ID
+                          final request = controller.friendRequests.firstWhere(
+                            (req) => req.sId == reqId,
+                            orElse: () => FriendRequest(),
+                          );
+
+                          if (request.requester?.sId != null) {
+                            // Call unfriend with both IDs
+                            await controller.deleteSentRequest(
+                              currentUserId,
+                            );
+                          }
+
+                          // Also reject the request using the existing method
+                          // controller.rejectRequest(reqId, context);
+                        } else {
+                          Get.snackbar(
+                            'Error',
+                            'Unable to identify current user',
+                            backgroundColor: Colors.red,
+                            colorText: Colors.white,
+                          );
+                          Navigator.pop(context);
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryColor,
@@ -938,22 +967,130 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Pending',
+                    style: TextStyle(
+                      color: AppColors.primaryColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () =>
+                      _showDeleteSentRequestWarning(context, request.sId ?? ''),
+                  style: TextButton.styleFrom(
+                    backgroundColor: AppColors.redColor.withOpacity(0.1),
+                    foregroundColor: AppColors.redColor,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    minimumSize: const Size(80, 36),
+                  ),
+                  child: const Text(
+                    'Delete',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Add a new method for the delete sent request confirmation dialog
+  void _showDeleteSentRequestWarning(BuildContext context, String reqId) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: AppColors.secondaryBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryBackground,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_outline,
+                  color: AppColors.redColor,
+                  size: 32,
+                ),
               ),
-              child: const Text(
-                'Pending',
+              const SizedBox(height: 16),
+              const Text(
+                'Delete Friend Request?',
                 style: TextStyle(
-                  color: AppColors.primaryColor,
-                  fontSize: 12,
+                  color: Colors.white,
+                  fontSize: 18,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                'Are you sure you want to delete this friend request? The person will not be notified.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.accentColor,
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final currentUserId =
+                            await SharedPrefs.getUserIdSharedPreference();
+                        controller.deleteSentRequest(currentUserId!);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.redColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: const Text('Delete'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

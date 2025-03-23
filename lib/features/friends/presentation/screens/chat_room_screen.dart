@@ -8,6 +8,8 @@ import 'package:iftook/features/friends/data/message.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
+import 'package:iftook/features/home/data/enums/meeting_type.dart';
+import 'package:iftook/features/home/presentation/screens/schedule_meeting_screen.dart';
 
 import '../../../../core/services/api_service.dart';
 import '../../controllers/chat_controller.dart';
@@ -386,6 +388,25 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     );
   }
 
+  // Add method to handle different types of Insta Talk
+  void _handleInstaTalk(MeetingType type) {
+    if (widget.profile == null) {
+      Get.snackbar(
+        'Error',
+        'Participant information is missing',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+    
+    Get.to(() => ScheduleMeetingScreen(
+      participant: widget.profile,
+      type: type,
+      isInstant: true, // Use instant meeting option
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -492,6 +513,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               },
               label: 'Voice Call',
               color: AppColors.greenColor,
+            ),
+            IconButton(
+              icon: const Icon(Icons.call_outlined),
+              tooltip: 'Insta Call',
+              onPressed: () => _handleInstaTalk(MeetingType.voice),
+            ),
+            IconButton(
+              icon: const Icon(Icons.videocam_outlined),
+              tooltip: 'Insta Video',
+              onPressed: () => _handleInstaTalk(MeetingType.video),
             ),
             IconButton(
               icon: const Icon(Icons.more_vert, color: Colors.white),

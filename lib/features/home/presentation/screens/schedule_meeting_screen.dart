@@ -10,11 +10,13 @@ import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 class ScheduleMeetingScreen extends StatefulWidget {
   final User participant;
   final MeetingType type;
+  final bool isInstant; // Add this parameter
 
   const ScheduleMeetingScreen({
     Key? key,
     required this.participant,
     required this.type,
+    this.isInstant = false, // Default to false for scheduled meetings
   }) : super(key: key);
 
   @override
@@ -44,138 +46,207 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
   void initState() {
     super.initState();
     _homeController.fetchWalletBalance();
+
+    // If this is an instant meeting, set the date/time to now
+    if (widget.isInstant) {
+      selectedDate = DateTime.now();
+      selectedTime = TimeOfDay.now();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Schedule ${widget.type.value.toUpperCase()}'),
+        title: Text(widget.isInstant
+            ? 'Instant ${widget.type.value.toUpperCase()}'
+            : 'Schedule ${widget.type.value.toUpperCase()}'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      body: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Participant Info
-            Card(
-              child: ListTile(
-                title: Text(widget.participant.name ?? 'User'),
-                subtitle: Text(widget.participant.profession ?? ''),
-                leading: CircleAvatar(
-                  backgroundImage: widget.participant.photos?.isNotEmpty == true
-                      ? NetworkImage(widget.participant.photos!.first)
-                      : null,
-                  child: widget.participant.photos?.isEmpty == true
-                      ? Icon(Icons.person)
-                      : null,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Rate Card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Rate per 30 minutes',
-                      style: TextStyle(color: Colors.white),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Participant Info
+                  Card(
+                    child: ListTile(
+                      title: Text(widget.participant.name ?? 'User'),
+                      subtitle: Text(widget.participant.profession ?? ''),
+                      leading: CircleAvatar(
+                        backgroundImage: widget.participant.photos?.isNotEmpty == true
+                            ? NetworkImage(widget.participant.photos!.first)
+                            : null,
+                        child: widget.participant.photos?.isEmpty == true
+                            ? Icon(Icons.person)
+                            : null,
+                      ),
                     ),
-                    Text(
-                      '₹${meetingRate.toStringAsFixed(0)}',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryColor,
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Rate Card
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Rate per 30 minutes',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          Text(
+                            '₹${meetingRate.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Wallet Balance
+                  Obx(() => Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Wallet Balance',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              Text(
+                                '₹${_homeController.userWalletBalance.value.toStringAsFixed(0)}',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: _homeController.userWalletBalance.value >=
+                                          meetingRate
+                                      ? Colors.green
+                                      : Colors.red,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )),
+
+                  // Hide date/time pickers for instant meetings
+                  if (!widget.isInstant) ...[
+                    // Date Selection
+                    ListTile(
+                      title: const Text('Date'),
+                      subtitle: Text(
+                        "${selectedDate.day}/${selectedDate.month}/${selectedDate.year}",
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.calendar_today),
+                        onPressed: _selectDate,
+                      ),
+                    ),
+
+                    // Time Selection
+                    ListTile(
+                      title: const Text('Time'),
+                      subtitle: Text(selectedTime.format(context)),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.access_time),
+                        onPressed: _selectTime,
+                      ),
+                    ),
+                  ] else ...[
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Card(
+                        color: Colors.grey[850],
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Instant Session',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'This session will start immediately after confirmation.',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  const Icon(Icons.access_time, color: AppColors.primaryColor),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Duration: 30 minutes',
+                                    style: TextStyle(color: Colors.grey[300]),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.payments_outlined, color: AppColors.primaryColor),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Rate: ₹${meetingRate.toStringAsFixed(0)}/30m',
+                                    style: TextStyle(color: Colors.grey[300]),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ],
-                ),
-              ),
-            ),
 
-            // Wallet Balance
-            Obx(() => Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Wallet Balance',
-                          style: TextStyle(color: Colors.white),
+                  const Spacer(),
+
+                  if (_homeController.userWalletBalance.value < meetingRate)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        Text(
-                          '₹${_homeController.userWalletBalance.value.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: _homeController.userWalletBalance.value >=
-                                    meetingRate
-                                ? Colors.green
-                                : Colors.red,
-                          ),
-                        ),
-                      ],
+                        onPressed: () => Get.to(() => const WalletScreen()),
+                        child: const Text('Top Up Wallet',
+                            style: TextStyle(color: Colors.white)),
+                      ),
                     ),
-                  ),
-                )),
 
-            // Date Selection
-            ListTile(
-              title: const Text('Date'),
-              subtitle: Text(
-                "${selectedDate.day}/${selectedDate.month}/${selectedDate.year}",
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.calendar_today),
-                onPressed: _selectDate,
-              ),
-            ),
-
-            // Time Selection
-            ListTile(
-              title: const Text('Time'),
-              subtitle: Text(selectedTime.format(context)),
-              trailing: IconButton(
-                icon: const Icon(Icons.access_time),
-                onPressed: _selectTime,
+                  if (_homeController.userWalletBalance.value >= meetingRate)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryColor,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        onPressed: _scheduleMeeting,
+                        child: Text(
+                          widget.isInstant ? 'Start Now' : 'Schedule Meeting',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-
-            const Spacer(),
-
-            if (_homeController.userWalletBalance.value < meetingRate)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  onPressed: () => Get.to(() => const WalletScreen()),
-                  child: const Text('Top Up Wallet',
-                      style: TextStyle(color: Colors.white)),
-                ),
-              ),
-
-            if (_homeController.userWalletBalance.value >= meetingRate)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryColor,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  onPressed: _scheduleMeeting,
-                  child: const Text('Schedule Meeting',
-                      style: TextStyle(color: Colors.white)),
-                ),
-              ),
           ],
         ),
       ),
