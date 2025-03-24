@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -17,9 +18,16 @@ import '../../controllers/chat_controller.dart';
 class ChatRoomScreen extends StatefulWidget {
   final User profile;
   final bool isTrial;
+  final bool isInstaTalk; // Add this field
+  final int instaTalkDuration; // Add this field - duration in seconds
 
-  const ChatRoomScreen(
-      {super.key, required this.profile, this.isTrial = false});
+  const ChatRoomScreen({
+    super.key,
+    required this.profile,
+    this.isTrial = false,
+    this.isInstaTalk = false, // Default to regular chat
+    this.instaTalkDuration = 30, // Default 30 seconds
+  });
 
   @override
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
@@ -35,12 +43,24 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   String? currentUserId;
   static const double MESSAGE_FEE = 10; // Static fee per message in dollars
 
+  // Add timer variables for Insta Talk
+  Timer? _instaTimer;
+  int _remainingSeconds = 0;
+  bool _instaTalkExpired = false;
+  bool _showingPaymentPrompt = false;
+
   @override
   void initState() {
     super.initState();
     _initializeChatRoom();
     _focusNode.addListener(_onFocusChange);
     _chatController.messages.listen((_) => _chatController.scrollToBottom());
+
+    // Initialize Insta Talk timer if needed
+    if (widget.isInstaTalk) {
+      _remainingSeconds = widget.instaTalkDuration;
+      _startInstaTimer();
+    }
   }
 
   void _onFocusChange() {
@@ -60,8 +80,140 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
   }
 
+  void _startInstaTimer() {
+    _instaTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          _instaTimer?.cancel();
+          if (!_showingPaymentPrompt && !_instaTalkExpired) {
+            _instaTalkExpired = true;
+            _showContinueChatPrompt();
+          }
+        }
+      });
+    });
+  }
+
+  void _showContinueChatPrompt() {
+    _showingPaymentPrompt = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Free Trial Ended',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your 30-second free chat with ${widget.profile.name} has ended.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Would you like to continue chatting?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Rate: ₹${widget.profile.earnings?.chatRate ?? 150} for 30 minutes',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Get.back(); // Return to previous screen
+            },
+            child: const Text('End Chat'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              // Continue with paid chat
+              _purchaseChat();
+            },
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _purchaseChat() {
+    final chatRate = widget.profile.earnings?.chatRate ?? 150.0;
+
+    // Verify wallet balance
+    if (_chatController.userWalletBalance < chatRate) {
+      Get.snackbar(
+        'Insufficient Balance',
+        'Please add funds to your wallet to continue chatting.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        mainButton: TextButton(
+          onPressed: () => Get.toNamed('/wallet'),
+          child: const Text('Add Funds', style: TextStyle(color: Colors.white)),
+        ),
+      );
+      return;
+    }
+
+    // Show loading indicator
+    Get.dialog(
+      const Center(child: CircularProgressIndicator()),
+      barrierDismissible: false,
+    );
+
+    // Process payment
+    _chatController
+        .purchaseChatSession(widget.profile.sId.toString(), chatRate)
+        .then((success) {
+      Get.back(); // Close loading dialog
+
+      if (success) {
+        // Mark as purchased and continue chat
+        setState(() {
+          _instaTalkExpired = false;
+        });
+
+        Get.snackbar(
+          'Success',
+          'Chat session purchased. You can continue chatting for 30 minutes.',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } else {
+        // Show error
+        Get.snackbar(
+          'Error',
+          'Failed to purchase chat session. Please try again.',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _instaTimer?.cancel();
     _chatController.stopPolling();
     _messageController.dispose();
     _amountController.dispose();
@@ -388,25 +540,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     );
   }
 
-  // Add method to handle different types of Insta Talk
-  void _handleInstaTalk(MeetingType type) {
-    if (widget.profile == null) {
-      Get.snackbar(
-        'Error',
-        'Participant information is missing',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
-    
-    Get.to(() => ScheduleMeetingScreen(
-      participant: widget.profile,
-      type: type,
-      isInstant: true, // Use instant meeting option
-    ));
-  }
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -515,16 +648,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               color: AppColors.greenColor,
             ),
             IconButton(
-              icon: const Icon(Icons.call_outlined),
-              tooltip: 'Insta Call',
-              onPressed: () => _handleInstaTalk(MeetingType.voice),
-            ),
-            IconButton(
-              icon: const Icon(Icons.videocam_outlined),
-              tooltip: 'Insta Video',
-              onPressed: () => _handleInstaTalk(MeetingType.video),
-            ),
-            IconButton(
               icon: const Icon(Icons.more_vert, color: Colors.white),
               onPressed: _showMoreOptions,
             ),
@@ -533,6 +656,67 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         body: SafeArea(
           child: Column(
             children: [
+              // Fix the Insta Talk timer to avoid layout issues
+              if (widget.isInstaTalk && !_instaTalkExpired)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  color: Colors.amber.withOpacity(0.2),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.timer, color: Colors.amber),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Free trial: $_remainingSeconds seconds remaining',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 100, // Fixed width for progress indicator
+                        child: LinearProgressIndicator(
+                          value: _remainingSeconds / widget.instaTalkDuration,
+                          backgroundColor: Colors.grey[800],
+                          color: Colors.amber,
+                          minHeight: 5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Expired trial notification with fixed layout
+              if (widget.isInstaTalk && _instaTalkExpired)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  color: Colors.redAccent.withOpacity(0.1),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber, color: Colors.redAccent),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Your free trial has ended. Purchase a chat session to continue.',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryColor,
+                        ),
+                        onPressed: () => _showContinueChatPrompt(),
+                        child: const Text('Continue'),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Action buttons with proper constraints
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 color: AppColors.secondaryBackground,
@@ -541,6 +725,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   children: [],
                 ),
               ),
+
+              // Message list with Expanded to take available space
               Expanded(
                 child: Obx(() {
                   if (_chatController.isLoading.value) {
@@ -556,6 +742,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   }
                 }),
               ),
+
+              // Input area with fixed constraints
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 decoration: const BoxDecoration(
@@ -575,8 +763,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                           keyboardType: TextInputType.multiline,
                           maxLines: 4,
                           minLines: 1,
+                          enabled: !(widget.isInstaTalk && _instaTalkExpired),
                           decoration: InputDecoration(
-                            hintText: 'Type a message...',
+                            hintText: (widget.isInstaTalk && _instaTalkExpired)
+                                ? 'Free trial ended. Purchase to continue.'
+                                : 'Type a message...',
                             hintStyle:
                                 TextStyle(color: Colors.white.withOpacity(0.6)),
                             border: OutlineInputBorder(
@@ -595,33 +786,34 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        decoration: const BoxDecoration(
-                          color: AppColors.primaryColor,
+                        width: 40, // Fixed width
+                        height: 40, // Fixed height
+                        decoration: BoxDecoration(
+                          color: (widget.isInstaTalk && _instaTalkExpired)
+                              ? Colors.grey
+                              : AppColors.primaryColor,
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
+                          iconSize: 20, // Fixed icon size
+                          padding: EdgeInsets.zero,
                           icon: const Icon(Icons.send, color: Colors.white),
-                          onPressed: () {
-                            _chatController.sendMessage(
-                                currentUserId.toString(),
-                                _chatController.chatRoom.value!.sId.toString(),
-                                _messageController.text);
-                            _messageController.clear();
-                            _chatController.messages.listen(
-                                (_) => _chatController.scrollToBottom());
-
-                            FocusScope.of(context)
-                                .unfocus(); // Close the keyboard
-                          },
+                          onPressed: (widget.isInstaTalk && _instaTalkExpired)
+                              ? null
+                              : _sendMessage,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        decoration: BoxDecoration(
+                        width: 40, // Fixed width
+                        height: 40, // Fixed height
+                        decoration: const BoxDecoration(
                           color: Colors.green,
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
+                          iconSize: 20, // Fixed icon size
+                          padding: EdgeInsets.zero,
                           icon: const Icon(Icons.currency_rupee,
                               color: Colors.white),
                           onPressed: _showSendMoneyDialog,
@@ -638,6 +830,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     );
   }
 
+  // Modified to send the message and avoid recreating this function in the build method
+  void _sendMessage() {
+    if (_messageController.text.isEmpty) return;
+
+    _chatController.sendMessage(
+      currentUserId.toString(),
+      _chatController.chatRoom.value!.sId.toString(),
+      _messageController.text,
+    );
+    _messageController.clear();
+    FocusScope.of(context).unfocus(); // Close the keyboard
+  }
+
   Widget _buildMessageBubble(Message message) {
     bool isSentByMe = message.senderId!.sId.toString() == currentUserId;
 
@@ -650,37 +855,40 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       child: Row(
         mainAxisAlignment:
             isSentByMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isSentByMe) ...[
-            widget.profile.photos != null && widget.profile.photos!.isNotEmpty
-                ? ClipOval(
-                    // borderRadius: BorderRadius.circular(30),
-                    child: Container(
-                      width: 60, // Set the desired width
-                      height: 60, // Set the desired height
-                      child: CachedNetworkImage(
-                        imageUrl: widget.profile.photos![0],
-                        placeholder: (context, url) =>
-                            const CircularProgressIndicator(),
-                        errorWidget: (context, url, error) =>
-                            const Icon(Icons.person),
-                        fit: BoxFit.cover,
-                      ),
+            if (widget.profile.photos != null &&
+                widget.profile.photos!.isNotEmpty)
+              ClipOval(
+                child: SizedBox(
+                  width: 40, // Smaller size to avoid layout issues
+                  height: 40, // Smaller size to avoid layout issues
+                  child: CachedNetworkImage(
+                    imageUrl: widget.profile.photos![0],
+                    placeholder: (context, url) => const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                  )
-                : CircleAvatar(
-                    radius: 16,
+                    errorWidget: (context, url, error) =>
+                        const Icon(Icons.person, size: 20),
+                    fit: BoxFit.cover,
                   ),
+                ),
+              )
+            else
+              const CircleAvatar(radius: 20),
             const SizedBox(width: 8),
           ],
           Flexible(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: isSentByMe
                     ? AppColors.primaryColor
                     : AppColors.secondaryBackground,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -689,15 +897,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     message.text.toString(),
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 16,
+                      fontSize: 15,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
-                    formattedTime, // Display the formatted time
+                    formattedTime,
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.6),
-                      fontSize: 12,
+                      fontSize: 11,
                     ),
                   ),
                 ],
@@ -712,7 +920,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               child: Icon(
                 Icons.person,
                 color: Colors.white,
-                size: 20,
+                size: 16,
               ),
             ),
           ],

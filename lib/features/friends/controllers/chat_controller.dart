@@ -178,4 +178,33 @@ class ChatController extends GetxController {
       return false;
     }
   }
+
+  // Purchase a chat session when Insta Talk expires
+  Future<bool> purchaseChatSession(String participantId, double amount) async {
+    try {
+      // Check balance
+      await fetchWalletBalance();
+
+      if (userWalletBalance.value < amount) {
+        return false;
+      }
+
+      // Deduct money from wallet
+      final deductResponse = await ApiService.deductMoneyToWallet(amount);
+      if (deductResponse.statusCode != 200) {
+        return false;
+      }
+
+      // Refresh wallet balance
+      await fetchWalletBalance();
+
+      // Record the chat session purchase
+      // This could include an API call to create a meeting/session
+      // For now, we'll just return success
+      return true;
+    } catch (e) {
+      print('Error purchasing chat session: $e');
+      return false;
+    }
+  }
 }

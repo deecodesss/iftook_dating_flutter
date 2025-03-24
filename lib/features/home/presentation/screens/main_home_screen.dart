@@ -17,6 +17,9 @@ import 'package:iftook/helpers/app_colors.dart';
 import 'package:iftook/features/home/data/enums/meeting_type.dart';
 import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 
+import '../../../calls/presentation/screens/laoding_voice_call_screen.dart';
+import '../../../calls/presentation/screens/loading_video_call_screen.dart';
+import '../../../friends/presentation/screens/chat_room_screen.dart';
 import '../../../live/screens/viewer_screen.dart';
 import '../../../wallet/controllers/wallet_controller.dart';
 import '../../controllers/home_controller.dart';
@@ -50,6 +53,7 @@ class UserProfile {
 
   // Helper methods to format likes/dislikes
   String get formattedLikes => _formatCount(likes!);
+
   String get formattedDislikes => _formatCount(dislikes!);
 
   String _formatCount(int count) {
@@ -268,20 +272,20 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     // Check if subscription is required
     if (streamData.containsKey('subscriptionRequired') &&
         streamData['subscriptionRequired'] == true) {
-      
       // Get subscription price from stream data or profile
       final subscriptionPrice = streamData.containsKey('subscriptionPrice')
           ? streamData['subscriptionPrice'].toDouble()
           : (currentProfile.earnings?.subscriptionRate ?? 700.0);
-      
+
       final walletController = Get.find<WalletController>();
-      final hasEnoughBalance = walletController.hasEnoughBalance(subscriptionPrice);
+      final hasEnoughBalance =
+          walletController.hasEnoughBalance(subscriptionPrice);
 
       final subscribe = await _showSubscriptionDialog(
-        message: 'You need to subscribe to ${currentProfile.name} to join this live stream.',
-        price: subscriptionPrice,
-        hasEnoughBalance: hasEnoughBalance
-      );
+          message:
+              'You need to subscribe to ${currentProfile.name} to join this live stream.',
+          price: subscriptionPrice,
+          hasEnoughBalance: hasEnoughBalance);
 
       if (subscribe) {
         final success = await _liveController.subscribeToCreator(
@@ -350,7 +354,8 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
                         Expanded(
                           child: Text(
                             'Insufficient wallet balance. Please add funds.',
-                            style: TextStyle(color: Colors.red[300], fontSize: 12),
+                            style:
+                                TextStyle(color: Colors.red[300], fontSize: 12),
                           ),
                         ),
                       ],
@@ -803,10 +808,83 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
           }).toList(),
           onChanged: (String? newValue) {
             setState(() => _selectedTrialOption = newValue!);
+            _startInstaTalk(_selectedTrialOption);
           },
         ),
       ],
     );
+  }
+
+  void _startInstaTalk(String option) {
+    if (_homeController.profiles.isEmpty) return;
+
+    final currentProfile = _homeController.profiles[_currentProfileIndex];
+
+    // Check if user is online
+    if (currentProfile.isOnline != true) {
+      Get.snackbar(
+        'User Offline',
+        '${currentProfile.name} is currently offline. Insta Talk requires the user to be online.',
+        backgroundColor: Colors.grey[800],
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+      return;
+    }
+
+    // Add the additional check from Friends List screen for consistency
+    if (_homeController.hasUsedInstaTalk(currentProfile.sId!)) {
+      Get.snackbar(
+        'Insta Talk Used',
+        'You have already used your free Insta Talk with ${currentProfile.name}. Please schedule a regular session.',
+        backgroundColor: Colors.grey[800],
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+      return;
+    }
+
+    // Record that Insta Talk has been used with this user
+    _homeController.recordInstaTalkUsage(currentProfile.sId!);
+
+    // Direct navigation based on option type
+    switch (option.toLowerCase()) {
+      case 'chat':
+        // Navigate directly to chat screen with insta flag
+        Get.to(() => ChatRoomScreen(
+              profile: currentProfile,
+              isInstaTalk: true,
+              instaTalkDuration: 30, // seconds
+            ));
+        break;
+      case 'call':
+        // Navigate directly to voice call with insta flag
+        Get.to(() => VoiceCallLoadingScreen(
+              participant: currentProfile,
+              scheduleTime: DateTime.now(),
+              type: "voice",
+              isInstaTalk: true,
+              instaTalkDuration: 30, // seconds
+            ));
+        break;
+      case 'video':
+        // Navigate directly to video call with insta flag
+        Get.to(() => VideoCallLoadingScreen(
+              participant: currentProfile,
+              scheduleTime: DateTime.now(),
+              type: "video",
+              isInstaTalk: true,
+              instaTalkDuration: 30, // seconds
+            ));
+        break;
+      default:
+        Get.snackbar(
+          'Invalid Option',
+          'Please select a valid option: Chat, Call, or Video',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+    }
   }
 
   void _handleGoLive() async {
@@ -927,9 +1005,11 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     final currentProfile = _homeController.profiles.isEmpty
         ? null
         : _homeController.profiles[_homeController.currentIndex.value];
-    
+
     // If current profile is live, handle joining that stream
-    if (_isCurrentUserLive && _currentLiveStreamId != null && currentProfile != null) {
+    if (_isCurrentUserLive &&
+        _currentLiveStreamId != null &&
+        currentProfile != null) {
       _handleJoinLiveStream();
       return;
     }

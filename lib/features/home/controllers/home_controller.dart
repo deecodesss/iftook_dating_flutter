@@ -18,12 +18,43 @@ class HomeController extends GetxController {
   var wishlistUsers = <User>[].obs;
   var isWishlistLoading = false.obs;
 
+  // Add a set to track users who have had Insta Talk
+  final RxSet<String> _instaTalkUsedWith = <String>{}.obs;
+
   @override
   void onInit() {
     super.onInit();
     fetchProfiles();
     fetchWalletBalance();
     fetchWishlist();
+    _loadInstaTalkHistory();
+  }
+
+  // Load Insta Talk history from SharedPrefs
+  Future<void> _loadInstaTalkHistory() async {
+    try {
+      final history = await SharedPrefs.getInstaTalkHistory();
+      if (history.isNotEmpty) {
+        _instaTalkUsedWith.addAll(history);
+      }
+    } catch (e) {
+      print('Error loading Insta Talk history: $e');
+    }
+  }
+
+  // Record that Insta Talk has been used with a user
+  Future<void> recordInstaTalkUsage(String userId) async {
+    try {
+      _instaTalkUsedWith.add(userId);
+      await SharedPrefs.saveInstaTalkHistory(_instaTalkUsedWith.toList());
+    } catch (e) {
+      print('Error recording Insta Talk usage: $e');
+    }
+  }
+
+  // Check if Insta Talk has been used with a user
+  bool hasUsedInstaTalk(String userId) {
+    return _instaTalkUsedWith.contains(userId);
   }
 
   Future<void> fetchProfiles() async {
@@ -489,51 +520,48 @@ class HomeController extends GetxController {
     try {
       isLoading(true);
       final scheduleTime = DateTime.now();
-      
-      final response = await ApiService.createMeeting(
-        participantId, 
-        type, 
-        scheduleTime
-      );
-      
+
+      final response =
+          await ApiService.createMeeting(participantId, type, scheduleTime);
+
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
-        
+
         Get.snackbar(
           'Success',
           'Instant session created successfully',
           backgroundColor: Colors.green.withOpacity(0.8),
           colorText: Colors.white,
         );
-        
+
         // Here you would navigate to the actual meeting interface
         // For example:
         // Get.to(() => MeetingRoom(meetingData: data));
-        
+
         return true;
       } else {
         final data = jsonDecode(response.body);
         errorMessage(data['message'] ?? 'Failed to create instant session');
-        
+
         Get.snackbar(
           'Error',
           errorMessage.value,
           backgroundColor: Colors.red.withOpacity(0.8),
           colorText: Colors.white,
         );
-        
+
         return false;
       }
     } catch (e) {
       errorMessage('An error occurred: $e');
-      
+
       Get.snackbar(
         'Error',
         errorMessage.value,
         backgroundColor: Colors.red.withOpacity(0.8),
         colorText: Colors.white,
       );
-      
+
       return false;
     } finally {
       isLoading(false);

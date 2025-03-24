@@ -8,6 +8,8 @@ import 'package:iftook/features/home/presentation/widgets/user_profile_screen.da
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
+import '../../../calls/presentation/screens/laoding_voice_call_screen.dart';
+import '../../../calls/presentation/screens/loading_video_call_screen.dart';
 import '../../../friend_requests/controller/friend_controller.dart';
 import 'chat_room_screen.dart';
 import '../../../home/data/enums/meeting_type.dart';
@@ -303,10 +305,35 @@ class _FriendsListScreenState extends State<FriendsListScreen>
   }
 
   void _handleInstaChat(User friend) {
-    _showInstaOptions(friend);
+    // Use the cleaner approach from main home page
+    _startInstaTalk('Chat', friend);
   }
 
   void _showInstaOptions(User friend) {
+    // Check if user is online first - same logic as main home page
+    if (friend.isOnline != true) {
+      Get.snackbar(
+        'User Offline',
+        '${friend.name} is currently offline. Insta Talk requires the user to be online.',
+        backgroundColor: Colors.grey[800],
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+      return;
+    }
+
+    // Check if user has already used Insta Talk with this friend
+    if (_homeController.hasUsedInstaTalk(friend.sId!)) {
+      Get.snackbar(
+        'Insta Talk Used',
+        'You have already used your free Insta Talk with ${friend.name}. Please schedule a regular session.',
+        backgroundColor: Colors.grey[800],
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
@@ -329,7 +356,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Start an instant session with ${friend.name}',
+              'Start a 30-second free trial with ${friend.name}',
               style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 14,
@@ -345,7 +372,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                   price: friend.earnings?.chatRate.toInt() ?? 150,
                   onTap: () {
                     Navigator.pop(context);
-                    _navigateToChat(friend);
+                    _startInstaTalk('Chat', friend);
                   },
                 ),
                 _buildInstaOption(
@@ -354,7 +381,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                   price: friend.earnings?.voiceRate.toInt() ?? 300,
                   onTap: () {
                     Navigator.pop(context);
-                    _navigateToMeeting(friend, MeetingType.voice);
+                    _startInstaTalk('Call', friend);
                   },
                 ),
                 _buildInstaOption(
@@ -363,7 +390,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                   price: friend.earnings?.videoRate.toInt() ?? 450,
                   onTap: () {
                     Navigator.pop(context);
-                    _navigateToMeeting(friend, MeetingType.video);
+                    _startInstaTalk('Video', friend);
                   },
                 ),
               ],
@@ -414,6 +441,62 @@ class _FriendsListScreenState extends State<FriendsListScreen>
         ),
       ),
     );
+  }
+
+  void _startInstaTalk(String option, User friend) {
+    // Check if user is online - redundant but kept for safety
+    if (friend.isOnline != true) {
+      Get.snackbar(
+        'User Offline',
+        '${friend.name} is currently offline. Insta Talk requires the user to be online.',
+        backgroundColor: Colors.grey[800],
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+      return;
+    }
+
+    // Record that Insta Talk has been used with this friend
+    _homeController.recordInstaTalkUsage(friend.sId!);
+
+    // Direct navigation based on option type
+    switch (option.toLowerCase()) {
+      case 'chat':
+        // Navigate directly to chat screen with insta flag
+        Get.to(() => ChatRoomScreen(
+              profile: friend,
+              isInstaTalk: true,
+              instaTalkDuration: 30, // seconds
+            ));
+        break;
+      case 'call':
+        // Navigate directly to voice call with insta flag
+        Get.to(() => VoiceCallLoadingScreen(
+              participant: friend,
+              scheduleTime: DateTime.now(),
+              type: "voice",
+              isInstaTalk: true,
+              instaTalkDuration: 30, // seconds
+            ));
+        break;
+      case 'video':
+        // Navigate directly to video call with insta flag
+        Get.to(() => VideoCallLoadingScreen(
+              participant: friend,
+              scheduleTime: DateTime.now(),
+              type: "video",
+              isInstaTalk: true,
+              instaTalkDuration: 30, // seconds
+            ));
+        break;
+      default:
+        Get.snackbar(
+          'Invalid Option',
+          'Please select a valid option: Chat, Call, or Video',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+    }
   }
 
   void _navigateToChat(User friend) {
@@ -583,90 +666,17 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                               Expanded(
                                 child: OutlinedButton(
                                   onPressed: () {
+                                    // Check if user is online first
                                     if (profile.isOnline == true) {
-                                      _showChatBottomSheet(context, profile,
-                                          isTrial: true);
+                                      _showInstaOptions(profile);
                                     } else {
-                                      // Show offline dialog
-                                      showDialog(
-                                        context: context,
-                                        builder: (context) => Dialog(
-                                          backgroundColor:
-                                              AppColors.secondaryBackground,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                          ),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(20),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.all(20),
-                                                  decoration:
-                                                      const BoxDecoration(
-                                                    color: AppColors
-                                                        .primaryBackground,
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.mail_outline,
-                                                    color:
-                                                        AppColors.primaryColor,
-                                                    size: 32,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 16),
-                                                const Text(
-                                                  'Trial Request Sent!',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 18,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  'Your trial request has been sent to ${profile.name}.\nThey will be notified when they come online.',
-                                                  textAlign: TextAlign.center,
-                                                  style: TextStyle(
-                                                    color: Colors.white
-                                                        .withOpacity(0.7),
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 20),
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(context),
-                                                  style: TextButton.styleFrom(
-                                                    backgroundColor:
-                                                        AppColors.primaryColor,
-                                                    minimumSize: const Size(
-                                                        double.infinity, 45),
-                                                    shape:
-                                                        RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              25),
-                                                    ),
-                                                  ),
-                                                  child: const Text(
-                                                    'Got it',
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 16,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
+                                      // Show offline message
+                                      Get.snackbar(
+                                        'User Offline',
+                                        '${profile.name} is currently offline. Insta Talk requires the user to be online.',
+                                        backgroundColor: Colors.grey[800],
+                                        colorText: Colors.white,
+                                        duration: const Duration(seconds: 3),
                                       );
                                     }
                                   },

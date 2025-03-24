@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iftook/features/home/data/enums/meeting_type.dart';
@@ -11,12 +13,16 @@ class ScheduleMeetingScreen extends StatefulWidget {
   final User participant;
   final MeetingType type;
   final bool isInstant; // Add this parameter
+  final bool isFreeTrialMode; // New parameter for free trial
+  final int trialDurationSeconds; // Trial duration in seconds
 
   const ScheduleMeetingScreen({
     Key? key,
     required this.participant,
     required this.type,
     this.isInstant = false, // Default to false for scheduled meetings
+    this.isFreeTrialMode = false,
+    this.trialDurationSeconds = 30,
   }) : super(key: key);
 
   @override
@@ -27,6 +33,9 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
   final HomeController _homeController = Get.find<HomeController>();
   DateTime selectedDate = DateTime.now();
   TimeOfDay selectedTime = TimeOfDay.now();
+  Timer? _trialTimer;
+  int _remainingSeconds = 0;
+  bool _showingPaymentPrompt = false;
 
   double get meetingRate {
     final earnings = widget.participant.earnings;
@@ -52,15 +61,104 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
       selectedDate = DateTime.now();
       selectedTime = TimeOfDay.now();
     }
+
+    // If this is a free trial mode, start the timer
+    if (widget.isFreeTrialMode) {
+      _remainingSeconds = widget.trialDurationSeconds;
+      _startTrialTimer();
+    }
+  }
+
+  void _startTrialTimer() {
+    _trialTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          _trialTimer?.cancel();
+          if (!_showingPaymentPrompt) {
+            _showPaymentPrompt();
+          }
+        }
+      });
+    });
+  }
+
+  void _showPaymentPrompt() {
+    _showingPaymentPrompt = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Free Trial Ended',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your 30-second free trial with ${widget.participant.name} has ended.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Would you like to continue this ${widget.type.value} session?',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Rate: ₹${meetingRate.toStringAsFixed(0)} for 30 minutes',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Get.back(); // Return to previous screen
+            },
+            child: const Text('End Session'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              // Continue the session with payment
+              _scheduleMeeting();
+            },
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _trialTimer?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isInstant
-            ? 'Instant ${widget.type.value.toUpperCase()}'
-            : 'Schedule ${widget.type.value.toUpperCase()}'),
+        title: Text(widget.isFreeTrialMode
+            ? '${widget.type.value.toUpperCase()} - Free Trial'
+            : (widget.isInstant
+                ? 'Instant ${widget.type.value.toUpperCase()}'
+                : 'Schedule ${widget.type.value.toUpperCase()}')),
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -76,9 +174,10 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                       title: Text(widget.participant.name ?? 'User'),
                       subtitle: Text(widget.participant.profession ?? ''),
                       leading: CircleAvatar(
-                        backgroundImage: widget.participant.photos?.isNotEmpty == true
-                            ? NetworkImage(widget.participant.photos!.first)
-                            : null,
+                        backgroundImage:
+                            widget.participant.photos?.isNotEmpty == true
+                                ? NetworkImage(widget.participant.photos!.first)
+                                : null,
                         child: widget.participant.photos?.isEmpty == true
                             ? Icon(Icons.person)
                             : null,
@@ -127,10 +226,11 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
-                                  color: _homeController.userWalletBalance.value >=
-                                          meetingRate
-                                      ? Colors.green
-                                      : Colors.red,
+                                  color:
+                                      _homeController.userWalletBalance.value >=
+                                              meetingRate
+                                          ? Colors.green
+                                          : Colors.red,
                                 ),
                               ),
                             ],
@@ -187,7 +287,8 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                               const SizedBox(height: 16),
                               Row(
                                 children: [
-                                  const Icon(Icons.access_time, color: AppColors.primaryColor),
+                                  const Icon(Icons.access_time,
+                                      color: AppColors.primaryColor),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Duration: 30 minutes',
@@ -198,7 +299,8 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  const Icon(Icons.payments_outlined, color: AppColors.primaryColor),
+                                  const Icon(Icons.payments_outlined,
+                                      color: AppColors.primaryColor),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Rate: ₹${meetingRate.toStringAsFixed(0)}/30m',
@@ -213,7 +315,52 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                     ),
                   ],
 
-                  const Spacer(),
+                  // Add free trial timer if in trial mode
+                  if (widget.isFreeTrialMode) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.orangeAccent.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.orangeAccent.withOpacity(0.5),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'FREE TRIAL',
+                            style: TextStyle(
+                              color: Colors.orangeAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Time remaining: $_remainingSeconds seconds',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          LinearProgressIndicator(
+                            value:
+                                _remainingSeconds / widget.trialDurationSeconds,
+                            backgroundColor: Colors.grey[800],
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Colors.orangeAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 24),
 
                   if (_homeController.userWalletBalance.value < meetingRate)
                     SizedBox(

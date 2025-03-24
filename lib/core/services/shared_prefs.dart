@@ -6,6 +6,7 @@ class SharedPrefs {
   static String sharedPreferenceUserIdKey = 'USER_ID_KEY';
   static String sharedPreferenceUserTokenKey = 'USER_TOKEN_KEY';
   static String sharedPreferenceUserProfileKey = 'USER_PROFILE_KEY';
+  static const String instaTalkHistoryKey = 'instaTalkHistory';
 
   /// storing data in shared preferences (Local Storage)
   static Future<bool> saveUsernameSharedPreference(String username) async {
@@ -34,6 +35,11 @@ class SharedPrefs {
     return await prefs.setString(sharedPreferenceUserProfileKey, userProfile);
   }
 
+  static Future<bool> saveInstaTalkHistory(List<String> userIds) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.setStringList(instaTalkHistoryKey, userIds);
+  }
+
   ///getting data from shared preferences (Local Storage)
   static Future<String?> getUsernameSharedPreference() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -58,6 +64,11 @@ class SharedPrefs {
   static Future<String?> getUserProfileSharedPreference() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getString(sharedPreferenceUserProfileKey);
+  }
+
+  static Future<List<String>> getInstaTalkHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(instaTalkHistoryKey) ?? [];
   }
 
   /// Clearing all data from shared preferences (Local Storage)

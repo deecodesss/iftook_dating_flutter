@@ -14,6 +14,11 @@ import 'package:iftook/features/live/controllers/live_controller.dart';
 import 'package:iftook/features/live/screens/viewer_screen.dart';
 import 'package:iftook/features/wallet/controllers/wallet_controller.dart';
 
+import '../../../calls/presentation/screens/laoding_voice_call_screen.dart';
+import '../../../calls/presentation/screens/loading_video_call_screen.dart';
+import '../../../friends/presentation/screens/chat_room_screen.dart';
+import '../../controllers/home_controller.dart';
+
 class UserProfileScreen extends StatefulWidget {
   final User profile;
   const UserProfileScreen({super.key, required this.profile});
@@ -820,7 +825,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     return Column(
       children: [
         const Text(
-          'Free Trial',
+          'Insta Talk',
           style: TextStyle(color: AppColors.primaryColor),
         ),
         DropdownButton<String>(
@@ -835,9 +840,67 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           }).toList(),
           onChanged: (String? newValue) {
             setState(() => _selectedTrialOption = newValue!);
+            _startInstaTalk(_selectedTrialOption);
           },
         ),
       ],
     );
+  }
+
+  void _startInstaTalk(String option) {
+    // Check if user is online
+    if (widget.profile.isOnline != true) {
+      Get.snackbar(
+        'User Offline',
+        '${widget.profile.name} is currently offline. Insta Talk requires the user to be online.',
+        backgroundColor: Colors.grey[800],
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+      return;
+    }
+
+    // Get HomeController to record Insta Talk usage
+    final homeController = Get.find<HomeController>();
+    homeController.recordInstaTalkUsage(widget.profile.sId!);
+
+    // Direct navigation based on option type
+    switch (option.toLowerCase()) {
+      case 'chat':
+        // Navigate directly to chat screen with insta flag
+        Get.to(() => ChatRoomScreen(
+              profile: widget.profile,
+              isInstaTalk: true,
+              instaTalkDuration: 30, // seconds
+            ));
+        break;
+      case 'call':
+        // Navigate directly to voice call with insta flag
+        Get.to(() => VoiceCallLoadingScreen(
+              participant: widget.profile,
+              scheduleTime: DateTime.now(),
+              type: "voice",
+              isInstaTalk: true,
+              instaTalkDuration: 30, // seconds
+            ));
+        break;
+      case 'video':
+        // Navigate directly to video call with insta flag
+        Get.to(() => VideoCallLoadingScreen(
+              participant: widget.profile,
+              scheduleTime: DateTime.now(),
+              type: "video",
+              isInstaTalk: true,
+              instaTalkDuration: 30, // seconds
+            ));
+        break;
+      default:
+        Get.snackbar(
+          'Invalid Option',
+          'Please select a valid option: Chat, Call, or Video',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+    }
   }
 }

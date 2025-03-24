@@ -324,6 +324,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
                               child: AgoraLiveChatWidget(
                                 liveStreamId: widget.liveStreamId,
                                 channelName: widget.streamData['channelName'],
+                                engine: _engine, // Pass the engine reference
                               ),
                             ),
 
