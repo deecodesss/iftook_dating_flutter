@@ -65,10 +65,14 @@ class HomeController extends GetxController {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final users = data['users'] as List;
+        final filteredCount =
+            data['filteredCount'] ?? 0; // Get the count of filtered friends
 
-        // Store all profiles
-        allProfiles
-            .assignAll(users.map((user) => User.fromJson(user)).toList());
+        // Store all profiles - these are already filtered on the server
+        final fetchedProfiles =
+            users.map((user) => User.fromJson(user)).toList();
+
+        allProfiles.assignAll(fetchedProfiles);
 
         // Extract unique countries
         final uniqueCountries = allProfiles
@@ -79,11 +83,20 @@ class HomeController extends GetxController {
 
         // Update displayed profiles based on selected country
         _filterProfilesByCountry();
+
+        print(
+            'Received ${fetchedProfiles.length} profiles in feed (filtered out $filteredCount friends)');
       } else {
         throw Exception('Failed to load profiles');
       }
     } catch (e) {
       print('Error fetching profiles: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to load profiles: ${e.toString()}',
+        backgroundColor: Colors.red.withOpacity(0.7),
+        colorText: Colors.white,
+      );
     } finally {
       isLoading(false);
     }

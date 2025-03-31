@@ -190,10 +190,19 @@ class FriendController extends GetxController {
     }
   }
 
-  Future<bool> deleteSentRequest(String id) async {
+  Future<bool> deleteSentRequest(String requestId) async {
     try {
-      final response = await ApiService.deleteSentRequest(id);
+      final response = await ApiService.deleteSentRequest(requestId);
       if (response.statusCode == 200) {
+        // Refresh the sent requests list after successful deletion
+        await fetchSentRequests();
+        Get.back(); // Close the dialog
+        Get.snackbar(
+          'Success',
+          'Request deleted successfully',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
         return true;
       } else {
         errorMessage.value = 'Failed to delete sent request: ${response.body}';

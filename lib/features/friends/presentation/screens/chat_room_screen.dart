@@ -7,6 +7,7 @@ import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_sc
 import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
 import 'package:iftook/features/friends/data/message.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
+import 'package:iftook/features/shared/widgets/rating_review_widget.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
 import 'package:iftook/features/home/data/enums/meeting_type.dart';
@@ -219,7 +220,33 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _amountController.dispose();
     _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
+
+    // Show rating dialog when leaving chat
+    if (!widget.isTrial) {
+      _showRatingDialog();
+    }
+
     super.dispose();
+  }
+
+  // Add this new method to show the rating dialog
+  void _showRatingDialog() {
+    // Add a slight delay to ensure the previous screen is dismissed
+    Future.delayed(const Duration(milliseconds: 300), () {
+      Get.dialog(
+        Dialog(
+          backgroundColor: AppColors.secondaryBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: RatingAndReviewWidget(
+            userId: widget.profile.sId ?? "",
+            interactionType: "chat",
+          ),
+        ),
+        barrierDismissible: false,
+      );
+    });
   }
 
   // Show payment popup for sending money

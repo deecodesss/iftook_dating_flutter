@@ -96,12 +96,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _aboutController.text = currentUser?.about ?? '';
         _professionController.text = currentUser?.profession ?? '';
         _locationController.text = currentUser?.location?.city ?? '';
-        selectedHeight = currentUser?.height;
+
+        // Safely set the height value - ensure it exists in the heights list
+        if (currentUser?.height != null &&
+            heights.contains(currentUser!.height)) {
+          selectedHeight = currentUser!.height;
+        } else {
+          selectedHeight = heights.first; // Default to the first height
+        }
+
         selectedLanguages = currentUser?.languages?.toList() ?? [];
         _panController.text = currentUser?.panDetails?.panNumber ?? '';
 
-        // Set country
-        selectedCountry = currentUser?.location?.country ?? 'India';
+        // Safely set country
+        if (currentUser?.location?.country != null &&
+            countries.contains(currentUser!.location!.country)) {
+          selectedCountry = currentUser!.location!.country!;
+        } else {
+          selectedCountry = 'India'; // Default
+        }
 
         // Load bank details if available
         if (currentUser?.bankDetails != null) {
@@ -492,6 +505,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildCountryDropdown() {
+    // Safety check - ensure selectedCountry is in the list
+    final String safeSelectedCountry =
+        countries.contains(selectedCountry) ? selectedCountry : 'India';
+
     return InputDecorator(
       decoration: InputDecoration(
         labelText: 'Country',
@@ -510,7 +527,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         contentPadding: const EdgeInsets.all(16),
       ),
       child: Text(
-        selectedCountry,
+        safeSelectedCountry,
         style: TextStyle(
           color: Colors.white
               .withOpacity(0.7), // Slightly dimmed to show disabled state
@@ -521,8 +538,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildHeightDropdown() {
+    // Safety check - ensure selectedHeight is in the list
+    final String safeSelectedHeight =
+        (selectedHeight != null && heights.contains(selectedHeight))
+            ? selectedHeight!
+            : heights.first;
+
     return DropdownButtonFormField<String>(
-      value: selectedHeight,
+      value: safeSelectedHeight,
       dropdownColor: Colors.grey[900],
       style: const TextStyle(color: Colors.white),
       items: heights.map((height) {

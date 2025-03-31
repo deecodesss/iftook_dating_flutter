@@ -62,6 +62,10 @@ dependencies:
   timeago: ^3.6.0
   no_screenshot: ^0.3.1
   socket_io_client: ^3.0.2
+  flutter_ringtone_player:
+  wakelock_plus: ^1.2.11
+  # flutter_vibrate:
+  flutter_rating_bar:
 
 dev_dependencies:
   flutter_test:

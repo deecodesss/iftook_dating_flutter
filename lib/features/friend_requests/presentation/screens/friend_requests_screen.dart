@@ -302,9 +302,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
 
                           if (request.requester?.sId != null) {
                             // Call unfriend with both IDs
-                            await controller.deleteSentRequest(
-                              currentUserId,
-                            );
+                            await controller.deleteSentRequest(currentUserId);
                           }
 
                           // Also reject the request using the existing method
@@ -339,21 +337,19 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     );
   }
 
-  // Add this helper method to convert UTC to IST
+  // Fix the UTC to IST conversion - IST is UTC+5:30, not UTC-5:30
   DateTime _convertToIST(DateTime utc) {
-    // Subtract 5 hours and 30 minutes to compensate for IST difference
-    return utc.subtract(const Duration(hours: 5, minutes: 30));
+    // Add 5 hours and 30 minutes to convert from UTC to IST
+    return utc.add(const Duration(hours: 5, minutes: 30));
   }
 
   String _getMeetingStatus(DateTime scheduledTime, String currentStatus) {
-    // Convert scheduled time to correct time by subtracting IST offset
-    final adjustedScheduledTime = _convertToIST(scheduledTime);
     final now = DateTime.now();
-    final minutesDifference = now.difference(adjustedScheduledTime).inMinutes;
+    // Don't adjust the time here - we'll handle time comparison directly
+    final minutesDifference = now.difference(scheduledTime).inMinutes;
 
     print('Current time: ${now.toString()}');
     print('Original scheduled time: ${scheduledTime.toString()}');
-    print('Adjusted scheduled time: ${adjustedScheduledTime.toString()}');
     print('Time difference in minutes: $minutesDifference');
 
     // Meeting is in the past (more than 30 mins past scheduled time)
@@ -363,8 +359,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       return 'Expired';
     }
 
-    // Meeting is live (within 30 mins window after scheduled time)
-    if (minutesDifference >= 0 && minutesDifference <= 30) {
+    // Meeting is live (within 30 mins window after scheduled time or less than 30 mins before scheduled time)
+    if (minutesDifference >= -30 && minutesDifference <= 30) {
       if (currentStatus == 'completed') return 'Completed';
       if (currentStatus == 'cancelled') return 'Cancelled';
       return 'Join Now';
@@ -433,8 +429,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
   Widget _buildMeetingCard(Map<String, dynamic> meeting) {
     final scheduledTime = DateTime.parse(meeting['scheduledTime']);
     final participant = meeting['participant'] as Map<String, dynamic>;
-    final user =
-        meeting['user'] as Map<String, dynamic>; // Get the user/sender data
+    final user = meeting['user'] as Map<String, dynamic>;
     final status = meeting['status'];
     final type = meeting['type'];
     final userId = user['_id'];
@@ -450,306 +445,315 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         final currentUserId = snapshot.data!;
         final isCreator = userId == currentUserId;
 
-        // Determine which name to display based on whether it's incoming or outgoing
         final displayName = isCreator
-            ? participant['name'] ??
-                'Unknown' // Outgoing meeting: show participant name
-            : user['name'] ?? 'Unknown'; // Incoming meeting: show sender name
+            ? participant['name'] ?? 'Unknown'
+            : user['name'] ?? 'Unknown';
 
-        return Obx(() {
-          final currentStatus =
-              controller.getMeetingStatus(scheduledTime, status);
-          final now = controller.currentTime.value;
-          final minutesDifference = now
-              .difference(
-                  scheduledTime.subtract(const Duration(hours: 5, minutes: 30)))
-              .inMinutes;
-          final canJoin = minutesDifference >= 0 && minutesDifference <= 30;
+        // Calculate status without using Obx
+        final now = DateTime.now();
+        final minutesDifference = now.difference(scheduledTime).inMinutes;
+        final canJoin = minutesDifference >= -30 && minutesDifference <= 30;
+        final currentStatus = _getMeetingStatus(scheduledTime, status);
 
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.blueGrey.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: _getStatusColor(currentStatus).withOpacity(0.3),
-                width: 1,
-              ),
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.blueGrey.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _getStatusColor(currentStatus).withOpacity(0.3),
+              width: 1,
             ),
-            child: Column(
-              children: [
-                // Debug Time Info (Only in Debug Mode)
-                if (false) // Change to !kReleaseMode for production
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.black45,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        topRight: Radius.circular(16),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // User Info Row
+                    Row(
                       children: [
-                        Text(
-                          'Current: ${DateFormat('MMM d, h:mm:ss a').format(now)}',
-                          style:
-                              TextStyle(color: Colors.grey[400], fontSize: 12),
+                        // Profile Picture - Direct navigation approach
+                        InkWell(
+                          onTap: () {
+                            try {
+                              // Create User object with essential fields and safe fallbacks
+                              final safeProfile = User(
+                                sId: participant['_id']?.toString() ?? '',
+                                name: participant['name']?.toString() ??
+                                    'Unknown',
+                                email: participant['email']?.toString() ?? '',
+                                dob: participant['dob']?.toString() ?? '',
+                                gender: participant['gender']?.toString() ?? '',
+                                profession:
+                                    participant['profession']?.toString() ??
+                                        'Not specified',
+                                about: participant['about']?.toString() ??
+                                    'No information available',
+                                interestedIn:
+                                    participant['interestedIn']?.toString() ??
+                                        '',
+                                photos: participant['photos'] is List
+                                    ? List<String>.from(participant['photos'])
+                                    : [],
+                                location: participant['location'] is Map
+                                    ? Location(
+                                        city: participant['location']['city']
+                                                ?.toString() ??
+                                            'Unknown',
+                                        state: participant['location']['state']
+                                                ?.toString() ??
+                                            '',
+                                        country: participant['location']
+                                                    ['country']
+                                                ?.toString() ??
+                                            '',
+                                      )
+                                    : Location(
+                                        city: 'Unknown',
+                                        state: '',
+                                        country: ''),
+                                // Add other fields with safe defaults
+                                walletBalance: 0,
+                                earnings: Earnings(),
+                                isOnline: participant['isOnline'] ?? false,
+                              );
+
+                              print(
+                                  'Navigating to meeting participant profile: ${safeProfile.name}');
+                              Get.to(() =>
+                                  UserProfileScreen(profile: safeProfile));
+                            } catch (e) {
+                              print(
+                                  'Error navigating to meeting participant profile: $e');
+                              Get.snackbar(
+                                'Error',
+                                'Could not open profile details',
+                                backgroundColor: Colors.red.withOpacity(0.7),
+                                colorText: Colors.white,
+                              );
+                            }
+                          },
+                          child: CircleAvatar(
+                            radius: 30,
+                            backgroundImage: participant['photos'] != null &&
+                                    participant['photos'].isNotEmpty
+                                ? NetworkImage(participant['photos'][0])
+                                : null,
+                            child: participant['photos'] == null ||
+                                    participant['photos'].isEmpty
+                                ? const Icon(Icons.person,
+                                    color: Colors.white70, size: 30)
+                                : null,
+                          ),
                         ),
-                        Text(
-                          'Original scheduled time: ${DateFormat('MMM d, h:mm a').format(scheduledTime)}',
-                          style:
-                              TextStyle(color: Colors.grey[400], fontSize: 12),
+                        const SizedBox(width: 16),
+
+                        // Meeting Info
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                displayName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(
+                                    type == 'video'
+                                        ? Icons.videocam
+                                        : type == 'voice'
+                                            ? Icons.phone
+                                            : Icons.chat,
+                                    size: 16,
+                                    color: Colors.grey[400],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '₹$amount',
+                                    style: const TextStyle(
+                                      color: AppColors.primaryColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                        Text(
-                          'Adjusted (-5:30): ${DateFormat('MMM d, h:mm a').format(scheduledTime.subtract(const Duration(hours: 5, minutes: 30)))}',
-                          style:
-                              TextStyle(color: Colors.grey[400], fontSize: 12),
-                        ),
-                        Text(
-                          'Minutes Until/Past: ${DateTime.now().difference(scheduledTime.subtract(const Duration(hours: 5, minutes: 30))).inMinutes}',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+
+                        // Status Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color:
+                                _getStatusColor(currentStatus).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            currentStatus,
+                            style: TextStyle(
+                              color: _getStatusColor(currentStatus),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // User Info Row
-                      Row(
-                        children: [
-                          // Profile Picture - Direct navigation approach
-                          InkWell(
-                            onTap: () {
-                              try {
-                                // Create User object with essential fields and safe fallbacks
-                                final safeProfile = User(
-                                  sId: participant['_id']?.toString() ?? '',
-                                  name: participant['name']?.toString() ??
-                                      'Unknown',
-                                  email: participant['email']?.toString() ?? '',
-                                  dob: participant['dob']?.toString() ?? '',
-                                  gender:
-                                      participant['gender']?.toString() ?? '',
-                                  profession:
-                                      participant['profession']?.toString() ??
-                                          'Not specified',
-                                  about: participant['about']?.toString() ??
-                                      'No information available',
-                                  interestedIn:
-                                      participant['interestedIn']?.toString() ??
-                                          '',
-                                  photos: participant['photos'] is List
-                                      ? List<String>.from(participant['photos'])
-                                      : [],
-                                  location: participant['location'] is Map
-                                      ? Location(
-                                          city: participant['location']['city']
-                                                  ?.toString() ??
-                                              'Unknown',
-                                          state: participant['location']
-                                                      ['state']
-                                                  ?.toString() ??
-                                              '',
-                                          country: participant['location']
-                                                      ['country']
-                                                  ?.toString() ??
-                                              '',
-                                        )
-                                      : Location(
-                                          city: 'Unknown',
-                                          state: '',
-                                          country: ''),
-                                  // Add other fields with safe defaults
-                                  walletBalance: 0,
-                                  earnings: Earnings(),
-                                  isOnline: participant['isOnline'] ?? false,
-                                );
 
-                                print(
-                                    'Navigating to meeting participant profile: ${safeProfile.name}');
-                                Get.to(() =>
-                                    UserProfileScreen(profile: safeProfile));
-                              } catch (e) {
-                                print(
-                                    'Error navigating to meeting participant profile: $e');
-                                Get.snackbar(
-                                  'Error',
-                                  'Could not open profile details',
-                                  backgroundColor: Colors.red.withOpacity(0.7),
-                                  colorText: Colors.white,
-                                );
-                              }
-                            },
-                            child: CircleAvatar(
-                              radius: 30,
-                              backgroundImage: participant['photos'] != null &&
-                                      participant['photos'].isNotEmpty
-                                  ? NetworkImage(participant['photos'][0])
-                                  : null,
-                              child: participant['photos'] == null ||
-                                      participant['photos'].isEmpty
-                                  ? const Icon(Icons.person,
-                                      color: Colors.white70, size: 30)
-                                  : null,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-
-                          // Meeting Info - Update the name display
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  displayName, // Use our conditional name logic
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(
-                                      type == 'video'
-                                          ? Icons.videocam
-                                          : type == 'voice'
-                                              ? Icons.phone
-                                              : Icons.chat,
-                                      size: 16,
-                                      color: Colors.grey[400],
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '₹$amount',
-                                      style: const TextStyle(
-                                        color: AppColors.primaryColor,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          // Status Badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: _getStatusColor(currentStatus)
-                                  .withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              currentStatus,
-                              style: TextStyle(
-                                color: _getStatusColor(currentStatus),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      // Time Display
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text(
-                          _formatMeetingTime(scheduledTime),
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 14,
-                          ),
+                    // Time Display
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        _formatMeetingTime(scheduledTime),
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 14,
                         ),
                       ),
+                    ),
 
-                      // Add Direction Indicator (Incoming/Outgoing)
-                      Row(
-                        children: [
-                          Icon(
-                            isCreator
-                                ? Icons.call_made_rounded // Outgoing arrow
-                                : Icons.call_received_rounded, // Incoming arrow
-                            size: 16,
+                    // Direction Indicator
+                    Row(
+                      children: [
+                        Icon(
+                          isCreator
+                              ? Icons.call_made_rounded
+                              : Icons.call_received_rounded,
+                          size: 16,
+                          color: isCreator
+                              ? Colors.blue.withOpacity(0.7)
+                              : Colors.green.withOpacity(0.7),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isCreator
+                              ? 'You requested meeting with ${participant['name'] ?? "them"}'
+                              : 'Meeting request from ${user['name'] ?? "someone"}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                             color: isCreator
                                 ? Colors.blue.withOpacity(0.7)
                                 : Colors.green.withOpacity(0.7),
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            isCreator
-                                ? 'You requested meeting with ${participant['name'] ?? "them"}'
-                                : 'Meeting request from ${user['name'] ?? "someone"}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: isCreator
-                                  ? Colors.blue.withOpacity(0.7)
-                                  : Colors.green.withOpacity(0.7),
-                            ),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Join button for active meetings
+              if (canJoin)
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: Colors.grey[850]!,
+                        width: 1,
                       ),
-                    ],
+                    ),
+                  ),
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      // Handle join meeting
+                    },
+                    icon: Icon(
+                      type == 'video'
+                          ? Icons.videocam
+                          : type == 'voice'
+                              ? Icons.phone
+                              : Icons.chat,
+                      size: 20,
+                    ),
+                    label: const Text('Join Now'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
                 ),
-
-                // Join button for active meetings
-                if (currentStatus == 'Join Now')
-                  Container(
-                    width: double.infinity,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(
-                          color: Colors.grey[850]!,
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        // Handle join meeting
-                      },
-                      icon: Icon(
-                        type == 'video'
-                            ? Icons.videocam
-                            : type == 'voice'
-                                ? Icons.phone
-                                : Icons.chat,
-                        size: 20,
-                      ),
-                      label: const Text('Join Now'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        });
+            ],
+          ),
+        );
       },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        title: const Text(
+          'Connections',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: AppColors.primaryColor,
+          indicatorWeight: 3,
+          dividerColor: Colors.transparent,
+          labelColor: AppColors.primaryColor,
+          unselectedLabelColor: Colors.white.withOpacity(0.6),
+          labelStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+          tabs: const [
+            Tab(text: 'Meetings'),
+            Tab(text: 'Requests'),
+            Tab(text: 'Sent'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        // Use physics that don't interfere with inner scrolling
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          // Meetings Tab - Use a separate widget with keep-alive behavior
+          MeetingsTabView(
+            controller: controller,
+            buildMeetingCard: _buildMeetingCard,
+            buildEmptyView: _buildEmptyMeetingsView,
+          ),
+
+          // Requests Tab
+          FriendRequestsTabView(
+            controller: controller,
+            buildRequestCard: _buildRequestCard,
+          ),
+
+          // Sent Requests Tab
+          SentRequestsTabView(
+            controller: controller,
+            buildSentRequestCard: _buildSentRequestCard,
+          ),
+        ],
+      ),
     );
   }
 
@@ -843,65 +847,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        title: const Text(
-          'Connections',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppColors.primaryColor,
-          indicatorWeight: 3,
-          dividerColor: Colors.transparent,
-          labelColor: AppColors.primaryColor,
-          unselectedLabelColor: Colors.white.withOpacity(0.6),
-          labelStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-          tabs: const [
-            Tab(text: 'Meetings'),
-            Tab(text: 'Requests'),
-            Tab(text: 'Sent'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        // Use physics that don't interfere with inner scrolling
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          // Meetings Tab - Use a separate widget with keep-alive behavior
-          MeetingsTabView(
-            controller: controller,
-            buildMeetingCard: _buildMeetingCard,
-            buildEmptyView: _buildEmptyMeetingsView,
-          ),
-
-          // Requests Tab
-          FriendRequestsTabView(
-            controller: controller,
-            buildRequestCard: _buildRequestCard,
-          ),
-
-          // Sent Requests Tab
-          SentRequestsTabView(
-            controller: controller,
-            buildSentRequestCard: _buildSentRequestCard,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSentRequestCard(FriendRequest request) {
     final receiver = request.receiver;
     if (receiver == null) return SizedBox.shrink();
@@ -988,8 +933,11 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 ),
                 const SizedBox(height: 8),
                 TextButton(
-                  onPressed: () =>
-                      _showDeleteSentRequestWarning(context, request.sId ?? ''),
+                  onPressed: () async {
+                    if (request.sId != null && request.sId!.isNotEmpty) {
+                      controller.deleteSentRequest(request.sId!);
+                    }
+                  },
                   style: TextButton.styleFrom(
                     backgroundColor: AppColors.redColor.withOpacity(0.1),
                     foregroundColor: AppColors.redColor,
@@ -1074,7 +1022,9 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                       onPressed: () async {
                         final currentUserId =
                             await SharedPrefs.getUserIdSharedPreference();
-                        controller.deleteSentRequest(currentUserId!);
+                        if (currentUserId != null) {
+                          controller.deleteSentRequest(currentUserId);
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.redColor,
@@ -1208,6 +1158,13 @@ class _MeetingsTabViewState extends State<MeetingsTabView>
     super.initState();
     // Fetch data once and store in local state
     _fetchMeetings();
+
+    // Add a periodic refresh to update meeting statuses
+    Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) {
+        _refreshMeetings();
+      }
+    });
   }
 
   Future<void> _fetchMeetings() async {
@@ -1216,14 +1173,26 @@ class _MeetingsTabViewState extends State<MeetingsTabView>
     // Wait for a short delay to ensure everything is properly initialized
     await Future.delayed(Duration.zero);
 
-    // Make a local copy of meetings to avoid reactivity issues
-    if (widget.controller.meetings.isNotEmpty) {
-      _meetings.clear();
-      _meetings.addAll(widget.controller.meetings.cast<Map<String, dynamic>>());
+    try {
+      // Make a local copy of meetings to avoid reactivity issues
+      if (widget.controller.meetings.isNotEmpty) {
+        _meetings.clear();
+        _meetings
+            .addAll(widget.controller.meetings.cast<Map<String, dynamic>>());
+      }
+    } catch (e) {
+      print('Error fetching meetings: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
 
+  // Just refresh the UI without loading new data
+  void _refreshMeetings() {
     if (mounted) {
-      setState(() => _isLoading = false);
+      setState(() {});
     }
   }
 

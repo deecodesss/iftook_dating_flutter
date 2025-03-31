@@ -10,6 +10,7 @@ import '../../features/friends/data/message.dart';
 class ApiService {
   // static const String baseUrl = 'https://iftook-backend.vercel.app/api';
   static const String baseUrl = 'https://iftookbackendcopy.vercel.app/api';
+  // static const String baseUrl = 'http://localhost:3000/api';
 
   static Future<http.Response> register(Map<String, dynamic> body) async {
     final response = await http.post(
@@ -95,6 +96,31 @@ class ApiService {
     return response;
   }
 
+  static Future<http.Response> submitRating(
+    String userId,
+    double rating,
+    String review,
+    String interactionType,
+  ) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/users/review/add'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'userId': userId,
+        'rating': rating,
+        'review': review,
+        'interactionType': interactionType, // "chat", "voice", or "video"
+      }),
+    );
+    print('Submit rating response: ${response.body}');
+    return response;
+  }
+
   static Future<http.Response> getSentFriendRequests() async {
     final token = await SharedPrefs.getUserTokenSharedPreference();
     final userId = await SharedPrefs.getUserIdSharedPreference();
@@ -155,15 +181,15 @@ class ApiService {
     print(response.body);
     return response;
   }
-  static Future<http.Response> deleteSentRequest(
-      String id) async {
+
+  static Future<http.Response> deleteSentRequest(String requestId) async {
     final token = await SharedPrefs.getUserTokenSharedPreference();
 
     final response = await http.delete(
-      Uri.parse('$baseUrl/friend/remove/sent/$id'),
+      Uri.parse('$baseUrl/friend/requests/delete/$requestId'),
       headers: {'Authorization': 'Bearer $token'},
     );
-    print(response.body);
+    print('Delete response: ${response.body}');
     return response;
   }
 
@@ -630,5 +656,26 @@ class ApiService {
     );
     print('Get user subscriptions response: ${response.body}');
     return response;
+  }
+
+  static Future<bool> checkIsFriend(String otherUserId) async {
+    try {
+      final token = await SharedPrefs.getUserTokenSharedPreference();
+      final userId = await SharedPrefs.getUserIdSharedPreference();
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/friend/check-status/$userId/$otherUserId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['isFriend'] == true;
+      }
+      return false;
+    } catch (e) {
+      print('Error checking friendship status: $e');
+      return false;
+    }
   }
 }

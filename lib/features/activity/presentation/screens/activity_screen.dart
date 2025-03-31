@@ -15,62 +15,7 @@ class ActivityScreen extends StatefulWidget {
 
 class _ActivityScreenState extends State<ActivityScreen> {
   // Updated profile data with real image URLs
-  final List<UserProfile> profiles = [
-    UserProfile(
-      name: "Emma Wilson",
-      age: 28,
-      description:
-          "Adventure awaits! 🗺️ Hiking trails, coffee vibes, and sunsets that steal my heart. Let’s create memories that last a lifetime! 🌄☕✨",
-      imageUrls: [
-        "https://images.unsplash.com/photo-1494790108377-be9c29b29330",
-        "https://images.unsplash.com/photo-1524504388940-b1c1722653e1",
-        "https://images.unsplash.com/photo-1517841905240-472988babdf9",
-      ],
-      location: "New York, NY",
-      profession: "Travel Photographer",
-      rating: 4.8,
-      reviewCount: 156,
-      likes: 2300,
-      dislikes: 45,
-      reviews: [],
-    ),
-    UserProfile(
-      name: "James Chen",
-      age: 31,
-      description:
-          "Work hard, cook harder! 🍳 Building dreams by day and recipes by night. Sustainable living = happy living! 🌍💡",
-      imageUrls: [
-        "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d",
-        "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce",
-        "https://images.unsplash.com/photo-1500648767791-00dcc994a43e",
-      ],
-      location: "San Francisco, CA",
-      profession: "Software Engineer",
-      rating: 4.6,
-      reviewCount: 203,
-      likes: 3100,
-      dislikes: 89,
-      reviews: [],
-    ),
-    UserProfile(
-      name: "Sofia Rodriguez",
-      age: 26,
-      description:
-          "Chasing sunsets and good vibes. 🌅✨ Yoga, beaches, and inner peace—life’s too short for negativity! 🧘‍♀️🌴",
-      imageUrls: [
-        "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e",
-        "https://images.unsplash.com/photo-1519699047748-de8e457a634e",
-        "https://images.unsplash.com/photo-1534528741775-53994a69daeb",
-      ],
-      location: "Miami, FL",
-      profession: "Yoga Instructor",
-      rating: 4.9,
-      reviewCount: 178,
-      likes: 4200,
-      dislikes: 32,
-      reviews: [],
-    ),
-  ];
+  final List<UserProfile> profiles = []; // Empty list to simulate no activities
 
   void _showAddActivityBottomSheet() {
     showModalBottomSheet(
@@ -97,45 +42,113 @@ class _ActivityScreenState extends State<ActivityScreen> {
         ),
         actions: [
           if (widget.isCurrentUser)
-            Row(
-              children: [
-                IconButton(
-                  icon:
-                      const Icon(Icons.add_circle_outline, color: Colors.white),
-                  onPressed: _showAddActivityBottomSheet,
-                ),
-                const SizedBox(
-                  width: 20,
-                )
-              ],
+            IconButton(
+              icon: const Icon(Icons.add, color: Colors.white),
+              onPressed: _showAddActivityBottomSheet,
             ),
         ],
         elevation: 0,
       ),
-      body: ListView.builder(
-        itemCount: profiles.length,
-        itemBuilder: (context, index) {
-          return ProfileCard(
-            profile: profiles[index],
-            isCurrentUser: widget.isCurrentUser,
-            onLikePressed: () {
-              setState(() {
-                profiles[index].likes++;
-              });
-            },
-            onDislikePressed: () {
-              setState(() {
-                profiles[index].dislikes++;
-              });
-            },
-            onEditPressed: () {
-              _showEditActivityBottomSheet(profiles[index]);
-            },
-            onDeletePressed: () {
-              _showDeleteConfirmation(index);
-            },
-          );
-        },
+      body: profiles.isEmpty
+          ? _buildEmptyState()
+          : ListView.builder(
+              itemCount: profiles.length,
+              itemBuilder: (context, index) {
+                return ProfileCard(
+                  profile: profiles[index],
+                  isCurrentUser: widget.isCurrentUser,
+                  onLikePressed: () {
+                    setState(() {
+                      profiles[index].likes++;
+                    });
+                  },
+                  onDislikePressed: () {
+                    setState(() {
+                      profiles[index].dislikes++;
+                    });
+                  },
+                  onEditPressed: () {
+                    _showEditActivityBottomSheet(profiles[index]);
+                  },
+                  onDeletePressed: () {
+                    _showDeleteConfirmation(index);
+                  },
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.grey[900],
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryColor.withOpacity(0.2),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.photo_library_outlined,
+                size: 50,
+                color: AppColors.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'No Activities Yet',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              widget.isCurrentUser
+                  ? 'Share your moments with the community!'
+                  : 'This user hasn\'t posted any activities yet.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 32),
+            if (widget.isCurrentUser)
+              ElevatedButton.icon(
+                onPressed: _showAddActivityBottomSheet,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryColor,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                icon: const Icon(Icons.add_photo_alternate),
+                label: const Text(
+                  'Add Activity',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
