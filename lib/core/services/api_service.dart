@@ -11,8 +11,8 @@ import '../../features/friends/data/message.dart';
 
 class ApiService {
   // static const String baseUrl = 'https://iftook-backend.vercel.app/api';
-  static const String baseUrl = 'https://iftookbackendcopy.vercel.app/api';
-  // static const String baseUrl = 'http://localhost:3000/api';
+  // static const String baseUrl = 'https://iftookbackendcopy.vercel.app/api';
+  static const String baseUrl = 'http://localhost:3000/api';
 
   static Future<http.Response> register(Map<String, dynamic> body) async {
     final response = await http.post(
@@ -787,12 +787,15 @@ class ApiService {
   static Future<http.Response> updateInstaTalkTimeUsage({
     required String meetingId,
     required String userId,
-    required bool isUserOne, // true if sender, false if receiver
+    required bool isUserOne,
   }) async {
     try {
       final token = await SharedPrefs.getUserTokenSharedPreference();
+      final String fieldToUpdate =
+          isUserOne ? 'userOneTimeUsed' : 'userTwoTimeUsed';
+
       print(
-          'Updating InstaTalk time usage - MeetingID: $meetingId, IsUserOne: $isUserOne');
+          'Updating InstaTalk time usage: ${meetingId} - Field: ${fieldToUpdate}');
 
       final response = await http.patch(
         Uri.parse('$baseUrl/insta-talk/$meetingId/time-usage'),
@@ -800,14 +803,10 @@ class ApiService {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'userId': userId,
-          'field': isUserOne ? 'userOneTimeUsed' : 'userTwoTimeUsed',
-          'value': true
-        }),
+        body: jsonEncode({'userId': userId, 'field': fieldToUpdate}),
       );
 
-      print('Time usage update response: ${response.body}');
+      print('Update response: ${response.statusCode} - ${response.body}');
       return response;
     } catch (e) {
       print('Error updating InstaTalk time usage: $e');

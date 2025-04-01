@@ -1315,10 +1315,15 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
 
     final String type = instaTalk['type'] ?? 'chat';
 
+    // Check if user has already used their time
+    final bool hasUsedTime = isSender
+        ? instaTalk['userOneTimeUsed'] ?? false
+        : instaTalk['userTwoTimeUsed'] ?? false;
+
     final bool isAccepted = instaTalk['acceptedByParticipant'] == true;
     final bool isExpired = widget.controller.isInstaTalkExpired(instaTalk);
     final bool isActive = !isExpired && instaTalk['status'] != 'completed';
-    final bool canJoin = isAccepted && isActive;
+    final bool canJoin = isAccepted && isActive && !hasUsedTime;
 
     final DateTime createdAt = DateTime.parse(instaTalk['scheduledTime']);
     final String timeAgo = timeago.format(createdAt);
@@ -1536,11 +1541,14 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                   child: SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () => _joinInstaTalk(instaTalk),
+                      onPressed:
+                          hasUsedTime ? null : () => _joinInstaTalk(instaTalk),
                       icon: _getTypeIcon(type),
-                      label: const Text('Join InstaTalk'),
+                      label: Text(
+                          hasUsedTime ? 'Already Joined' : 'Join InstaTalk'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor:
+                            hasUsedTime ? Colors.grey : Colors.green,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -1551,6 +1559,33 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                   ),
                 ),
             ],
+            if (hasUsedTime)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_circle_outline,
+                          color: Colors.grey[400], size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'You have already joined this InstaTalk session',
+                          style:
+                              TextStyle(color: Colors.grey[400], fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             if (isExpired)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -1654,15 +1689,15 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
     final bool isAccepted = instaTalk['acceptedByParticipant'] == true;
     final bool isSender = widget.controller.isInstaTalkSender(instaTalk);
 
-    // Check if time is already used
-    final bool timeAlreadyUsed = isSender
+    // Early return if time already used
+    final bool hasUsedTime = isSender
         ? instaTalk['userOneTimeUsed'] ?? false
         : instaTalk['userTwoTimeUsed'] ?? false;
 
-    if (timeAlreadyUsed) {
+    if (hasUsedTime) {
       Get.snackbar(
         'Already Used',
-        'You have already used your InstaTalk time with this person',
+        'You have already joined this InstaTalk session',
         backgroundColor: Colors.orange.withOpacity(0.8),
         colorText: Colors.white,
       );
@@ -1670,10 +1705,10 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
     }
 
     try {
-      // Before starting the chat/call, update the time usage in database
+      // Update time usage BEFORE starting session
       final success = await widget.controller.updateInstaTalkTimeUsage(
         meetingId: meetingId,
-        isUserOne: isSender,
+        isUserOne: isSender, // sender = userOne, receiver = userTwo
       );
 
       if (!success) {
@@ -1686,10 +1721,10 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
         return;
       }
 
+      // Only navigate after successful update
       final participant = User.fromJson(
           isSender ? instaTalk['participant'] : instaTalk['user']);
 
-      // Navigate based on type after successful database update
       switch (type) {
         case 'chat':
           Get.to(() => ChatRoomScreen(
@@ -1731,7 +1766,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
       print('Error joining InstaTalk: $e');
       Get.snackbar(
         'Error',
-        'Failed to join InstaTalk: $e',
+        'Failed to join InstaTalk',
         backgroundColor: Colors.red.withOpacity(0.8),
         colorText: Colors.white,
       );

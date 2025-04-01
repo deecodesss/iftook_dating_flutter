@@ -286,11 +286,14 @@ class FriendController extends GetxController {
 
   Future<bool> updateInstaTalkTimeUsage({
     required String meetingId,
-    required bool isUserOne, // true for sender, false for receiver
+    required bool isUserOne,
   }) async {
     try {
       final userId = getCurrentUserId;
       if (userId == null) return false;
+
+      print(
+          'Updating InstaTalk time usage - Meeting: $meetingId, IsUserOne: $isUserOne');
 
       // Double check if time is already used
       final instaTalk = instaTalkRequests.firstWhere(
@@ -298,7 +301,10 @@ class FriendController extends GetxController {
         orElse: () => <String, dynamic>{},
       );
 
-      if (instaTalk.isEmpty) return false;
+      if (instaTalk.isEmpty) {
+        print('InstaTalk not found in requests');
+        return false;
+      }
 
       // Check if time is already used for this user
       final bool timeAlreadyUsed = isUserOne
@@ -306,7 +312,7 @@ class FriendController extends GetxController {
           : instaTalk['userTwoTimeUsed'] ?? false;
 
       if (timeAlreadyUsed) {
-        print('Time already used for this user in InstaTalk: $meetingId');
+        print('Time already used for this user');
         return false;
       }
 
@@ -317,13 +323,13 @@ class FriendController extends GetxController {
       );
 
       if (response.statusCode == 200) {
-        print('Successfully updated time usage for InstaTalk: $meetingId');
+        print('Time usage updated successfully');
         await fetchInstaTalkRequests(); // Refresh to get updated status
         return true;
-      } else {
-        print('Failed to update InstaTalk time usage: ${response.body}');
-        return false;
       }
+
+      print('Failed to update time usage: ${response.body}');
+      return false;
     } catch (e) {
       print('Error updating InstaTalk time usage: $e');
       return false;
