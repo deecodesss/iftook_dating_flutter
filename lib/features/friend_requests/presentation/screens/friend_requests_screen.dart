@@ -1644,48 +1644,97 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
   void _acceptInstaTalk(String meetingId) async {
     final result = await widget.controller.acceptInstaTalk(meetingId);
     if (result != null) {
-      _joinInstaTalkAfterAccepting(result);
+      _joinInstaTalk(result);
     }
   }
 
   void _joinInstaTalk(Map<String, dynamic> instaTalk) async {
     final String meetingId = instaTalk['_id'] ?? '';
-    final result = await widget.controller.acceptInstaTalk(meetingId);
-    if (result != null) {
-      _joinInstaTalkAfterAccepting(result);
+    final String type = instaTalk['type'] ?? 'chat';
+    final bool isAccepted = instaTalk['acceptedByParticipant'] == true;
+    final bool isSender = widget.controller.isInstaTalkSender(instaTalk);
+
+    // Check if time is already used
+    final bool timeAlreadyUsed = isSender
+        ? instaTalk['userOneTimeUsed'] ?? false
+        : instaTalk['userTwoTimeUsed'] ?? false;
+
+    if (timeAlreadyUsed) {
+      Get.snackbar(
+        'Already Used',
+        'You have already used your InstaTalk time with this person',
+        backgroundColor: Colors.orange.withOpacity(0.8),
+        colorText: Colors.white,
+      );
+      return;
     }
-  }
 
-  void _joinInstaTalkAfterAccepting(Map<String, dynamic> result) {
-    final String meetingType = result['meeting']['type'] ?? 'chat';
-    final User participant = User.fromJson(result['participant']);
+    try {
+      // Before starting the chat/call, update the time usage in database
+      final success = await widget.controller.updateInstaTalkTimeUsage(
+        meetingId: meetingId,
+        isUserOne: isSender,
+      );
 
-    switch (meetingType) {
-      case 'chat':
-        Get.to(() => ChatRoomScreen(
-              profile: participant,
-              isInstaTalk: true,
-              instaTalkDuration: 30,
-            ));
-        break;
-      case 'voice':
-        Get.to(() => VoiceCallLoadingScreen(
-              participant: participant,
-              scheduleTime: DateTime.now(),
-              type: "voice",
-              isInstaTalk: true,
-              instaTalkDuration: 30,
-            ));
-        break;
-      case 'video':
-        Get.to(() => VideoCallLoadingScreen(
-              participant: participant,
-              scheduleTime: DateTime.now(),
-              type: "video",
-              isInstaTalk: true,
-              instaTalkDuration: 30,
-            ));
-        break;
+      if (!success) {
+        Get.snackbar(
+          'Error',
+          'Unable to start InstaTalk session',
+          backgroundColor: Colors.red.withOpacity(0.8),
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      final participant = User.fromJson(
+          isSender ? instaTalk['participant'] : instaTalk['user']);
+
+      // Navigate based on type after successful database update
+      switch (type) {
+        case 'chat':
+          Get.to(() => ChatRoomScreen(
+                profile: participant,
+                isInstaTalk: true,
+                instaTalkDuration: 30,
+              ));
+          break;
+
+        case 'voice':
+          Get.to(() => VoiceCallLoadingScreen(
+                participant: participant,
+                scheduleTime: DateTime.now(),
+                type: "voice",
+                isInstaTalk: true,
+                instaTalkDuration: 30,
+              ));
+          break;
+
+        case 'video':
+          Get.to(() => VideoCallLoadingScreen(
+                participant: participant,
+                scheduleTime: DateTime.now(),
+                type: "video",
+                isInstaTalk: true,
+                instaTalkDuration: 30,
+              ));
+          break;
+
+        default:
+          Get.snackbar(
+            'Error',
+            'Unknown InstaTalk type',
+            backgroundColor: Colors.red.withOpacity(0.8),
+            colorText: Colors.white,
+          );
+      }
+    } catch (e) {
+      print('Error joining InstaTalk: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to join InstaTalk: $e',
+        backgroundColor: Colors.red.withOpacity(0.8),
+        colorText: Colors.white,
+      );
     }
   }
 

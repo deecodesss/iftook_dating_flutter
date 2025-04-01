@@ -284,17 +284,51 @@ class FriendController extends GetxController {
     }
   }
 
-  // Update isInstaTalkSender to handle async properly
-  // Future<bool> isInstaTalkSender(Map<String, dynamic> instaTalk) async {
-  //   if (instaTalk.isEmpty) return false;
+  Future<bool> updateInstaTalkTimeUsage({
+    required String meetingId,
+    required bool isUserOne, // true for sender, false for receiver
+  }) async {
+    try {
+      final userId = getCurrentUserId;
+      if (userId == null) return false;
 
-  //   final currentUserId = await SharedPrefs.getUserIdSharedPreference();
-  //   if (currentUserId == null) return false;
+      // Double check if time is already used
+      final instaTalk = instaTalkRequests.firstWhere(
+        (talk) => talk['_id'] == meetingId,
+        orElse: () => <String, dynamic>{},
+      );
 
-  //   final senderId = instaTalk['user']?['_id'];
-  //   print('🎯 Checking sender - Current: $currentUserId, Sender: $senderId');
-  //   return currentUserId == senderId;
-  // }
+      if (instaTalk.isEmpty) return false;
+
+      // Check if time is already used for this user
+      final bool timeAlreadyUsed = isUserOne
+          ? instaTalk['userOneTimeUsed'] ?? false
+          : instaTalk['userTwoTimeUsed'] ?? false;
+
+      if (timeAlreadyUsed) {
+        print('Time already used for this user in InstaTalk: $meetingId');
+        return false;
+      }
+
+      final response = await ApiService.updateInstaTalkTimeUsage(
+        meetingId: meetingId,
+        userId: userId,
+        isUserOne: isUserOne,
+      );
+
+      if (response.statusCode == 200) {
+        print('Successfully updated time usage for InstaTalk: $meetingId');
+        await fetchInstaTalkRequests(); // Refresh to get updated status
+        return true;
+      } else {
+        print('Failed to update InstaTalk time usage: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error updating InstaTalk time usage: $e');
+      return false;
+    }
+  }
 
   // Add helper method to get user ID synchronously
   String? _currentUserId;

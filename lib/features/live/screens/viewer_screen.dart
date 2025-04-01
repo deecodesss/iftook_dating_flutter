@@ -24,7 +24,7 @@ class ViewerScreen extends StatefulWidget {
 
 class _ViewerScreenState extends State<ViewerScreen> {
   final LiveController _liveController = Get.find<LiveController>();
-  final WalletController _walletController = Get.find<WalletController>();
+  late final WalletController _walletController;
 
   final RtcEngine _engine = createAgoraRtcEngine();
   bool _isInitialized = false;
@@ -38,6 +38,11 @@ class _ViewerScreenState extends State<ViewerScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize WalletController if not already initialized
+    if (!Get.isRegistered<WalletController>()) {
+      Get.put(WalletController());
+    }
+    _walletController = Get.find<WalletController>();
     _initializeAgora();
   }
 

@@ -523,12 +523,23 @@ class NotificationHelper {
           importance: Importance.high,
         );
 
+        const AndroidNotificationChannel chatChannel =
+            AndroidNotificationChannel(
+          'chat_channel_id',
+          'Chat Notifications',
+          description: 'Notifications for chat messages',
+          importance: Importance.high,
+          enableVibration: true,
+          playSound: true,
+        );
+
         final plugin = _flutterLocalNotificationsPlugin
             .resolvePlatformSpecificImplementation<
                 AndroidFlutterLocalNotificationsPlugin>();
 
         await plugin?.createNotificationChannel(callChannel);
         await plugin?.createNotificationChannel(messageChannel);
+        await plugin?.createNotificationChannel(chatChannel);
       } catch (e) {
         debugPrint('Error creating notification channels: $e');
       }
@@ -604,8 +615,11 @@ class NotificationHelper {
     }
   }
 
-  static Future<void> showNotification(RemoteMessage message,
-      FlutterLocalNotificationsPlugin fln, bool data) async {
+  static Future<void> showNotification(
+    RemoteMessage message,
+    FlutterLocalNotificationsPlugin fln,
+    bool data,
+  ) async {
     String title = message.notification!.title ?? '';
     String body = message.notification!.body ?? '';
 
@@ -622,6 +636,7 @@ class NotificationHelper {
       enableLights: true,
       enableVibration: true,
       playSound: true,
+      icon: 'notification_icon', // Add this line
     );
 
     const DarwinNotificationDetails iOSPlatformChannelSpecifics =
@@ -636,6 +651,101 @@ class NotificationHelper {
         iOS: iOSPlatformChannelSpecifics);
 
     await fln.show(0, title, body, platformChannelSpecifics, payload: payload);
+  }
+
+  static Future<void> showChatNotification(
+    String title,
+    String message,
+    Map<String, dynamic> payload,
+    FlutterLocalNotificationsPlugin fln,
+  ) async {
+    try {
+      // Create unique notification ID for chat messages
+      final int notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+      final AndroidNotificationDetails androidPlatformChannelSpecifics =
+          AndroidNotificationDetails(
+        'chat_channel_id', // unique channel ID for chat notifications
+        'Chat Notifications',
+        channelDescription: 'Notifications for chat messages',
+        importance: Importance.high,
+        priority: Priority.high,
+        showWhen: true,
+        enableVibration: true,
+        playSound: true,
+        icon: 'notification_icon', // Add this line
+        visibility: NotificationVisibility.public,
+        category: AndroidNotificationCategory.message,
+        autoCancel: true,
+      );
+
+      const DarwinNotificationDetails iOSPlatformChannelSpecifics =
+          DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        sound: 'default',
+      );
+
+      final NotificationDetails platformChannelSpecifics = NotificationDetails(
+        android: androidPlatformChannelSpecifics,
+        iOS: iOSPlatformChannelSpecifics,
+      );
+
+      await fln.show(
+        notificationId,
+        title,
+        message,
+        platformChannelSpecifics,
+        payload: json.encode(payload),
+      );
+    } catch (e, stackTrace) {
+      print('Error showing chat notification: $e');
+      print('Stack trace: $stackTrace');
+
+      // Fallback to simpler notification if complex one fails
+      await _showSimpleChatNotification(
+        title,
+        message,
+        payload,
+        fln,
+      );
+    }
+  }
+
+  static Future<void> _showSimpleChatNotification(
+    String title,
+    String message,
+    Map<String, dynamic> payload,
+    FlutterLocalNotificationsPlugin fln,
+  ) async {
+    try {
+      final int notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+      // Simple notification details without potentially problematic settings
+      final AndroidNotificationDetails androidDetails =
+          AndroidNotificationDetails(
+        'basic_chat_channel',
+        'Basic Chat Notifications',
+        channelDescription: 'Basic notifications for chat messages',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: 'notification_icon', // Add this line
+      );
+
+      final NotificationDetails platformChannelSpecifics =
+          NotificationDetails(android: androidDetails);
+
+      await fln.show(
+        notificationId,
+        title,
+        message,
+        platformChannelSpecifics,
+        payload: json.encode(payload),
+      );
+    } catch (e) {
+      print('Error showing simple chat notification: $e');
+    }
   }
 
   static Future<String> _downloadAndSaveFile(

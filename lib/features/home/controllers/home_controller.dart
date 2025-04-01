@@ -132,7 +132,7 @@ class HomeController extends GetxController {
       final userId = await SharedPrefs.getUserIdSharedPreference();
 
       final response = await ApiService.updateInstaTalkTimeUsage(
-          meetingId, userId!, timeUsed);
+          meetingId: meetingId, userId: userId!, isUserOne: timeUsed);
 
       if (response.statusCode == 200) {
         print('InstaTalk time usage updated successfully');

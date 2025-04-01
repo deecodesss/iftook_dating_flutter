@@ -625,16 +625,27 @@ class ApiService {
     int page = 1,
     int limit = 10,
   }) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    try {
+      final token = await SharedPrefs.getUserTokenSharedPreference();
+      final response = await http.get(
+        Uri.parse('$baseUrl/live-stream/active?page=$page&limit=$limit'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Failed to load live streams');
+        },
+      );
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/live-stream/active?page=$page&limit=$limit'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-    print('Get active live streams response: ${response.body}');
-    return response;
+      print('Get active live streams response: ${response.body}');
+      return response;
+    } catch (e) {
+      print('Error in getActiveLiveStreams: $e');
+      rethrow;
+    }
   }
 
   static Future<http.Response> joinLiveStream(String liveStreamId) async {
@@ -773,23 +784,35 @@ class ApiService {
     );
   }
 
-  static Future<http.Response> updateInstaTalkTimeUsage(
-      String meetingId, String userId, bool timeUsed) async {
-    final url = Uri.parse('$baseUrl/insta-talk/$meetingId/time-usage');
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+  static Future<http.Response> updateInstaTalkTimeUsage({
+    required String meetingId,
+    required String userId,
+    required bool isUserOne, // true if sender, false if receiver
+  }) async {
+    try {
+      final token = await SharedPrefs.getUserTokenSharedPreference();
+      print(
+          'Updating InstaTalk time usage - MeetingID: $meetingId, IsUserOne: $isUserOne');
 
-    return http.put(
-      url,
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        'Authorization': 'Bearer $token',
-      },
-      body: json.encode({
-        'userId': userId,
-        'timeUsed': timeUsed,
-      }),
-    );
+      final response = await http.patch(
+        Uri.parse('$baseUrl/insta-talk/$meetingId/time-usage'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'userId': userId,
+          'field': isUserOne ? 'userOneTimeUsed' : 'userTwoTimeUsed',
+          'value': true
+        }),
+      );
+
+      print('Time usage update response: ${response.body}');
+      return response;
+    } catch (e) {
+      print('Error updating InstaTalk time usage: $e');
+      rethrow;
+    }
   }
 
   static Future<http.Response> checkInstaTalkStatus(
