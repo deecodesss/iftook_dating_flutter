@@ -862,7 +862,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
     // Get HomeController to record Insta Talk usage
     final homeController = Get.find<HomeController>();
-    homeController.recordInstaTalkUsage(widget.profile.sId!);
+    // homeController.recordInstaTalkUsage(widget.profile.sId!);
 
     // Direct navigation based on option type
     switch (option.toLowerCase()) {

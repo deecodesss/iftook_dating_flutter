@@ -323,16 +323,16 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     }
 
     // Check if user has already used Insta Talk with this friend
-    if (_homeController.hasUsedInstaTalk(friend.sId!)) {
-      Get.snackbar(
-        'Insta Talk Used',
-        'You have already used your free Insta Talk with ${friend.name}. Please schedule a regular session.',
-        backgroundColor: Colors.grey[800],
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-      );
-      return;
-    }
+    // if (_homeController.hasUsedInstaTalk(friend.sId!)) {
+    //   Get.snackbar(
+    //     'Insta Talk Used',
+    //     'You have already used your free Insta Talk with ${friend.name}. Please schedule a regular session.',
+    //     backgroundColor: Colors.grey[800],
+    //     colorText: Colors.white,
+    //     duration: const Duration(seconds: 3),
+    //   );
+    //   return;
+    // }
 
     showModalBottomSheet(
       context: context,
@@ -457,7 +457,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     }
 
     // Record that Insta Talk has been used with this friend
-    _homeController.recordInstaTalkUsage(friend.sId!);
+    // _homeController.recordInstaTalkUsage(friend.sId!);
 
     // Direct navigation based on option type
     switch (option.toLowerCase()) {

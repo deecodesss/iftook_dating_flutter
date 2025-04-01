@@ -8,12 +8,18 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 import 'package:iftook/core/services/api_service.dart';
+import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/auth/controllers/auth_controller.dart';
+import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
+import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
 import 'package:iftook/features/friends/presentation/screens/chat_room_screen.dart';
+import 'package:iftook/features/home/controllers/home_controller.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
+import 'package:iftook/helpers/app_colors.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../calls/presentation/screens/video_call_screen.dart';
 import '../../calls/presentation/screens/voice_call_screen.dart';
@@ -154,6 +160,8 @@ class NotificationHelper {
           if (message.data['type'] == 'voice' ||
               message.data['type'] == 'video') {
             await _showCallNotification(message);
+          } else if (message.data['type'] == 'instaTalk') {
+            await handleInstaTalkNotification(message.data);
           } else {
             NotificationHelper.showNotification(
               message,
@@ -184,6 +192,8 @@ class NotificationHelper {
                   channelName: message.data['channelName'] ?? "",
                   token: message.data['token'] ?? "",
                 ));
+          } else if (message.data['type'] == 'instaTalk') {
+            handleInstaTalkNotification(message.data);
           }
         }
       } catch (e) {
@@ -212,6 +222,8 @@ class NotificationHelper {
             (payloadData['type'] == 'voice' ||
                 payloadData['type'] == 'video')) {
           await _handleCallNotificationTap(payloadData);
+        } else if (payloadData['type'] == 'instaTalk') {
+          await handleInstaTalkNotification(payloadData);
         }
       }
     } catch (e) {
@@ -644,6 +656,241 @@ class NotificationHelper {
   static NotificationBody convertNotification(Map<String, dynamic> data) {
     return NotificationBody.fromJson(data);
   }
+
+  static Future<void> handleInstaTalkNotification(
+      Map<String, dynamic> data) async {
+    try {
+      print('Handling InstaTalk notification: $data');
+
+      final String? meetingId = data['meetingId'];
+      final String? type = data['requestType'];
+      final String? senderId = data['senderId'];
+
+      if (meetingId != null && type != null) {
+        // For now, show a dialog to accept/reject the request
+        if (Get.context != null) {
+          // App is in foreground
+          _showInstaTalkRequestDialog(meetingId, type, senderId);
+        }
+      }
+    } catch (e) {
+      print('Error handling InstaTalk notification: $e');
+    }
+  }
+
+  static void _showInstaTalkRequestDialog(
+      String meetingId, String type, String? senderId) {
+    // Get username if available
+    String username = 'Someone';
+    if (senderId != null) {
+      // Try to get user info (don't await to keep dialog showing quickly)
+      ApiService.getUserById(senderId).then((response) {
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          username = data['data']['name'] ?? 'Someone';
+
+          // Update dialog title if it's still showing
+          if (Get.isDialogOpen == true) {
+            Get.back();
+            _showInstaTalkAcceptDialog(meetingId, type, username);
+          }
+        }
+      }).catchError((e) {
+        print('Error fetching user details: $e');
+      });
+    }
+
+    // Show dialog immediately with default name, will update later
+    _showInstaTalkAcceptDialog(meetingId, type, username);
+  }
+
+  static void _showInstaTalkAcceptDialog(
+      String meetingId, String type, String username) {
+    // Format the type for display
+    String typeDisplay = type.capitalize ?? type;
+
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text(
+          'InstaTalk $typeDisplay Request',
+          style:
+              const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$username wants to have a quick $type conversation with you!',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This InstaTalk will last for 30 seconds.',
+              style: TextStyle(color: Colors.grey[400], fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Get.back();
+            },
+            child: const Text('Decline', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+            ),
+            onPressed: () {
+              Get.back();
+              _acceptInstaTalkRequest(meetingId);
+            },
+            child: const Text('Accept'),
+          ),
+        ],
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  static Future<void> _acceptInstaTalkRequest(String meetingId) async {
+    try {
+      final homeController = Get.find<HomeController>();
+      final userId = await SharedPrefs.getUserIdSharedPreference();
+
+      Get.dialog(
+        const Center(child: CircularProgressIndicator()),
+        barrierDismissible: false,
+      );
+
+      final result = await homeController.acceptInstaTalk(meetingId);
+
+      Get.back(); // Close loading dialog
+
+      if (result != null) {
+        // Navigate to appropriate screen based on meeting type
+        final meetingType = result['meeting']['type'];
+        final participant = User.fromJson(result['participant']);
+
+        switch (meetingType) {
+          case 'chat':
+            Get.to(() => ChatRoomScreen(
+                  profile: participant,
+                  isInstaTalk: true,
+                  instaTalkDuration: 30,
+                ));
+            break;
+          case 'voice':
+            Get.to(() => VoiceCallLoadingScreen(
+                  participant: participant,
+                  scheduleTime: DateTime.now(),
+                  type: "voice",
+                  isInstaTalk: true,
+                  instaTalkDuration: 30,
+                ));
+            break;
+          case 'video':
+            Get.to(() => VideoCallLoadingScreen(
+                  participant: participant,
+                  scheduleTime: DateTime.now(),
+                  type: "video",
+                  isInstaTalk: true,
+                  instaTalkDuration: 30,
+                ));
+            break;
+        }
+      }
+    } catch (e) {
+      print('Error accepting InstaTalk request: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to accept InstaTalk request: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  static Future<void> showBigTextNotification(
+      String title,
+      String body,
+      String payload,
+      FlutterLocalNotificationsPlugin fln,
+      bool isInstaTalk) async {
+    BigTextStyleInformation bigTextStyleInformation = BigTextStyleInformation(
+      body,
+      htmlFormatBigText: true,
+      contentTitle: title,
+      htmlFormatContentTitle: true,
+    );
+    AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      isInstaTalk ? "insta_talk_channel" : "regular_channel",
+      isInstaTalk ? "InstaTalk Notifications" : "Regular Notifications",
+      channelDescription: "description",
+      importance: Importance.max,
+      priority: Priority.high,
+      fullScreenIntent: isInstaTalk, // Wake the screen for InstaTalk
+      styleInformation: bigTextStyleInformation,
+    );
+    NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+    await fln.show(
+        isInstaTalk ? 2 : 0, // Different ID for InstaTalk notifications
+        title,
+        body,
+        platformChannelSpecifics,
+        payload: payload);
+  }
+
+  static Future<void> showInstaTalkNotification(RemoteMessage message) async {
+    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+        FlutterLocalNotificationsPlugin();
+    await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
+
+    String title = message.notification?.title ?? 'InstaTalk Request';
+    String body =
+        message.notification?.body ?? 'You have a new InstaTalk request';
+
+    await NotificationHelper.showBigTextNotification(
+        title,
+        body,
+        json.encode(message.data),
+        flutterLocalNotificationsPlugin,
+        true // is InstaTalk notification
+        );
+  }
+
+  static Future<void> onMessage(RemoteMessage message) async {
+    print("onMessage Handler: ${message.notification?.title}");
+    print("onMessage data: ${message.data}");
+
+    try {
+      // Check if this is an InstaTalk notification
+      if (message.data['type'] == 'instaTalk') {
+        // Handle InstaTalk notification
+        await handleInstaTalkNotification(message.data);
+        return;
+      }
+      // Handle call notifications
+      else if (message.data['type'] == 'voice' ||
+          message.data['type'] == 'video') {
+        await _showCallNotification(message);
+        return;
+      }
+      // Handle regular notifications
+      else {
+        final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+            FlutterLocalNotificationsPlugin();
+        await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
+        await NotificationHelper.showNotification(
+            message, flutterLocalNotificationsPlugin, false);
+      }
+    } catch (e) {
+      print('Error handling foreground message: $e');
+    }
+  }
 }
 
 Future<dynamic> myBackgroundMessageHandler(RemoteMessage message) async {
@@ -655,6 +902,8 @@ Future<dynamic> myBackgroundMessageHandler(RemoteMessage message) async {
   try {
     if (message.data['type'] == 'voice' || message.data['type'] == 'video') {
       await NotificationHelper._showCallNotification(message);
+    } else if (message.data['type'] == 'instaTalk') {
+      await NotificationHelper.handleInstaTalkNotification(message.data);
     } else {
       final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
           FlutterLocalNotificationsPlugin();

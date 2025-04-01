@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:math';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -16,6 +18,8 @@ class FriendController extends GetxController {
   var sentRequests = <FriendRequest>[].obs;
   var meetings = <dynamic>[].obs;
   var errorMessage = ''.obs;
+  var instaTalkRequests = <Map<String, dynamic>>[].obs;
+  var isInstaTalkLoading = false.obs;
 
   // Add new observable for current time
   final currentTime = DateTime.now().obs;
@@ -24,10 +28,12 @@ class FriendController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _initCurrentUserId();
     fetchFriendRequests();
     fetchFriends();
     fetchSentRequests();
     fetchMeetings();
+    fetchInstaTalkRequests(); // Add this line
 
     // Start timer to update current time every minute
     _timeUpdateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
@@ -134,6 +140,216 @@ class FriendController extends GetxController {
     } finally {
       isLoading(false);
     }
+  }
+
+  Future<void> fetchInstaTalkRequests() async {
+    try {
+      isInstaTalkLoading(true);
+      final userId = await SharedPrefs.getUserIdSharedPreference();
+
+      print('🎯 [Controller] Fetching InstaTalks - UserID: $userId');
+
+      final response = await ApiService.getUserInstaTalks(userId!);
+      final data = jsonDecode(response.body);
+
+      print('🎯 [Controller] Raw response: ${response.body}');
+      print('🎯 [Controller] Response success: ${data['success']}');
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        // Changed from 'instaTalks' to 'meetings'
+        if (data['meetings'] is List) {
+          final List talks = data['meetings'];
+          print('🎯 [Controller] Found ${talks.length} InstaTalk requests');
+
+          // Debug: Print each talk's structure
+          for (var talk in talks) {
+            print('🎯 [Controller] Talk structure: ${jsonEncode(talk)}');
+          }
+
+          final processedTalks = talks
+              .map((talk) {
+                try {
+                  return Map<String, dynamic>.from(talk);
+                } catch (e) {
+                  print('🎯 [Controller] Error processing talk: $e');
+                  return null;
+                }
+              })
+              .where((talk) => talk != null)
+              .toList();
+
+          instaTalkRequests
+              .assignAll(processedTalks.cast<Map<String, dynamic>>());
+          print(
+              '🎯 [Controller] Successfully processed ${instaTalkRequests.length} talks');
+        } else {
+          print('🎯 [Controller] No meetings array in response');
+          instaTalkRequests.clear();
+        }
+      } else {
+        print('🎯 [Controller] Invalid response: ${response.statusCode}');
+        instaTalkRequests.clear();
+      }
+    } catch (e, stackTrace) {
+      print('🎯 [Controller] Error fetching InstaTalks: $e');
+      print('🎯 [Controller] Stack trace: $stackTrace');
+      instaTalkRequests.clear();
+    } finally {
+      isInstaTalkLoading(false);
+      print(
+          '🎯 [Controller] Final InstaTalk count: ${instaTalkRequests.length}');
+    }
+  }
+
+  Future<Map<String, dynamic>?> acceptInstaTalk(String meetingId) async {
+    try {
+      isLoading(true);
+      final userId = await SharedPrefs.getUserIdSharedPreference();
+
+      final response = await ApiService.acceptInstaTalk(meetingId, userId!);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // Refresh the InstaTalk requests list
+        await fetchInstaTalkRequests();
+
+        print('InstaTalk accepted successfully');
+        return data['data'];
+      } else {
+        errorMessage(jsonDecode(response.body)['message'] ??
+            'Failed to accept InstaTalk');
+        Get.snackbar(
+          'Error',
+          errorMessage.value,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return null;
+      }
+    } catch (e) {
+      errorMessage('Error accepting InstaTalk: $e');
+      Get.snackbar(
+        'Error',
+        errorMessage.value,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return null;
+    } finally {
+      isLoading(false);
+    }
+  }
+
+  Future<bool> declineInstaTalk(String meetingId) async {
+    try {
+      isLoading(true);
+      final userId = await SharedPrefs.getUserIdSharedPreference();
+
+      final response = await ApiService.declineInstaTalk(meetingId, userId!);
+
+      if (response.statusCode == 200) {
+        // Refresh the InstaTalk requests list
+        await fetchInstaTalkRequests();
+
+        Get.snackbar(
+          'Success',
+          'InstaTalk request declined',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+        return true;
+      } else {
+        errorMessage(jsonDecode(response.body)['message'] ??
+            'Failed to decline InstaTalk');
+        Get.snackbar(
+          'Error',
+          errorMessage.value,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return false;
+      }
+    } catch (e) {
+      errorMessage('Error declining InstaTalk: $e');
+      Get.snackbar(
+        'Error',
+        errorMessage.value,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return false;
+    } finally {
+      isLoading(false);
+    }
+  }
+
+  // Update isInstaTalkSender to handle async properly
+  // Future<bool> isInstaTalkSender(Map<String, dynamic> instaTalk) async {
+  //   if (instaTalk.isEmpty) return false;
+
+  //   final currentUserId = await SharedPrefs.getUserIdSharedPreference();
+  //   if (currentUserId == null) return false;
+
+  //   final senderId = instaTalk['user']?['_id'];
+  //   print('🎯 Checking sender - Current: $currentUserId, Sender: $senderId');
+  //   return currentUserId == senderId;
+  // }
+
+  // Add helper method to get user ID synchronously
+  String? _currentUserId;
+
+  String? get getCurrentUserId => _currentUserId;
+
+  Future<void> _initCurrentUserId() async {
+    _currentUserId = await SharedPrefs.getUserIdSharedPreference();
+  }
+  // }
+
+  // Add helper method to check if user can interact with request
+  bool canInteractWithRequest(Map<String, dynamic> instaTalk) {
+    final currentUserId = getCurrentUserId;
+    if (currentUserId == null) return false;
+
+    // Only recipient can accept/decline
+    final isRecipient = instaTalk['participant']?['_id'] == currentUserId;
+    final status = instaTalk['status'];
+    final isWaiting = status == 'waiting';
+
+    return isRecipient && isWaiting;
+  }
+
+  String getInstaTalkDisplayName(Map<String, dynamic> instaTalk) {
+    final currentUserId = getCurrentUserId;
+    if (currentUserId == null || instaTalk.isEmpty) return "Unknown";
+
+    // If current user is the sender, show recipient's name
+    if (instaTalk['user']?['_id'] == currentUserId) {
+      return instaTalk['participant']?['name'] ?? 'Unknown';
+    }
+    // If current user is the recipient, show sender's name
+    else {
+      return instaTalk['user']?['name'] ?? 'Unknown';
+    }
+  }
+
+  // Check if current user is sender (synchronous version)
+  bool isInstaTalkSender(Map<String, dynamic> instaTalk) {
+    final currentUserId = getCurrentUserId;
+    if (currentUserId == null || instaTalk.isEmpty) return false;
+
+    return instaTalk['user']?['_id'] == currentUserId;
+  }
+
+  bool isInstaTalkExpired(Map<String, dynamic> instaTalk) {
+    if (instaTalk['status'] == 'completed') return true;
+
+    // Check if it's more than 30 minutes old
+    final scheduledTime = DateTime.parse(instaTalk['scheduledTime']);
+    final now = DateTime.now();
+    final difference = now.difference(scheduledTime).inMinutes;
+
+    return difference > 60; // Consider expired after 1 hour
   }
 
   Future<void> acceptRequest(String requestId, BuildContext context) async {

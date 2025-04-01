@@ -796,86 +796,62 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
           'Insta Talk',
           style: TextStyle(color: AppColors.primaryColor),
         ),
-        DropdownButton<String>(
-          value: _selectedTrialOption,
-          dropdownColor: const Color(0xFF1E1E1E),
-          style: const TextStyle(color: Colors.white),
-          items: ['Chat', 'Call', 'Video'].map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(value),
-            );
-          }).toList(),
-          onChanged: (String? newValue) {
-            setState(() => _selectedTrialOption = newValue!);
-            _startInstaTalk(_selectedTrialOption);
-          },
+        Obx(
+          () => _homeController.isInstaTalkLoading.value
+              ? SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primaryColor,
+                  ),
+                )
+              : DropdownButton<String>(
+                  value: _selectedTrialOption,
+                  dropdownColor: const Color(0xFF1E1E1E),
+                  style: const TextStyle(color: Colors.white),
+                  underline: Container(
+                    height: 1,
+                    color: Colors.grey[700],
+                  ),
+                  items: ['Chat', 'Call', 'Video'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    if (newValue != null &&
+                        !_homeController.isInstaTalkLoading.value) {
+                      // Only update the selected option, don't trigger setState
+                      _selectedTrialOption = newValue;
+
+                      // Call InstaTalk without causing a rebuild
+                      _startInstaTalk(newValue);
+                    }
+                  },
+                ),
         ),
       ],
     );
   }
 
-  void _startInstaTalk(String option) {
+  void _startInstaTalk(String option) async {
     if (_homeController.profiles.isEmpty) return;
 
     final currentProfile = _homeController.profiles[_currentProfileIndex];
 
-    // Check if user is online
-    if (currentProfile.isOnline != true) {
-      Get.snackbar(
-        'User Offline',
-        '${currentProfile.name} is currently offline. Insta Talk requires the user to be online.',
-        backgroundColor: Colors.grey[800],
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-      );
-      return;
-    }
-
-    // Add the additional check from Friends List screen for consistency
-    if (_homeController.hasUsedInstaTalk(currentProfile.sId!)) {
-      Get.snackbar(
-        'Insta Talk Used',
-        'You have already used your free Insta Talk with ${currentProfile.name}. Please schedule a regular session.',
-        backgroundColor: Colors.grey[800],
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-      );
-      return;
-    }
-
-    // Record that Insta Talk has been used with this user
-    _homeController.recordInstaTalkUsage(currentProfile.sId!);
-
-    // Direct navigation based on option type
+    // Get the InstaTalk type based on the selected option
+    String instaTalkType;
     switch (option.toLowerCase()) {
       case 'chat':
-        // Navigate directly to chat screen with insta flag
-        Get.to(() => ChatRoomScreen(
-              profile: currentProfile,
-              isInstaTalk: true,
-              instaTalkDuration: 30, // seconds
-            ));
+        instaTalkType = 'chat';
         break;
       case 'call':
-        // Navigate directly to voice call with insta flag
-        Get.to(() => VoiceCallLoadingScreen(
-              participant: currentProfile,
-              scheduleTime: DateTime.now(),
-              type: "voice",
-              isInstaTalk: true,
-              instaTalkDuration: 30, // seconds
-            ));
+        instaTalkType = 'voice';
         break;
       case 'video':
-        // Navigate directly to video call with insta flag
-        Get.to(() => VideoCallLoadingScreen(
-              participant: currentProfile,
-              scheduleTime: DateTime.now(),
-              type: "video",
-              isInstaTalk: true,
-              instaTalkDuration: 30, // seconds
-            ));
+        instaTalkType = 'video';
         break;
       default:
         Get.snackbar(
@@ -884,7 +860,24 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
           backgroundColor: Colors.red,
           colorText: Colors.white,
         );
+        return;
     }
+
+    // Check if InstaTalk already exists or create a new one
+    final result = await _homeController.createInstaTalk(
+        currentProfile.sId!, instaTalkType);
+
+    // If creation failed, return early
+    if (result == null) return;
+
+    // If creation succeeded, show success message
+    Get.snackbar(
+      'InstaTalk Request Sent',
+      '${currentProfile.name} will need to accept your request',
+      backgroundColor: Colors.green.withOpacity(0.8),
+      colorText: Colors.white,
+      duration: const Duration(seconds: 3),
+    );
   }
 
   void _handleGoLive() async {

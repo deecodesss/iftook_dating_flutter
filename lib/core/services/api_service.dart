@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 
 import 'package:http/http.dart' as http;
 import 'package:iftook/core/services/shared_prefs.dart';
@@ -162,8 +164,10 @@ class ApiService {
   static Future<http.Response> declineFriendRequest(String requestId) async {
     final token = await SharedPrefs.getUserTokenSharedPreference();
 
-    final response = await http.put(
-      Uri.parse('$baseUrl/friend/requests/reject/$requestId'),
+    // final response = await http.put(
+    final response = await http.delete(
+      // Uri.parse('$baseUrl/friend/requests/reject/$requestId'),
+      Uri.parse('$baseUrl/friend/requests/delete/$requestId'),
       headers: {'Authorization': 'Bearer $token'},
     );
     print(response.body);
@@ -434,6 +438,63 @@ class ApiService {
     return response;
   }
 
+  static Future<http.Response> getUserMeetings(String userId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/meeting/$userId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+    return response;
+  }
+
+  static Future<http.Response> getUserInstaTalks(String userId) async {
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final Duration timeout = Duration(seconds: 15);
+    int retryCount = 0;
+    const maxRetries = 2;
+
+    while (retryCount <= maxRetries) {
+      try {
+        print('🌐 [API] Starting InstaTalk fetch for user: $userId');
+        final url = '$baseUrl/insta-talk/$userId';
+        print('🌐 [API] Using URL: $url');
+        print('🌐 [API] Token available: ${token != null}');
+
+        final response = await http.get(
+          Uri.parse(url),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ).timeout(timeout);
+
+        print('🌐 [API] Response received - Status: ${response.statusCode}');
+        print('🌐 [API] Response body: ${response.body}');
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final talks = data['meetings']
+              as List?; // Changed from 'instaTalks' to 'meetings'
+          print('🌐 [API] Parsed ${talks?.length ?? 0} InstaTalk requests');
+          print('🌐 [API] Talks data: $talks');
+          return response;
+        }
+
+        throw HttpException('Failed with status: ${response.statusCode}');
+      } catch (e) {
+        retryCount++;
+        print('🌐 [API] Error on attempt $retryCount: $e');
+        if (retryCount > maxRetries) rethrow;
+        await Future.delayed(Duration(seconds: pow(2, retryCount).toInt()));
+      }
+    }
+
+    throw Exception('Failed after $maxRetries retries');
+  }
+
   static Future<http.Response> sendOtp(String email) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/send-otp'),
@@ -469,18 +530,6 @@ class ApiService {
       print('Error in getUserById: $e');
       rethrow; // Rethrow to handle in the UI
     }
-  }
-
-  static Future<http.Response> getUserMeetings(String userId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
-
-    final response = await http.get(
-      Uri.parse('$baseUrl/meeting/$userId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-    return response;
   }
 
   static Future<http.Response> addToWishlist(String userId) async {
@@ -677,5 +726,104 @@ class ApiService {
       print('Error checking friendship status: $e');
       return false;
     }
+  }
+
+  // InstaTalk API methods
+  static Future<http.Response> createInstaTalk(
+      String participantId, String type) async {
+    final url = Uri.parse('$baseUrl/insta-talk/create-meeting');
+    final userId = await SharedPrefs.getUserIdSharedPreference();
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    final body = {
+      'userId': userId,
+      'participantId': participantId,
+      'type': type,
+      'scheduledTime': DateTime.now().toIso8601String(),
+    };
+
+    print('Creating InstaTalk: $body');
+
+    return http.post(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        'Authorization': 'Bearer $token',
+      },
+      body: json.encode(body),
+    );
+  }
+
+  static Future<http.Response> acceptInstaTalk(
+      String meetingId, String userId) async {
+    final url = Uri.parse('$baseUrl/insta-talk/$meetingId/accept');
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    return http.put(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        'Authorization': 'Bearer $token',
+      },
+      body: json.encode({
+        'userId': userId,
+      }),
+    );
+  }
+
+  static Future<http.Response> updateInstaTalkTimeUsage(
+      String meetingId, String userId, bool timeUsed) async {
+    final url = Uri.parse('$baseUrl/insta-talk/$meetingId/time-usage');
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    return http.put(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        'Authorization': 'Bearer $token',
+      },
+      body: json.encode({
+        'userId': userId,
+        'timeUsed': timeUsed,
+      }),
+    );
+  }
+
+  static Future<http.Response> checkInstaTalkStatus(
+      String participantId) async {
+    final userId = await SharedPrefs.getUserIdSharedPreference();
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final url = Uri.parse(
+        '$baseUrl/insta-talk/check-status?userId=$userId&participantId=$participantId');
+
+    return http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        'Authorization': 'Bearer $token',
+      },
+    );
+  }
+
+  static Future<http.Response> declineInstaTalk(
+      String meetingId, String userId) async {
+    final url = Uri.parse('$baseUrl/insta-talk/$meetingId/decline');
+    final token = await SharedPrefs.getUserTokenSharedPreference();
+
+    return http.put(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        'Authorization': 'Bearer $token',
+      },
+      body: json.encode({
+        'userId': userId,
+      }),
+    );
   }
 }

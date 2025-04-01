@@ -45,12 +45,24 @@ Future<void> setupNotificationClickHandlers() async {
     debugPrint("onMessageOpenedApp: Notification clicked.");
     handleNotificationClick(message);
   });
+
+  // Add specific handler for foreground messages
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    debugPrint("onMessage: Notification received in foreground.");
+    NotificationHelper.onMessage(message);
+  });
 }
 
 // Common function to handle notification click
 Future<void> handleNotificationClick(RemoteMessage message) async {
   try {
     debugPrint("Handling notification click: ${message.data}");
+
+    // Check for InstaTalk notification first
+    if (message.data['type'] == 'instaTalk') {
+      await NotificationHelper.handleInstaTalkNotification(message.data);
+      return;
+    }
 
     // Extract chat related data from notification
     final String? chatRoomId = message.data['chatRoomId'];
@@ -77,6 +89,24 @@ Future<void> handleNotificationClick(RemoteMessage message) async {
   } catch (e) {
     debugPrint("Error handling notification click: $e");
   }
+}
+
+// Update myBackgroundMessageHandler to handle InstaTalk notifications
+@pragma('vm:entry-point')
+Future<void> myBackgroundMessageHandler(RemoteMessage message) async {
+  print("Background message received");
+  print("Notification Message: ${message.notification?.title}");
+  print("Data Message: ${message.data}");
+
+  // Handle InstaTalk notification specially in the background
+  if (message.data['type'] == 'instaTalk') {
+    // Show a special notification for InstaTalk that the user can tap on
+    await NotificationHelper.showInstaTalkNotification(message);
+    return;
+  }
+
+  // Original handling for other notification types
+  print("Handling other background notifications.");
 }
 
 Future<void> main() async {

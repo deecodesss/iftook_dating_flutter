@@ -10,7 +10,7 @@ class Constants {
 
   // API base URL
   // static const String apiBaseUrl = 'http://localhost:3000/api';
-  static const String apiBaseUrl = 'https://iftookbackendcopy.vercel.app/api';
+  static const String apiBaseUrl = '${socketUrl}/api';
 
   // App name
   static const String appName = 'Iftook';

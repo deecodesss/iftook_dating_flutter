@@ -1,11 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iftook/core/services/api_service.dart';
+import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
+import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
 import 'package:iftook/features/friend_requests/controller/friend_controller.dart';
 import 'package:iftook/features/friend_requests/data/models/friend_request.dart';
+import 'package:iftook/features/friends/presentation/screens/chat_room_screen.dart';
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
@@ -72,13 +76,14 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
   void initState() {
     super.initState();
     _tabController =
-        TabController(length: 3, vsync: this); // Changed from 2 to 3
+        TabController(length: 3, vsync: this); // Changed from 4 to 3
     _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
       if (mounted) setState(() {});
     });
     controller.fetchFriendRequests();
     controller.fetchSentRequests();
-    controller.fetchMeetings(); // Add this
+    controller.fetchMeetings();
+    controller.fetchInstaTalkRequests();
   }
 
   @override
@@ -92,33 +97,28 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     final now = DateTime.now();
     final tomorrow = DateTime.now().add(const Duration(days: 1));
 
-    // If meeting time is within last 30 minutes
     if (now.difference(meetingTime).inMinutes <= 30 &&
         now.difference(meetingTime).inMinutes >= 0) {
       return 'Join Now';
     }
 
-    // If meeting is coming up within next hour
     if (meetingTime.difference(now).inMinutes <= 60 &&
         meetingTime.isAfter(now)) {
       return 'In ${meetingTime.difference(now).inMinutes} min';
     }
 
-    // If meeting is today
     if (meetingTime.year == now.year &&
         meetingTime.month == now.month &&
         meetingTime.day == now.day) {
       return 'Today, ${DateFormat('h:mm a').format(meetingTime)}';
     }
 
-    // If meeting is tomorrow
     if (meetingTime.year == tomorrow.year &&
         meetingTime.month == tomorrow.month &&
         meetingTime.day == tomorrow.day) {
       return 'Tomorrow, ${DateFormat('h:mm a').format(meetingTime)}';
     }
 
-    // Otherwise show full date
     return DateFormat('MMM d, h:mm a').format(meetingTime);
   }
 
@@ -290,23 +290,17 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () async {
-                        // Get current user ID
                         final currentUserId =
                             await SharedPrefs.getUserIdSharedPreference();
                         if (currentUserId != null) {
-                          // Get friend request to find the requester ID
                           final request = controller.friendRequests.firstWhere(
                             (req) => req.sId == reqId,
                             orElse: () => FriendRequest(),
                           );
 
                           if (request.requester?.sId != null) {
-                            // Call unfriend with both IDs
                             await controller.deleteSentRequest(currentUserId);
                           }
-
-                          // Also reject the request using the existing method
-                          // controller.rejectRequest(reqId, context);
                         } else {
                           Get.snackbar(
                             'Error',
@@ -337,36 +331,26 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     );
   }
 
-  // Fix the UTC to IST conversion - IST is UTC+5:30, not UTC-5:30
   DateTime _convertToIST(DateTime utc) {
-    // Add 5 hours and 30 minutes to convert from UTC to IST
     return utc.add(const Duration(hours: 5, minutes: 30));
   }
 
   String _getMeetingStatus(DateTime scheduledTime, String currentStatus) {
     final now = DateTime.now();
-    // Don't adjust the time here - we'll handle time comparison directly
     final minutesDifference = now.difference(scheduledTime).inMinutes;
 
-    print('Current time: ${now.toString()}');
-    print('Original scheduled time: ${scheduledTime.toString()}');
-    print('Time difference in minutes: $minutesDifference');
-
-    // Meeting is in the past (more than 30 mins past scheduled time)
     if (minutesDifference > 30) {
       if (currentStatus == 'completed') return 'Completed';
       if (currentStatus == 'cancelled') return 'Cancelled';
       return 'Expired';
     }
 
-    // Meeting is live (within 30 mins window after scheduled time or less than 30 mins before scheduled time)
     if (minutesDifference >= -30 && minutesDifference <= 30) {
       if (currentStatus == 'completed') return 'Completed';
       if (currentStatus == 'cancelled') return 'Cancelled';
       return 'Join Now';
     }
 
-    // Meeting is in the future
     return 'Scheduled';
   }
 
@@ -389,11 +373,9 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
 
   Future<void> _handleProfileNavigation(String userId) async {
     try {
-      print('Loading profile for user ID: $userId');
-
       Get.dialog(
         WillPopScope(
-          onWillPop: () async => false, // Prevent dismissal on back press
+          onWillPop: () async => false,
           child: const Center(child: CircularProgressIndicator()),
         ),
         barrierDismissible: false,
@@ -408,14 +390,13 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       final data = jsonDecode(response.body);
       if (data['success'] == true && data['data'] != null) {
         final userProfile = User.fromJson(data['data']);
-        Get.back(); // Close loading dialog
+        Get.back();
         Get.to(() => UserProfileScreen(profile: userProfile));
       } else {
         throw Exception('Failed to load profile data');
       }
     } catch (e) {
-      print('Failed to load profile: $e');
-      Get.back(); // Close loading dialog
+      Get.back();
       Get.snackbar(
         'Error',
         'Could not load profile. Please try again.',
@@ -435,8 +416,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     final userId = user['_id'];
     final amount = (meeting['amount'] ?? 0).toDouble();
 
-    print('Building meeting card with meeting data: $meeting');
-
     return FutureBuilder<String?>(
       future: SharedPrefs.getUserIdSharedPreference(),
       builder: (context, snapshot) {
@@ -449,7 +428,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             ? participant['name'] ?? 'Unknown'
             : user['name'] ?? 'Unknown';
 
-        // Calculate status without using Obx
         final now = DateTime.now();
         final minutesDifference = now.difference(scheduledTime).inMinutes;
         final canJoin = minutesDifference >= -30 && minutesDifference <= 30;
@@ -472,14 +450,11 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // User Info Row
                     Row(
                       children: [
-                        // Profile Picture - Direct navigation approach
                         InkWell(
                           onTap: () {
                             try {
-                              // Create User object with essential fields and safe fallbacks
                               final safeProfile = User(
                                 sId: participant['_id']?.toString() ?? '',
                                 name: participant['name']?.toString() ??
@@ -515,19 +490,14 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                                         city: 'Unknown',
                                         state: '',
                                         country: ''),
-                                // Add other fields with safe defaults
                                 walletBalance: 0,
                                 earnings: Earnings(),
                                 isOnline: participant['isOnline'] ?? false,
                               );
 
-                              print(
-                                  'Navigating to meeting participant profile: ${safeProfile.name}');
                               Get.to(() =>
                                   UserProfileScreen(profile: safeProfile));
                             } catch (e) {
-                              print(
-                                  'Error navigating to meeting participant profile: $e');
                               Get.snackbar(
                                 'Error',
                                 'Could not open profile details',
@@ -550,8 +520,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                           ),
                         ),
                         const SizedBox(width: 16),
-
-                        // Meeting Info
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -589,8 +557,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                             ],
                           ),
                         ),
-
-                        // Status Badge
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 6),
@@ -610,8 +576,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                         ),
                       ],
                     ),
-
-                    // Time Display
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Text(
@@ -622,8 +586,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                         ),
                       ),
                     ),
-
-                    // Direction Indicator
                     Row(
                       children: [
                         Icon(
@@ -653,8 +615,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                   ],
                 ),
               ),
-
-              // Join button for active meetings
               if (canJoin)
                 Container(
                   width: double.infinity,
@@ -722,35 +682,62 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
+          isScrollable: true,
           tabs: const [
             Tab(text: 'Meetings'),
             Tab(text: 'Requests'),
-            Tab(text: 'Sent'),
+            Tab(text: 'InstaTalk'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        // Use physics that don't interfere with inner scrolling
         physics: const NeverScrollableScrollPhysics(),
         children: [
-          // Meetings Tab - Use a separate widget with keep-alive behavior
           MeetingsTabView(
             controller: controller,
             buildMeetingCard: _buildMeetingCard,
             buildEmptyView: _buildEmptyMeetingsView,
           ),
-
-          // Requests Tab
           FriendRequestsTabView(
             controller: controller,
             buildRequestCard: _buildRequestCard,
-          ),
-
-          // Sent Requests Tab
-          SentRequestsTabView(
-            controller: controller,
             buildSentRequestCard: _buildSentRequestCard,
+          ),
+          InstaTalkTabView(
+            controller: controller,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyMeetingsView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.calendar_today_outlined,
+            size: 64,
+            color: Colors.grey[600],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Meetings Scheduled',
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Your scheduled meetings will appear here',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 14,
+            ),
           ),
         ],
       ),
@@ -768,7 +755,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           children: [
             InkWell(
               onTap: () {
-                print("Requester: $request.requester!");
                 if (request.requester != null) {
                   Get.to(() => UserProfileScreen(profile: request.requester!));
                 }
@@ -861,7 +847,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           children: [
             InkWell(
               onTap: () {
-                print("Receiver: $receiver!");
                 if (receiver != null) {
                   Get.to(() => UserProfileScreen(profile: receiver));
                 }
@@ -959,171 +944,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       ),
     );
   }
-
-  // Add a new method for the delete sent request confirmation dialog
-  void _showDeleteSentRequestWarning(BuildContext context, String reqId) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: AppColors.secondaryBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(
-                  color: AppColors.primaryBackground,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.delete_outline,
-                  color: AppColors.redColor,
-                  size: 32,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Delete Friend Request?',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Are you sure you want to delete this friend request? The person will not be notified.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.7),
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.accentColor,
-                      ),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final currentUserId =
-                            await SharedPrefs.getUserIdSharedPreference();
-                        if (currentUserId != null) {
-                          controller.deleteSentRequest(currentUserId);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.redColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                      ),
-                      child: const Text('Delete'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _getCallTypeLabel(String type) {
-    switch (type.toLowerCase()) {
-      case 'video':
-        return 'Video Call';
-      case 'voice':
-        return 'Voice Call';
-      default:
-        return 'Chat';
-    }
-  }
-
-  Widget _buildEmptyMeetingsView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.calendar_today_outlined,
-            size: 64,
-            color: Colors.grey[600],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No Meetings Scheduled',
-            style: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Your scheduled meetings will appear here',
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getTimeUntilMeeting(DateTime scheduledTime) {
-    final now = DateTime.now();
-    // Convert scheduled time to local if it's in UTC
-    final localScheduledTime = scheduledTime.toLocal();
-    final difference = localScheduledTime.difference(now);
-
-    if (difference.isNegative) {
-      final past = -difference.inMinutes;
-      if (past < 60) {
-        return '$past minutes ago';
-      } else if (past < 1440) {
-        // Less than 24 hours
-        return '${(past / 60).round()} hours ago';
-      } else {
-        return '${(past / 1440).round()} days ago';
-      }
-    } else {
-      if (difference.inMinutes < 60) {
-        return 'In ${difference.inMinutes} minutes';
-      } else if (difference.inHours < 24) {
-        return 'In ${difference.inHours} hours';
-      } else {
-        return 'In ${difference.inDays} days';
-      }
-    }
-  }
-
-  Color _getTimeColor(int minutesDifference) {
-    if (minutesDifference > 30) return Colors.red[400]!;
-    if (minutesDifference >= 0) return Colors.green;
-    return Colors.blue;
-  }
 }
-
-// Add these new widget classes for each tab:
 
 class MeetingsTabView extends StatefulWidget {
   final FriendController controller;
@@ -1143,11 +964,9 @@ class MeetingsTabView extends StatefulWidget {
 
 class _MeetingsTabViewState extends State<MeetingsTabView>
     with AutomaticKeepAliveClientMixin {
-  // Store meetings in local state to avoid reactive rebuilds
   final List<Map<String, dynamic>> _meetings = [];
   bool _isLoading = true;
 
-  // Use a GlobalKey for better persistence
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
 
   @override
@@ -1156,10 +975,8 @@ class _MeetingsTabViewState extends State<MeetingsTabView>
   @override
   void initState() {
     super.initState();
-    // Fetch data once and store in local state
     _fetchMeetings();
 
-    // Add a periodic refresh to update meeting statuses
     Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) {
         _refreshMeetings();
@@ -1170,11 +987,9 @@ class _MeetingsTabViewState extends State<MeetingsTabView>
   Future<void> _fetchMeetings() async {
     setState(() => _isLoading = true);
 
-    // Wait for a short delay to ensure everything is properly initialized
     await Future.delayed(Duration.zero);
 
     try {
-      // Make a local copy of meetings to avoid reactivity issues
       if (widget.controller.meetings.isNotEmpty) {
         _meetings.clear();
         _meetings
@@ -1189,7 +1004,6 @@ class _MeetingsTabViewState extends State<MeetingsTabView>
     }
   }
 
-  // Just refresh the UI without loading new data
   void _refreshMeetings() {
     if (mounted) {
       setState(() {});
@@ -1208,14 +1022,11 @@ class _MeetingsTabViewState extends State<MeetingsTabView>
       return widget.buildEmptyView();
     }
 
-    // Use a more stable scrolling solution
     return RefreshIndicator(
       onRefresh: _fetchMeetings,
       child: NotificationListener<ScrollNotification>(
-        // Prevent scroll notifications from propagating upwards
         onNotification: (ScrollNotification scrollInfo) => true,
         child: CustomScrollView(
-          // Disable physics that might interfere
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverPadding(
@@ -1224,7 +1035,6 @@ class _MeetingsTabViewState extends State<MeetingsTabView>
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
                     final meeting = _meetings[index];
-                    // Use stable, non-reactive build method
                     return widget.buildMeetingCard(meeting);
                   },
                   childCount: _meetings.length,
@@ -1241,11 +1051,13 @@ class _MeetingsTabViewState extends State<MeetingsTabView>
 class FriendRequestsTabView extends StatefulWidget {
   final FriendController controller;
   final Function(FriendRequest) buildRequestCard;
+  final Function(FriendRequest) buildSentRequestCard;
 
   const FriendRequestsTabView({
     Key? key,
     required this.controller,
     required this.buildRequestCard,
+    required this.buildSentRequestCard,
   }) : super(key: key);
 
   @override
@@ -1254,6 +1066,8 @@ class FriendRequestsTabView extends StatefulWidget {
 
 class _FriendRequestsTabViewState extends State<FriendRequestsTabView>
     with AutomaticKeepAliveClientMixin {
+  bool _showingReceived = true;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -1265,40 +1079,138 @@ class _FriendRequestsTabViewState extends State<FriendRequestsTabView>
       if (widget.controller.isLoading.value) {
         return const Center(child: CircularProgressIndicator());
       }
-      return widget.controller.friendRequests.length < 1
-          ? const EmptyRequestsView()
-          : ListView.builder(
-              key: const PageStorageKey<String>('requests_list'),
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              physics: const ClampingScrollPhysics(),
-              itemCount: widget.controller.friendRequests.length,
-              itemBuilder: (context, index) {
-                final request = widget.controller.friendRequests[index];
-                return KeyedSubtree(
-                  key: ValueKey('request_${request.sId ?? index}'),
-                  child: widget.buildRequestCard(request),
-                );
-              },
-            );
+
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildFilterButton(
+                    text: 'Received',
+                    isSelected: _showingReceived,
+                    count: widget.controller.friendRequests.length,
+                    onPressed: () => setState(() => _showingReceived = true),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildFilterButton(
+                    text: 'Sent',
+                    isSelected: !_showingReceived,
+                    count: widget.controller.sentRequests.length,
+                    onPressed: () => setState(() => _showingReceived = false),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _showingReceived
+                ? widget.controller.friendRequests.isEmpty
+                    ? const EmptyRequestsView()
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: widget.controller.friendRequests.length,
+                        itemBuilder: (context, index) {
+                          final request =
+                              widget.controller.friendRequests[index];
+                          return widget.buildRequestCard(request);
+                        },
+                      )
+                : widget.controller.sentRequests.isEmpty
+                    ? EmptySentRequestsView()
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: widget.controller.sentRequests.length,
+                        itemBuilder: (context, index) {
+                          final request = widget.controller.sentRequests[index];
+                          return widget.buildSentRequestCard(request);
+                        },
+                      ),
+          ),
+        ],
+      );
     });
+  }
+
+  Widget _buildFilterButton({
+    required String text,
+    required bool isSelected,
+    required int count,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: isSelected ? AppColors.primaryColor : Colors.transparent,
+      borderRadius: BorderRadius.circular(25),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(25),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isSelected
+                  ? AppColors.primaryColor
+                  : AppColors.primaryColor.withOpacity(0.5),
+            ),
+            borderRadius: BorderRadius.circular(25),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                text,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.grey[400],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white.withOpacity(0.2)
+                        : AppColors.primaryColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    count.toString(),
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : AppColors.primaryColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
-class SentRequestsTabView extends StatefulWidget {
+class InstaTalkTabView extends StatefulWidget {
   final FriendController controller;
-  final Function(FriendRequest) buildSentRequestCard;
 
-  const SentRequestsTabView({
+  const InstaTalkTabView({
     Key? key,
     required this.controller,
-    required this.buildSentRequestCard,
   }) : super(key: key);
 
   @override
-  State<SentRequestsTabView> createState() => _SentRequestsTabViewState();
+  State<InstaTalkTabView> createState() => _InstaTalkTabViewState();
 }
 
-class _SentRequestsTabViewState extends State<SentRequestsTabView>
+class _InstaTalkTabViewState extends State<InstaTalkTabView>
     with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
@@ -1307,26 +1219,495 @@ class _SentRequestsTabViewState extends State<SentRequestsTabView>
   Widget build(BuildContext context) {
     super.build(context);
 
-    return Obx(() {
-      if (widget.controller.isLoading.value) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      return widget.controller.sentRequests.isEmpty
-          ? EmptySentRequestsView()
-          : ListView.builder(
-              key: const PageStorageKey<String>('sent_requests_list'),
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              physics: const ClampingScrollPhysics(),
-              itemCount: widget.controller.sentRequests.length,
-              itemBuilder: (context, index) {
-                final request = widget.controller.sentRequests[index];
-                return KeyedSubtree(
-                  key: ValueKey('sent_request_${request.sId ?? index}'),
-                  child: widget.buildSentRequestCard(request),
-                );
-              },
-            );
-    });
+    return RefreshIndicator(
+      onRefresh: () async {
+        return widget.controller.fetchInstaTalkRequests();
+      },
+      child: Obx(() {
+        if (widget.controller.isInstaTalkLoading.value) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (widget.controller.instaTalkRequests.isEmpty) {
+          return Stack(
+            children: [
+              _buildEmptyInstaTalkView(),
+              if (kDebugMode)
+                Positioned(
+                  bottom: 16,
+                  right: 16,
+                  child: FloatingActionButton(
+                    mini: true,
+                    backgroundColor: Colors.orange,
+                    child: const Icon(Icons.refresh),
+                    onPressed: () {
+                      widget.controller.fetchInstaTalkRequests();
+                    },
+                  ),
+                ),
+            ],
+          );
+        }
+
+        return ListView.builder(
+          key: const PageStorageKey<String>('instatalk_list'),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          physics: const ClampingScrollPhysics(),
+          itemCount: widget.controller.instaTalkRequests.length,
+          itemBuilder: (context, index) {
+            final instaTalk = widget.controller.instaTalkRequests[index];
+            return _buildInstaTalkCard(instaTalk);
+          },
+        );
+      }),
+    );
+  }
+
+  Widget _buildEmptyInstaTalkView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.primaryColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.quickreply_rounded,
+              size: 48,
+              color: AppColors.primaryColor,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'No InstaTalk Requests',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              'You don\'t have any InstaTalk requests at the moment. InstaTalk lets you have quick chats, calls or video calls.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInstaTalkCard(Map<String, dynamic> instaTalk) {
+    final bool isSender = widget.controller.isInstaTalkSender(instaTalk);
+    final bool canInteract =
+        widget.controller.canInteractWithRequest(instaTalk);
+    final String displayName =
+        widget.controller.getInstaTalkDisplayName(instaTalk);
+
+    final String type = instaTalk['type'] ?? 'chat';
+
+    final bool isAccepted = instaTalk['acceptedByParticipant'] == true;
+    final bool isExpired = widget.controller.isInstaTalkExpired(instaTalk);
+    final bool isActive = !isExpired && instaTalk['status'] != 'completed';
+    final bool canJoin = isAccepted && isActive;
+
+    final DateTime createdAt = DateTime.parse(instaTalk['scheduledTime']);
+    final String timeAgo = timeago.format(createdAt);
+
+    final now = DateTime.now();
+    final int minutesSinceCreation = now.difference(createdAt).inMinutes;
+    final int minutesRemaining = 60 - minutesSinceCreation;
+    final bool isNearExpiration =
+        minutesRemaining <= 10 && minutesRemaining > 0;
+
+    IconData typeIcon;
+    String typeText;
+    switch (type) {
+      case 'voice':
+        typeIcon = Icons.call_outlined;
+        typeText = 'Voice';
+        break;
+      case 'video':
+        typeIcon = Icons.videocam_outlined;
+        typeText = 'Video';
+        break;
+      default:
+        typeIcon = Icons.chat_outlined;
+        typeText = 'Chat';
+    }
+
+    Color borderColor;
+    if (isExpired) {
+      borderColor = Colors.grey.withOpacity(0.5);
+    } else if (isAccepted) {
+      borderColor = Colors.green.withOpacity(0.5);
+    } else {
+      borderColor = Colors.amber.withOpacity(0.5);
+    }
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.blueGrey.withOpacity(0.1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: borderColor,
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: borderColor,
+                      width: 2,
+                    ),
+                  ),
+                  child: CircleAvatar(
+                    radius: 24,
+                    backgroundImage: _getProfileImage(isSender
+                        ? instaTalk['participant']
+                        : instaTalk['user']),
+                    child: _getProfileImage(isSender
+                                ? instaTalk['participant']
+                                : instaTalk['user']) ==
+                            null
+                        ? const Icon(Icons.person, color: Colors.white70)
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              displayName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _getStatusColor(isExpired, isAccepted),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _getStatusText(isExpired, isAccepted),
+                              style: TextStyle(
+                                color:
+                                    _getStatusTextColor(isExpired, isAccepted),
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            typeIcon,
+                            size: 16,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$typeText InstaTalk',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 13,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            isNearExpiration && !isExpired
+                                ? 'Expires in ${minutesRemaining}m'
+                                : timeAgo,
+                            style: TextStyle(
+                              color: isNearExpiration && !isExpired
+                                  ? Colors.orange
+                                  : Colors.grey[500],
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              fontWeight: isNearExpiration && !isExpired
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 12, left: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    isSender ? Icons.arrow_outward : Icons.arrow_downward,
+                    size: 14,
+                    color: isSender
+                        ? Colors.blue.withOpacity(0.7)
+                        : Colors.green.withOpacity(0.7),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      isSender
+                          ? 'You sent a quick $type InstaTalk to $displayName'
+                          : '$displayName sent you a quick $type InstaTalk request',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isSender
+                            ? Colors.blue.withOpacity(0.7)
+                            : Colors.green.withOpacity(0.7),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!isExpired) ...[
+              if (canInteract)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        onPressed: () => _declineInstaTalk(instaTalk['_id']),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey[400],
+                          side: BorderSide(color: Colors.grey[700]!),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text('Decline'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: () => _acceptInstaTalk(instaTalk['_id']),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryColor,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text('Accept'),
+                      ),
+                    ],
+                  ),
+                ),
+              if (canJoin)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _joinInstaTalk(instaTalk),
+                      icon: _getTypeIcon(type),
+                      label: const Text('Join InstaTalk'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+            if (isExpired)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.timer_off_outlined,
+                        color: Colors.grey[400],
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'This InstaTalk request has expired',
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getStatusColor(bool isExpired, bool isAccepted) {
+    if (isExpired) return Colors.grey.withOpacity(0.2);
+    if (isAccepted) return Colors.green.withOpacity(0.2);
+    return Colors.amber.withOpacity(0.2);
+  }
+
+  Color _getStatusTextColor(bool isExpired, bool isAccepted) {
+    if (isExpired) return Colors.grey;
+    if (isAccepted) return Colors.green;
+    return Colors.amber;
+  }
+
+  String _getStatusText(bool isExpired, bool isAccepted) {
+    if (isExpired) return 'Expired';
+    if (isAccepted) return 'Accepted';
+    return 'Pending';
+  }
+
+  void _declineInstaTalk(String meetingId) async {
+    final bool confirm = await Get.dialog<bool>(
+          AlertDialog(
+            backgroundColor: const Color(0xFF1A1A1A),
+            title: const Text(
+              'Decline InstaTalk?',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Text(
+              'Are you sure you want to decline this InstaTalk request?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Get.back(result: false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                ),
+                onPressed: () => Get.back(result: true),
+                child: const Text('Decline'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (confirm) {
+      await widget.controller.declineInstaTalk(meetingId);
+    }
+  }
+
+  void _acceptInstaTalk(String meetingId) async {
+    final result = await widget.controller.acceptInstaTalk(meetingId);
+    if (result != null) {
+      _joinInstaTalkAfterAccepting(result);
+    }
+  }
+
+  void _joinInstaTalk(Map<String, dynamic> instaTalk) async {
+    final String meetingId = instaTalk['_id'] ?? '';
+    final result = await widget.controller.acceptInstaTalk(meetingId);
+    if (result != null) {
+      _joinInstaTalkAfterAccepting(result);
+    }
+  }
+
+  void _joinInstaTalkAfterAccepting(Map<String, dynamic> result) {
+    final String meetingType = result['meeting']['type'] ?? 'chat';
+    final User participant = User.fromJson(result['participant']);
+
+    switch (meetingType) {
+      case 'chat':
+        Get.to(() => ChatRoomScreen(
+              profile: participant,
+              isInstaTalk: true,
+              instaTalkDuration: 30,
+            ));
+        break;
+      case 'voice':
+        Get.to(() => VoiceCallLoadingScreen(
+              participant: participant,
+              scheduleTime: DateTime.now(),
+              type: "voice",
+              isInstaTalk: true,
+              instaTalkDuration: 30,
+            ));
+        break;
+      case 'video':
+        Get.to(() => VideoCallLoadingScreen(
+              participant: participant,
+              scheduleTime: DateTime.now(),
+              type: "video",
+              isInstaTalk: true,
+              instaTalkDuration: 30,
+            ));
+        break;
+    }
+  }
+
+  ImageProvider? _getProfileImage(dynamic user) {
+    if (user == null) return null;
+
+    if (user['photos'] is List && user['photos'].isNotEmpty) {
+      return NetworkImage(user['photos'][0]);
+    }
+
+    return null;
+  }
+
+  Icon _getTypeIcon(String type) {
+    switch (type) {
+      case 'voice':
+        return const Icon(Icons.call_outlined);
+      case 'video':
+        return const Icon(Icons.videocam_outlined);
+      default:
+        return const Icon(Icons.chat_outlined);
+    }
   }
 }
 
@@ -1342,7 +1723,6 @@ class EmptyRequestsView extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Icon container
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -1356,8 +1736,6 @@ class EmptyRequestsView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-
-              // Title
               const Text(
                 'No Friend Requests',
                 style: TextStyle(
@@ -1367,8 +1745,6 @@ class EmptyRequestsView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-
-              // Description
               Text(
                 "You don't have any pending friend requests at the moment. When someone sends you a request, it will appear here.",
                 textAlign: TextAlign.center,
@@ -1378,8 +1754,6 @@ class EmptyRequestsView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
-
-              // Placeholder Cards
               _buildPlaceholderCard(opacity: 1.0),
               const SizedBox(height: 12),
               _buildPlaceholderCard(opacity: 0.7),
@@ -1401,7 +1775,6 @@ class EmptyRequestsView extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Avatar placeholder
             Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -1416,8 +1789,6 @@ class EmptyRequestsView extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
-
-            // Text placeholders
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1442,8 +1813,6 @@ class EmptyRequestsView extends StatelessWidget {
                 ],
               ),
             ),
-
-            // Button placeholders
             Column(
               children: [
                 Container(

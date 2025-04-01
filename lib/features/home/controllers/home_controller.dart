@@ -17,9 +17,7 @@ class HomeController extends GetxController {
   var allProfiles = <User>[].obs;
   var wishlistUsers = <User>[].obs;
   var isWishlistLoading = false.obs;
-
-  // Add a set to track users who have had Insta Talk
-  final RxSet<String> _instaTalkUsedWith = <String>{}.obs;
+  var isInstaTalkLoading = false.obs;
 
   @override
   void onInit() {
@@ -27,34 +25,126 @@ class HomeController extends GetxController {
     fetchProfiles();
     fetchWalletBalance();
     fetchWishlist();
-    _loadInstaTalkHistory();
   }
 
-  // Load Insta Talk history from SharedPrefs
-  Future<void> _loadInstaTalkHistory() async {
+  Future<bool> hasUsedInstaTalk(String userId) async {
     try {
-      final history = await SharedPrefs.getInstaTalkHistory();
-      if (history.isNotEmpty) {
-        _instaTalkUsedWith.addAll(history);
+      final response = await ApiService.checkInstaTalkStatus(userId);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['exists'] ?? false;
+      }
+      return false;
+    } catch (e) {
+      print('Error checking InstaTalk status: $e');
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> createInstaTalk(
+      String participantId, String type) async {
+    try {
+      isInstaTalkLoading(true);
+
+      final response = await ApiService.createInstaTalk(participantId, type);
+
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        print('InstaTalk created successfully: ${data['data']}');
+        return data['data'];
+      } else if (response.statusCode == 400) {
+        // Handle case where InstaTalk already exists
+        final data = jsonDecode(response.body);
+        errorMessage(
+            data['message'] ?? 'InstaTalk already used with this user');
+        Get.snackbar(
+          'Info',
+          errorMessage.value,
+          backgroundColor: Colors.orange.withOpacity(0.8),
+          colorText: Colors.white,
+        );
+        return null;
+      } else {
+        final data = jsonDecode(response.body);
+        errorMessage(data['message'] ?? 'Failed to create InstaTalk');
+        Get.snackbar(
+          'Error',
+          errorMessage.value,
+          backgroundColor: Colors.red.withOpacity(0.8),
+          colorText: Colors.white,
+        );
+        return null;
       }
     } catch (e) {
-      print('Error loading Insta Talk history: $e');
+      errorMessage('An error occurred: $e');
+      print('Error creating InstaTalk: $e');
+      Get.snackbar(
+        'Error',
+        errorMessage.value,
+        backgroundColor: Colors.red.withOpacity(0.8),
+        colorText: Colors.white,
+      );
+      return null;
+    } finally {
+      isInstaTalkLoading(false);
     }
   }
 
-  // Record that Insta Talk has been used with a user
-  Future<void> recordInstaTalkUsage(String userId) async {
+  Future<Map<String, dynamic>?> acceptInstaTalk(String meetingId) async {
     try {
-      _instaTalkUsedWith.add(userId);
-      await SharedPrefs.saveInstaTalkHistory(_instaTalkUsedWith.toList());
+      isLoading(true);
+      final userId = await SharedPrefs.getUserIdSharedPreference();
+
+      final response = await ApiService.acceptInstaTalk(meetingId, userId!);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('InstaTalk accepted successfully: ${data['data']}');
+        return data['data'];
+      } else {
+        final data = jsonDecode(response.body);
+        errorMessage(data['message'] ?? 'Failed to accept InstaTalk');
+        Get.snackbar(
+          'Error',
+          errorMessage.value,
+          backgroundColor: Colors.red.withOpacity(0.8),
+          colorText: Colors.white,
+        );
+        return null;
+      }
     } catch (e) {
-      print('Error recording Insta Talk usage: $e');
+      errorMessage('An error occurred: $e');
+      Get.snackbar(
+        'Error',
+        errorMessage.value,
+        backgroundColor: Colors.red.withOpacity(0.8),
+        colorText: Colors.white,
+      );
+      return null;
+    } finally {
+      isLoading(false);
     }
   }
 
-  // Check if Insta Talk has been used with a user
-  bool hasUsedInstaTalk(String userId) {
-    return _instaTalkUsedWith.contains(userId);
+  Future<bool> updateInstaTalkTimeUsage(String meetingId, bool timeUsed) async {
+    try {
+      final userId = await SharedPrefs.getUserIdSharedPreference();
+
+      final response = await ApiService.updateInstaTalkTimeUsage(
+          meetingId, userId!, timeUsed);
+
+      if (response.statusCode == 200) {
+        print('InstaTalk time usage updated successfully');
+        return true;
+      } else {
+        print('Failed to update InstaTalk time usage: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error updating InstaTalk time usage: $e');
+      return false;
+    }
   }
 
   Future<void> fetchProfiles() async {
@@ -68,20 +158,17 @@ class HomeController extends GetxController {
         final filteredCount =
             data['filteredCount'] ?? 0; // Get the count of filtered friends
 
-        // Store all profiles - these are already filtered on the server
         final fetchedProfiles =
             users.map((user) => User.fromJson(user)).toList();
 
         allProfiles.assignAll(fetchedProfiles);
 
-        // Extract unique countries
         final uniqueCountries = allProfiles
             .map((user) => user.location?.country ?? 'Unknown')
             .toSet()
             .toList();
         countries.value = ['All', ...uniqueCountries];
 
-        // Update displayed profiles based on selected country
         _filterProfilesByCountry();
 
         print(
@@ -104,7 +191,7 @@ class HomeController extends GetxController {
 
   void setSelectedCountry(String country) {
     selectedCountry.value = country;
-    currentIndex.value = 0; // Reset index when filtering
+    currentIndex.value = 0;
     _filterProfilesByCountry();
   }
 
@@ -183,12 +270,10 @@ class HomeController extends GetxController {
       Get.back();
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Update the profile's friend status
         final updatedProfile = User(
           sId: currentProfile.sId,
           name: currentProfile.name,
           email: currentProfile.email,
-          // phone: currentProfile.phone,
           dob: currentProfile.dob,
           gender: currentProfile.gender,
           profession: currentProfile.profession,
@@ -253,11 +338,10 @@ class HomeController extends GetxController {
       if (response.statusCode == 200 || response.statusCode == 201) {
         print('Meeting created successfully: ${response.body}');
 
-        // Deduct money from wallet after successful meeting creation
         final deductResponse = await ApiService.deductMoneyToWallet(amount);
         if (deductResponse.statusCode == 200) {
           print('Money deducted successfully');
-          await fetchWalletBalance(); // Refresh wallet balance after deduction
+          await fetchWalletBalance();
         } else {
           print('Failed to deduct money: ${deductResponse.body}');
         }
@@ -295,7 +379,6 @@ class HomeController extends GetxController {
       isDismissible: true,
       dismissDirection: DismissDirection.horizontal,
       forwardAnimationCurve: Curves.easeOutBack,
-      // Convert Widget to TextButton if needed
       mainButton: mainButton is TextButton ? mainButton : null,
       snackStyle: SnackStyle.FLOATING,
       overlayBlur: 0,
@@ -309,7 +392,6 @@ class HomeController extends GetxController {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         print('Wallet API Response: ${response.body}');
-        // Update to match the actual API response structure
         userWalletBalance.value = data['data']['balance'] != null
             ? (data['data']['balance'] as num).toDouble()
             : 0.0;
@@ -320,7 +402,6 @@ class HomeController extends GetxController {
     }
   }
 
-  // Update current profile index
   void updateCurrentIndex(int index) {
     if (profiles.isEmpty) return;
     if (index >= 0 && index < profiles.length) {
@@ -341,12 +422,11 @@ class HomeController extends GetxController {
 
       final response = await ApiService.addToWishlist(userId);
 
-      Get.back(); // Close loading dialog
+      Get.back();
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // Update UI if needed or refresh wishlist
         await fetchWishlist();
 
         Get.snackbar(
@@ -383,10 +463,9 @@ class HomeController extends GetxController {
 
       final response = await ApiService.removeFromWishlist(userId);
 
-      Get.back(); // Close loading dialog
+      Get.back();
 
       if (response.statusCode == 200) {
-        // Remove from local list if it exists
         wishlistUsers.removeWhere((user) => user.sId == userId);
         wishlistUsers.refresh();
 
@@ -425,19 +504,16 @@ class HomeController extends GetxController {
         print('RAW WISHLIST RESPONSE: ${response.body}');
         final wishlistData = data['wishlist'] as List;
 
-        // Create proper User objects based on the structure in the response
         wishlistUsers.clear();
         for (var item in wishlistData) {
           try {
             print('Processing wishlist item: $item');
 
-            // Create safe values for potential null fields
             final String itemId = item['_id']?.toString() ?? '';
             final String name = item['name']?.toString() ?? 'No Name';
             final String email = item['email']?.toString() ?? '';
             final String dob = item['dob']?.toString() ?? '';
 
-            // Handle potential different formats in the API response
             List<String>? photosList;
             if (item['photos'] is List) {
               photosList =
@@ -449,7 +525,6 @@ class HomeController extends GetxController {
               photosList = [];
             }
 
-            // Extract earnings data if available
             Earnings? earnings;
             if (item['earnings'] is Map) {
               var earningsData = item['earnings'] as Map;
@@ -462,11 +537,10 @@ class HomeController extends GetxController {
               );
               print('Created earnings object: ${earnings.toJson()}');
             } else {
-              earnings = Earnings(); // Use defaults
+              earnings = Earnings();
               print('Using default earnings');
             }
 
-            // Build location data if available
             Location? location;
             if (item['location'] != null && item['location'] is Map) {
               var loc = item['location'] as Map;
@@ -484,7 +558,7 @@ class HomeController extends GetxController {
               dob: dob,
               photos: photosList,
               location: location,
-              earnings: earnings, // Add earnings object explicitly
+              earnings: earnings,
             );
 
             wishlistUsers.add(user);
@@ -512,7 +586,6 @@ class HomeController extends GetxController {
     }
   }
 
-  // Add a convenient method to check if a user is in wishlist with better logging
   bool isUserInWishlist(String userId) {
     if (userId.isEmpty) {
       print('⚠️ Warning: Checking empty userId for wishlist');
@@ -524,7 +597,6 @@ class HomeController extends GetxController {
     return result;
   }
 
-  // Add a method for creating instant meetings
   Future<bool> createInstantMeeting(
     String participantId,
     String type,
@@ -546,10 +618,6 @@ class HomeController extends GetxController {
           backgroundColor: Colors.green.withOpacity(0.8),
           colorText: Colors.white,
         );
-
-        // Here you would navigate to the actual meeting interface
-        // For example:
-        // Get.to(() => MeetingRoom(meetingData: data));
 
         return true;
       } else {
