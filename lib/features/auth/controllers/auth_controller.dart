@@ -123,18 +123,26 @@ class AuthController extends GetxController {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
-        await SharedPrefs.saveUserTokenSharedPreference(responseData['token']);
+
+        // Save both tokens
+        await SharedPrefs.saveTokens(
+            responseData['accessToken'], responseData['refreshToken']);
+
+        // Save user ID
         await SharedPrefs.saveUserIdSharedPreference(
             responseData['user']['_id']);
+
+        // Update FCM token
         updateFCMToken();
-        // Save user data or token if needed
+
         Get.offAll(() => const HomeScreen());
       } else {
-        errorMessage.value =
-            jsonDecode(response.body)['message']?.toString() ?? 'Login failed';
+        final errorData = jsonDecode(response.body);
+        errorMessage.value = errorData['message'] ?? 'Login failed';
       }
     } catch (e) {
-      errorMessage('An error occurred: $e');
+      print('Login error: $e');
+      errorMessage('An error occurred during login');
     } finally {
       isLoading(false);
     }

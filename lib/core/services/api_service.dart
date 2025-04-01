@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/friends/data/chatroom.dart';
+import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
 
 import '../../features/friends/data/message.dart';
 
@@ -13,6 +15,56 @@ class ApiService {
   // static const String baseUrl = 'https://iftook-backend.vercel.app/api';
   // static const String baseUrl = 'https://iftookbackendcopy.vercel.app/api';
   static const String baseUrl = 'http://localhost:3000/api';
+
+  static Future<bool> refreshToken() async {
+    try {
+      final refreshToken = await SharedPrefs.getRefreshToken();
+      if (refreshToken == null) return false;
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/refresh-token'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refreshToken': refreshToken}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        await SharedPrefs.saveTokens(
+          data['accessToken'],
+          data['refreshToken'],
+        );
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error refreshing token: $e');
+      return false;
+    }
+  }
+
+  static Future<http.Response> authenticatedRequest(
+    Future<http.Response> Function() requestFunction,
+  ) async {
+    try {
+      var response = await requestFunction();
+
+      if (response.statusCode == 401) {
+        final refreshed = await refreshToken();
+        if (refreshed) {
+          // Retry the original request with new token
+          response = await requestFunction();
+        } else {
+          // Handle failed refresh - redirect to login
+          Get.offAll(() => const LoginScreen());
+          throw Exception('Session expired');
+        }
+      }
+
+      return response;
+    } catch (e) {
+      rethrow;
+    }
+  }
 
   static Future<http.Response> register(Map<String, dynamic> body) async {
     final response = await http.post(
@@ -25,77 +77,83 @@ class ApiService {
   }
 
   static Future<http.Response> login(Map<String, dynamic> body) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body), // Ensure the body is JSON-encoded
-    );
-    print(response.body);
-    return response;
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['success'] && responseData['accessToken'] != null) {
+          await SharedPrefs.saveTokens(
+            responseData['accessToken'],
+            responseData['refreshToken'],
+          );
+        }
+      }
+
+      return response;
+    } catch (e) {
+      print('Login error in API service: $e');
+      rethrow;
+    }
   }
 
   static Future<http.Response> fetchMyProfile() async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
-    final response = await http.get(
-      Uri.parse('$baseUrl/users/profile'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-    print(response.body);
-    return response;
+    final token = await SharedPrefs.getAccessToken();
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/users/profile'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        ));
   }
 
   static Future<http.Response> searchUsers(String query) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/users/search?search=$query'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    return response;
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/users/search?search=$query'),
+          headers: {'Authorization': 'Bearer $token'},
+        ));
   }
 
   static Future<http.Response> addFriend(Map<String, dynamic> body) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/friend/requests/send'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token'
-      },
-      body: jsonEncode(body), // Ensure the body is JSON-encoded
-    );
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/friend/requests/send'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token'
+          },
+          body: jsonEncode(body), // Ensure the body is JSON-encoded
+        ));
   }
 
   static Future<http.Response> getFriendRequests() async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
     final userId = await SharedPrefs.getUserIdSharedPreference();
     print("userid: $userId");
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/friend/requests/$userId'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/friend/requests/$userId'),
+          headers: {'Authorization': 'Bearer $token'},
+        ));
   }
 
   static Future<http.Response> getRatings(String userId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
     final userId = await SharedPrefs.getUserIdSharedPreference();
     print("userid: $userId");
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/users/reviews/$userId'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/users/reviews/$userId'),
+          headers: {'Authorization': 'Bearer $token'},
+        ));
   }
 
   static Future<http.Response> submitRating(
@@ -104,111 +162,94 @@ class ApiService {
     String review,
     String interactionType,
   ) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/users/review/add'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'userId': userId,
-        'rating': rating,
-        'review': review,
-        'interactionType': interactionType, // "chat", "voice", or "video"
-      }),
-    );
-    print('Submit rating response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/users/review/add'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'userId': userId,
+            'rating': rating,
+            'review': review,
+            'interactionType': interactionType, // "chat", "voice", or "video"
+          }),
+        ));
   }
 
   static Future<http.Response> getSentFriendRequests() async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
     final userId = await SharedPrefs.getUserIdSharedPreference();
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/friend/requests/sent/$userId'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    print(
-        "Sent Friend REQUESTS are here ---------------------------\n \n\n\n\n HERE" +
-            response.body);
-    return response;
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/friend/requests/sent/$userId'),
+          headers: {'Authorization': 'Bearer $token'},
+        ));
   }
 
   static Future<http.Response> getFriendList() async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
     final userId = await SharedPrefs.getUserIdSharedPreference();
     print("userid: $userId");
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/friend/list/$userId'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/friend/list/$userId'),
+          headers: {'Authorization': 'Bearer $token'},
+        ));
   }
 
   static Future<http.Response> acceptFriendRequest(String requestId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.put(
-      Uri.parse('$baseUrl/friend/requests/accept/$requestId'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.put(
+          Uri.parse('$baseUrl/friend/requests/accept/$requestId'),
+          headers: {'Authorization': 'Bearer $token'},
+        ));
   }
 
   static Future<http.Response> declineFriendRequest(String requestId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    // final response = await http.put(
-    final response = await http.delete(
-      // Uri.parse('$baseUrl/friend/requests/reject/$requestId'),
-      Uri.parse('$baseUrl/friend/requests/delete/$requestId'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.delete(
+          Uri.parse('$baseUrl/friend/requests/delete/$requestId'),
+          headers: {'Authorization': 'Bearer $token'},
+        ));
   }
 
   static Future<http.Response> removeFriend(
       String userId, String friendId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.delete(
-      Uri.parse('$baseUrl/friend/remove/$userId/$friendId'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.delete(
+          Uri.parse('$baseUrl/friend/remove/$userId/$friendId'),
+          headers: {'Authorization': 'Bearer $token'},
+        ));
   }
 
   static Future<http.Response> deleteSentRequest(String requestId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.delete(
-      Uri.parse('$baseUrl/friend/requests/delete/$requestId'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    print('Delete response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.delete(
+          Uri.parse('$baseUrl/friend/requests/delete/$requestId'),
+          headers: {'Authorization': 'Bearer $token'},
+        ));
   }
 
   Future<Chatroom> createOrGetChatRoom(
       String userId, String participantId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/chat-room'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token'
-      },
-      body: jsonEncode({'userId': userId, 'participantId': participantId}),
-    );
+    final response = await authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/chat-room'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token'
+          },
+          body: jsonEncode({'userId': userId, 'participantId': participantId}),
+        ));
+
     print(response.body);
 
     if (response.statusCode == 200) {
@@ -219,15 +260,16 @@ class ApiService {
   }
 
   Future<List<Message>> getAllMsgsOfChatRoom(String chatRoomId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/chat-room/$chatRoomId/messages'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token'
-      },
-    );
+    final response = await authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/chat-room/$chatRoomId/messages'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token'
+          },
+        ));
+
     if (response.statusCode == 200) {
       List<dynamic> messagesJson =
           jsonDecode(response.body)['data']['messages'];
@@ -239,20 +281,20 @@ class ApiService {
 
   Future<void> sendMessage(
       String senderId, String chatRoomId, String text) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/chat-room/message/send'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token'
-      },
-      body: jsonEncode({
-        'senderId': senderId,
-        'chatRoomId': chatRoomId,
-        'text': text,
-      }),
-    );
+    final response = await authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/chat-room/message/send'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token'
+          },
+          body: jsonEncode({
+            'senderId': senderId,
+            'chatRoomId': chatRoomId,
+            'text': text,
+          }),
+        ));
 
     if (response.statusCode != 200) {
       throw Exception('Failed to send message');
@@ -260,126 +302,108 @@ class ApiService {
   }
 
   static Future<http.Response> fetchDatingFeed() async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/users/feed'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    print("feed");
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/users/feed'),
+          headers: {'Authorization': 'Bearer $token'},
+        ));
   }
 
   static Future<http.Response> fetchUSerWallet() async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
     final userId = await SharedPrefs.getUserIdSharedPreference();
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/users/wallet/$userId'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    print("feed");
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/users/wallet/$userId'),
+          headers: {'Authorization': 'Bearer $token'},
+        ));
   }
 
   static Future<http.Response> makePayment(double amount) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
     final userId = await SharedPrefs.getUserIdSharedPreference();
 
-    final response = await http.post(
-      Uri.parse(
-          '$baseUrl/payments/create'), // Update the endpoint as per your API
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({'amount': amount}), // Pass the amount in the body
-    );
-
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.post(
+          Uri.parse(
+              '$baseUrl/payments/create'), // Update the endpoint as per your API
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'amount': amount}), // Pass the amount in the body
+        ));
   }
 
   static Future<http.Response> addMoneyToWallet(
       double amount, String paymentId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
     final userId = await SharedPrefs.getUserIdSharedPreference();
 
-    final response = await http.put(
-      Uri.parse(
-          '$baseUrl/users/wallet/add/$userId'), // Update the endpoint as per your API
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'paymentId': paymentId,
-        'amount': amount
-      }), // Pass the amount in the body
-    );
-
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.put(
+          Uri.parse(
+              '$baseUrl/users/wallet/add/$userId'), // Update the endpoint as per your API
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'paymentId': paymentId,
+            'amount': amount
+          }), // Pass the amount in the body
+        ));
   }
 
   static Future<http.Response> deductMoneyToWallet(double amount) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
     final userId = await SharedPrefs.getUserIdSharedPreference();
 
-    final response = await http.put(
-      Uri.parse(
-          '$baseUrl/users/wallet/deduct/$userId'), // Update the endpoint as per your API
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({'amount': amount}), // Pass the amount in the body
-    );
-
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.put(
+          Uri.parse(
+              '$baseUrl/users/wallet/deduct/$userId'), // Update the endpoint as per your API
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'amount': amount}), // Pass the amount in the body
+        ));
   }
 
   static Future<http.Response> addMoneyToReceiverWallet(
       double amount, String receiverId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
-    // final userId = await SharedPrefs.getUserIdSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.put(
-      Uri.parse(
-          '$baseUrl/users/wallet/give/$receiverId'), // Update the endpoint as per your API
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({'amount': amount}), // Pass the amount in the body
-    );
-
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.put(
+          Uri.parse(
+              '$baseUrl/users/wallet/give/$receiverId'), // Update the endpoint as per your API
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'amount': amount}), // Pass the amount in the body
+        ));
   }
 
   static Future<http.Response> updateFCMToken(String fcmToken) async {
-    String? token = await SharedPrefs.getUserTokenSharedPreference();
+    String? token = await SharedPrefs.getAccessToken();
     try {
       print("$baseUrl/users/device-token/update");
       Map<String, dynamic> data = {
         "fcmToken": fcmToken,
       };
       print(data);
-      final response = await http.put(
-          Uri.parse(
-            "$baseUrl/users/device-token/update",
-          ),
-          body: jsonEncode(data),
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            'Authorization': 'Bearer $token',
-          });
+      final response = await authenticatedRequest(() => http.put(
+            Uri.parse(
+              "$baseUrl/users/device-token/update",
+            ),
+            body: jsonEncode(data),
+            headers: {
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+              'Authorization': 'Bearer $token',
+            },
+          ));
 
       print(response.body);
       return response;
@@ -390,7 +414,7 @@ class ApiService {
 
   static Future<http.Response> initiateCall(
       String participantId, String type, DateTime scheduleTime) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
     final userId = await SharedPrefs.getUserIdSharedPreference();
     Map<String, dynamic> data = {
       "userId": userId,
@@ -400,22 +424,20 @@ class ApiService {
     };
 
     print(data);
-    final response = await http.post(
-      Uri.parse('$baseUrl/meeting/create'),
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode(data),
-    );
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/meeting/create'),
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(data),
+        ));
   }
 
   static Future<http.Response> createMeeting(
       String participantId, String type, DateTime scheduleTime) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
     final userId = await SharedPrefs.getUserIdSharedPreference();
     Map<String, dynamic> data = {
       "userId": userId,
@@ -425,33 +447,30 @@ class ApiService {
     };
 
     print(data);
-    final response = await http.post(
-      Uri.parse('$baseUrl/meeting/create-meeting'),
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode(data),
-    );
-    print(response.body);
-    return response;
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/meeting/create-meeting'),
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(data),
+        ));
   }
 
   static Future<http.Response> getUserMeetings(String userId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/meeting/$userId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-    return response;
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/meeting/$userId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
   }
 
   static Future<http.Response> getUserInstaTalks(String userId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
     final Duration timeout = Duration(seconds: 15);
     int retryCount = 0;
     const maxRetries = 2;
@@ -463,13 +482,13 @@ class ApiService {
         print('🌐 [API] Using URL: $url');
         print('🌐 [API] Token available: ${token != null}');
 
-        final response = await http.get(
-          Uri.parse(url),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Accept': 'application/json',
-          },
-        ).timeout(timeout);
+        final response = await authenticatedRequest(() => http.get(
+              Uri.parse(url),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Accept': 'application/json',
+              },
+            ));
 
         print('🌐 [API] Response received - Status: ${response.statusCode}');
         print('🌐 [API] Response body: ${response.body}');
@@ -496,32 +515,24 @@ class ApiService {
   }
 
   static Future<http.Response> sendOtp(String email) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/send-otp'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email}),
-    );
-    print("OTP Response: ${response.body}");
-    return response;
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/auth/send-otp'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'email': email}),
+        ));
   }
 
   static Future<http.Response> getUserById(String userId) async {
     try {
-      final token = await SharedPrefs.getUserTokenSharedPreference();
+      final token = await SharedPrefs.getAccessToken();
       print('Fetching user profile for ID: $userId');
 
-      // Add timeout to the request
-      final response = await http.get(
-        Uri.parse('$baseUrl/users/profile/$userId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('Connection timed out');
-        },
-      );
+      final response = await authenticatedRequest(() => http.get(
+            Uri.parse('$baseUrl/users/profile/$userId'),
+            headers: {
+              'Authorization': 'Bearer $token',
+            },
+          ));
 
       print('User profile response status: ${response.statusCode}');
       print('User profile response body: ${response.body}');
@@ -533,92 +544,80 @@ class ApiService {
   }
 
   static Future<http.Response> addToWishlist(String userId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/users/wishlist/add'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({'userId': userId}),
-    );
-    print('Add to wishlist response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/users/wishlist/add'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'userId': userId}),
+        ));
   }
 
   static Future<http.Response> removeFromWishlist(String userId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.delete(
-      Uri.parse('$baseUrl/users/wishlist/remove/$userId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-    print('Remove from wishlist response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.delete(
+          Uri.parse('$baseUrl/users/wishlist/remove/$userId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
   }
 
   static Future<http.Response> getWishlist() async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/users/wishlist'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-    print('Get wishlist response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/users/wishlist'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
   }
 
   static Future<http.Response> updateProfile(Map<String, dynamic> data) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.put(
-      Uri.parse('$baseUrl/users/update'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode(data),
-    );
-    print('Update profile response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.put(
+          Uri.parse('$baseUrl/users/update'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(data),
+        ));
   }
 
   // Live streaming endpoints
   static Future<http.Response> startLiveStream(
       {String title = 'Live Stream', String description = ''}) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/live-stream/start'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'title': title,
-        'description': description,
-      }),
-    );
-    print('Start live stream response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/live-stream/start'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'title': title,
+            'description': description,
+          }),
+        ));
   }
 
   static Future<http.Response> endLiveStream(String liveStreamId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.put(
-      Uri.parse('$baseUrl/live-stream/end/$liveStreamId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-    print('End live stream response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.put(
+          Uri.parse('$baseUrl/live-stream/end/$liveStreamId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
   }
 
   static Future<http.Response> getActiveLiveStreams({
@@ -626,19 +625,14 @@ class ApiService {
     int limit = 10,
   }) async {
     try {
-      final token = await SharedPrefs.getUserTokenSharedPreference();
-      final response = await http.get(
-        Uri.parse('$baseUrl/live-stream/active?page=$page&limit=$limit'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('Failed to load live streams');
-        },
-      );
+      final token = await SharedPrefs.getAccessToken();
+      final response = await authenticatedRequest(() => http.get(
+            Uri.parse('$baseUrl/live-stream/active?page=$page&limit=$limit'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+          ));
 
       print('Get active live streams response: ${response.body}');
       return response;
@@ -649,84 +643,74 @@ class ApiService {
   }
 
   static Future<http.Response> joinLiveStream(String liveStreamId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/live-stream/join/$liveStreamId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-    print('Join live stream response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/live-stream/join/$liveStreamId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
   }
 
   static Future<http.Response> leaveLiveStream(String liveStreamId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/live-stream/leave/$liveStreamId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-    print('Leave live stream response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/live-stream/leave/$liveStreamId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
   }
 
   static Future<http.Response> subscribeToCreator(
       String creatorId, String paymentId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/live-stream/subscribe/$creatorId'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'paymentId': paymentId,
-      }),
-    );
-    print('Subscribe to creator response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/live-stream/subscribe/$creatorId'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'paymentId': paymentId,
+          }),
+        ));
   }
 
   static Future<http.Response> getUserActiveLiveStream(String userId) async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/live-stream/user/$userId'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-    print('Get user active live stream response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/live-stream/user/$userId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
   }
 
   static Future<http.Response> getUserSubscriptions() async {
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/live-stream/subscriptions'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
-    print('Get user subscriptions response: ${response.body}');
-    return response;
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/live-stream/subscriptions'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
   }
 
   static Future<bool> checkIsFriend(String otherUserId) async {
     try {
-      final token = await SharedPrefs.getUserTokenSharedPreference();
+      final token = await SharedPrefs.getAccessToken();
       final userId = await SharedPrefs.getUserIdSharedPreference();
 
-      final response = await http.get(
-        Uri.parse('$baseUrl/friend/check-status/$userId/$otherUserId'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response = await authenticatedRequest(() => http.get(
+            Uri.parse('$baseUrl/friend/check-status/$userId/$otherUserId'),
+            headers: {'Authorization': 'Bearer $token'},
+          ));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -744,7 +728,7 @@ class ApiService {
       String participantId, String type) async {
     final url = Uri.parse('$baseUrl/insta-talk/create-meeting');
     final userId = await SharedPrefs.getUserIdSharedPreference();
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
     final body = {
       'userId': userId,
@@ -755,33 +739,33 @@ class ApiService {
 
     print('Creating InstaTalk: $body');
 
-    return http.post(
-      url,
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        'Authorization': 'Bearer $token',
-      },
-      body: json.encode(body),
-    );
+    return authenticatedRequest(() => http.post(
+          url,
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            'Authorization': 'Bearer $token',
+          },
+          body: json.encode(body),
+        ));
   }
 
   static Future<http.Response> acceptInstaTalk(
       String meetingId, String userId) async {
     final url = Uri.parse('$baseUrl/insta-talk/$meetingId/accept');
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    return http.put(
-      url,
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        'Authorization': 'Bearer $token',
-      },
-      body: json.encode({
-        'userId': userId,
-      }),
-    );
+    return authenticatedRequest(() => http.put(
+          url,
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            'Authorization': 'Bearer $token',
+          },
+          body: json.encode({
+            'userId': userId,
+          }),
+        ));
   }
 
   static Future<http.Response> updateInstaTalkTimeUsage({
@@ -790,21 +774,21 @@ class ApiService {
     required bool isUserOne,
   }) async {
     try {
-      final token = await SharedPrefs.getUserTokenSharedPreference();
+      final token = await SharedPrefs.getAccessToken();
       final String fieldToUpdate =
           isUserOne ? 'userOneTimeUsed' : 'userTwoTimeUsed';
 
       print(
           'Updating InstaTalk time usage: ${meetingId} - Field: ${fieldToUpdate}');
 
-      final response = await http.patch(
-        Uri.parse('$baseUrl/insta-talk/$meetingId/time-usage'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'userId': userId, 'field': fieldToUpdate}),
-      );
+      final response = await authenticatedRequest(() => http.patch(
+            Uri.parse('$baseUrl/insta-talk/$meetingId/time-usage'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'userId': userId, 'field': fieldToUpdate}),
+          ));
 
       print('Update response: ${response.statusCode} - ${response.body}');
       return response;
@@ -817,35 +801,35 @@ class ApiService {
   static Future<http.Response> checkInstaTalkStatus(
       String participantId) async {
     final userId = await SharedPrefs.getUserIdSharedPreference();
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
     final url = Uri.parse(
         '$baseUrl/insta-talk/check-status?userId=$userId&participantId=$participantId');
 
-    return http.get(
-      url,
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        'Authorization': 'Bearer $token',
-      },
-    );
+    return authenticatedRequest(() => http.get(
+          url,
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            'Authorization': 'Bearer $token',
+          },
+        ));
   }
 
   static Future<http.Response> declineInstaTalk(
       String meetingId, String userId) async {
     final url = Uri.parse('$baseUrl/insta-talk/$meetingId/decline');
-    final token = await SharedPrefs.getUserTokenSharedPreference();
+    final token = await SharedPrefs.getAccessToken();
 
-    return http.put(
-      url,
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        'Authorization': 'Bearer $token',
-      },
-      body: json.encode({
-        'userId': userId,
-      }),
-    );
+    return authenticatedRequest(() => http.put(
+          url,
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            'Authorization': 'Bearer $token',
+          },
+          body: json.encode({
+            'userId': userId,
+          }),
+        ));
   }
 }

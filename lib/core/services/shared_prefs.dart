@@ -40,6 +40,14 @@ class SharedPrefs {
     return prefs.setStringList(instaTalkHistoryKey, userIds);
   }
 
+  static Future<bool> saveTokens(
+      String accessToken, String refreshToken) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userAccessToken', accessToken);
+    await prefs.setString('userRefreshToken', refreshToken);
+    return true;
+  }
+
   ///getting data from shared preferences (Local Storage)
   static Future<String?> getUsernameSharedPreference() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -69,6 +77,16 @@ class SharedPrefs {
   static Future<List<String>> getInstaTalkHistory() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getStringList(instaTalkHistoryKey) ?? [];
+  }
+
+  static Future<String?> getAccessToken() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userAccessToken');
+  }
+
+  static Future<String?> getRefreshToken() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userRefreshToken');
   }
 
   /// Clearing all data from shared preferences (Local Storage)
