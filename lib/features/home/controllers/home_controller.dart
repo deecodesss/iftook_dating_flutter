@@ -127,12 +127,19 @@ class HomeController extends GetxController {
     }
   }
 
-  Future<bool> updateInstaTalkTimeUsage(String meetingId, bool timeUsed) async {
+  Future<bool> updateInstaTalkTimeUsage({
+    required String meetingId,
+    required bool isUserOne, // true for sender, false for receiver
+  }) async {
     try {
       final userId = await SharedPrefs.getUserIdSharedPreference();
+      if (userId == null) return false;
 
       final response = await ApiService.updateInstaTalkTimeUsage(
-          meetingId: meetingId, userId: userId!, isUserOne: timeUsed);
+        meetingId: meetingId,
+        userId: userId,
+        isUserOne: isUserOne,
+      );
 
       if (response.statusCode == 200) {
         print('InstaTalk time usage updated successfully');
