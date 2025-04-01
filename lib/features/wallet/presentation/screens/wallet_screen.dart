@@ -7,6 +7,7 @@ import 'dart:convert';
 
 import '../../../../core/services/api_service.dart';
 import '../../../../features/profile/data/models/user.dart';
+import '../../../../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../../controllers/wallet_controller.dart';
 
 class WalletScreen extends StatefulWidget {
@@ -127,7 +128,9 @@ class _WalletScreenState extends State<WalletScreen>
             TextButton(
               onPressed: () {
                 Get.back();
-                Get.toNamed('/edit-profile');
+                Get.to(
+                  () => const EditProfileScreen(),
+                );
               },
               child: const Text('Update Profile',
                   style: TextStyle(color: Colors.blue)),
@@ -138,8 +141,21 @@ class _WalletScreenState extends State<WalletScreen>
     }
   }
 
-  void _showTransferDialog() {
+  void _showTransferDialog() async {
     final amountController = TextEditingController();
+    final response = await ApiService.fetchMyProfile();
+    final userData = jsonDecode(response.body);
+    final bankDetails = userData['user']['bankDetails'];
+
+    if (bankDetails == null) {
+      Get.snackbar(
+        'Error',
+        'Please add bank details in your profile first',
+        backgroundColor: Colors.redAccent,
+        colorText: Colors.white,
+      );
+      return;
+    }
 
     Get.dialog(
       AlertDialog(
@@ -152,6 +168,11 @@ class _WalletScreenState extends State<WalletScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              'Bank: ${bankDetails['bankName']}\nAccount: ${bankDetails['accountNumber']}',
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
             TextField(
               controller: amountController,
               keyboardType: TextInputType.number,
@@ -178,7 +199,7 @@ class _WalletScreenState extends State<WalletScreen>
                 const Text('Cancel', style: TextStyle(color: Colors.redAccent)),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               final amount = double.tryParse(amountController.text);
               if (amount == null || amount <= 0) {
                 Get.snackbar(
@@ -200,9 +221,44 @@ class _WalletScreenState extends State<WalletScreen>
                 return;
               }
 
-              // Process transfer
-              walletController.transferToBank(amount);
-              Get.back();
+              // Create transfer request data
+              final transferData = {
+                'bankName': bankDetails['bankName'],
+                'accountNo': bankDetails['accountNumber'],
+                'ifsc': bankDetails['ifscCode'],
+                'accountHolderName': bankDetails['accountHolderName'],
+                'accountType': bankDetails['accountType'] ?? 'Savings',
+                'amount': amount,
+                'txnMode': 'IMPS',
+                'remarks': 'Wallet withdrawal'
+              };
+
+              try {
+                Get.back(); // Close dialog
+                Get.dialog(
+                  const Center(child: CircularProgressIndicator()),
+                  barrierDismissible: false,
+                );
+
+                await walletController.transferToBank(transferData);
+                Get.back(); // Close loading dialog
+
+                Get.snackbar(
+                  'Transfer Initiated',
+                  'Your transfer request has been initiated. You will be notified once completed.',
+                  backgroundColor: Colors.green,
+                  colorText: Colors.white,
+                  duration: const Duration(seconds: 5),
+                );
+              } catch (e) {
+                Get.back(); // Close loading dialog
+                Get.snackbar(
+                  'Error',
+                  'Transfer failed: ${e.toString()}',
+                  backgroundColor: Colors.redAccent,
+                  colorText: Colors.white,
+                );
+              }
             },
             child: const Text('Transfer',
                 style: TextStyle(color: Colors.greenAccent)),
@@ -214,7 +270,11 @@ class _WalletScreenState extends State<WalletScreen>
 
   List<Map<String, dynamic>> getFilteredTransactions() {
     if (_tabController.index == 0) {
-      return walletController.transactions; // All
+      return walletController.transactions
+          .where((tx) =>
+              tx['paymentType'] != 'refund' &&
+              tx['paymentType'] == 'wallet_deposit')
+          .toList(); // Wallet add
     } else if (_tabController.index == 1) {
       return walletController.transactions
           .where((tx) => tx['paymentType'] != 'refund')

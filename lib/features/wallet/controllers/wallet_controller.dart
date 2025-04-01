@@ -5,6 +5,7 @@ import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/core/widgets/webview_screen.dart';
 import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
+import 'dart:async';
 
 class WalletController extends GetxController {
   var balance = 0.0.obs;
@@ -98,40 +99,41 @@ class WalletController extends GetxController {
     }
   }
 
-  Future<void> transferToBank(double amount) async {
+  Future<void> transferToBank(Map<String, dynamic> bankDetails) async {
     try {
       isLoading.value = true;
 
-      // Implement API call to transfer money to bank
-      // For example:
-      // final response = await ApiService.transferToBank(amount);
+      final response = await ApiService.transferToBank(bankDetails);
+      final data = jsonDecode(response.body);
 
-      // For demonstration, we'll just update the balance
-      final newBalance = balance.value - amount;
-      balance.value = newBalance;
+      if (response.statusCode == 200) {
+        String orderId = data['data']['dataContent']['OrderId'];
 
-      // Add a transaction record for this transfer
-      final transferTx = {
-        '_id': DateTime.now().millisecondsSinceEpoch.toString(),
-        'amount': amount,
-        'paymentType': 'bankTransfer',
-        'paymentDate': DateTime.now().toIso8601String(),
-        'status': 'completed'
-      };
+        // Start checking transfer status
+        Timer.periodic(const Duration(seconds: 30), (timer) async {
+          final statusResponse = await ApiService.checkTransferStatus(orderId);
+          final statusData = jsonDecode(statusResponse.body);
 
-      transactions.insert(0, transferTx);
-
-      Get.snackbar(
-        'Success',
-        'Transfer request submitted successfully. It may take 2-3 business days to reflect in your account.',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 5),
-      );
+          if (statusData['data']['dataContent'][0]['Status'] != 'PENDING') {
+            timer.cancel();
+            if (statusData['data']['dataContent'][0]['Status'] == 'SUCCESS') {
+              await fetchWalletData();
+              Get.snackbar(
+                'Success',
+                'Money transferred successfully!',
+                backgroundColor: Colors.green,
+                colorText: Colors.white,
+              );
+            }
+          }
+        });
+      } else {
+        throw Exception(data['message']);
+      }
     } catch (e) {
       Get.snackbar(
         'Error',
-        'Failed to process transfer: ${e.toString()}',
+        'Transfer failed: ${e.toString()}',
         backgroundColor: Colors.redAccent,
         colorText: Colors.white,
       );

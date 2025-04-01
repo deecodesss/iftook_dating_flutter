@@ -12,6 +12,7 @@ import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
 import 'package:iftook/features/home/data/enums/meeting_type.dart';
 import 'package:iftook/features/home/presentation/screens/schedule_meeting_screen.dart';
+import 'package:iftook/features/friends/data/chatroom.dart';
 
 import '../../../../core/services/api_service.dart';
 import '../../controllers/chat_controller.dart';
@@ -19,15 +20,17 @@ import '../../controllers/chat_controller.dart';
 class ChatRoomScreen extends StatefulWidget {
   final User profile;
   final bool isTrial;
-  final bool isInstaTalk; // Add this field
-  final int instaTalkDuration; // Add this field - duration in seconds
+  final bool isInstaTalk;
+  final int instaTalkDuration;
+  final String? existingChatRoomId; // Add this parameter
 
   const ChatRoomScreen({
     super.key,
     required this.profile,
     this.isTrial = false,
-    this.isInstaTalk = false, // Default to regular chat
-    this.instaTalkDuration = 30, // Default 30 seconds
+    this.isInstaTalk = false,
+    this.instaTalkDuration = 30,
+    this.existingChatRoomId, // Add this parameter
   });
 
   @override
@@ -38,13 +41,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
 
-  // final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   final ChatController _chatController = Get.put(ChatController());
   String? currentUserId;
   static const double MESSAGE_FEE = 10; // Static fee per message in dollars
 
-  // Add timer variables for Insta Talk
   Timer? _instaTimer;
   int _remainingSeconds = 0;
   bool _instaTalkExpired = false;
@@ -57,7 +58,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _focusNode.addListener(_onFocusChange);
     _chatController.messages.listen((_) => _chatController.scrollToBottom());
 
-    // Initialize Insta Talk timer if needed
     if (widget.isInstaTalk) {
       _remainingSeconds = widget.instaTalkDuration;
       _startInstaTimer();
@@ -74,10 +74,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Future<void> _initializeChatRoom() async {
     currentUserId = await SharedPrefs.getUserIdSharedPreference();
     if (currentUserId != null) {
-      await _chatController.openChatRoom(
-          currentUserId.toString(), widget.profile.sId.toString());
-    } else {
-      // Get.snackbar('Error', 'User ID not found');
+      if (widget.existingChatRoomId != null) {
+        // _chatController.chatRoom.value = Chatroom(
+        //   sId: widget.existingChatRoomId,
+        //   participants: [currentUserId, widget.profile.sId],
+        // );
+        await _chatController.fetchMessages();
+        _chatController.startPolling();
+      } else {
+        await _chatController.openChatRoom(
+          currentUserId.toString(),
+          widget.profile.sId.toString(),
+        );
+      }
     }
   }
 
@@ -136,7 +145,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              Get.back(); // Return to previous screen
+              Get.back();
             },
             child: const Text('End Chat'),
           ),
@@ -147,7 +156,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             ),
             onPressed: () {
               Navigator.pop(context);
-              // Continue with paid chat
               _purchaseChat();
             },
             child: const Text('Continue'),
@@ -160,7 +168,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   void _purchaseChat() {
     final chatRate = widget.profile.earnings?.chatRate ?? 150.0;
 
-    // Verify wallet balance
     if (_chatController.userWalletBalance < chatRate) {
       Get.snackbar(
         'Insufficient Balance',
@@ -176,20 +183,17 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       return;
     }
 
-    // Show loading indicator
     Get.dialog(
       const Center(child: CircularProgressIndicator()),
       barrierDismissible: false,
     );
 
-    // Process payment
     _chatController
         .purchaseChatSession(widget.profile.sId.toString(), chatRate)
         .then((success) {
-      Get.back(); // Close loading dialog
+      Get.back();
 
       if (success) {
-        // Mark as purchased and continue chat
         setState(() {
           _instaTalkExpired = false;
         });
@@ -201,7 +205,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           colorText: Colors.white,
         );
       } else {
-        // Show error
         Get.snackbar(
           'Error',
           'Failed to purchase chat session. Please try again.',
@@ -221,7 +224,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
 
-    // Show rating dialog when leaving chat
     if (!widget.isTrial) {
       _showRatingDialog();
     }
@@ -229,9 +231,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     super.dispose();
   }
 
-  // Add this new method to show the rating dialog
   void _showRatingDialog() {
-    // Add a slight delay to ensure the previous screen is dismissed
     Future.delayed(const Duration(milliseconds: 300), () {
       Get.dialog(
         Dialog(
@@ -249,7 +249,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     });
   }
 
-  // Show payment popup for sending money
   Future<void> _showSendMoneyDialog() async {
     _amountController.clear();
     return showDialog(
@@ -350,7 +349,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         "Sent ₹${amount.toStringAsFixed(2)}");
   }
 
-  // Show payment required popup for sending message
   Future<bool> _showPaymentRequiredDialog() async {
     return await showDialog<bool>(
           context: context,
@@ -390,7 +388,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   void _showUnfriendDialog() {
-    // Hide keyboard if showing
     FocusScope.of(context).unfocus();
 
     showDialog(
@@ -424,19 +421,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     ? null
                     : () async {
                         try {
-                          // Set loading state
                           setState(() => isLoading = true);
 
-                          // Use the controller instead of direct API call
                           final success = await _chatController.unfriend(
                               currentUserId.toString(),
                               widget.profile.sId.toString());
 
                           if (success) {
-                            // Close dialog
                             Navigator.pop(context);
 
-                            // Show success message
                             Get.snackbar(
                               'Success',
                               '${widget.profile.name} has been unfriended',
@@ -444,10 +437,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                               colorText: Colors.white,
                             );
 
-                            // Close chat screen and return to previous screen
                             Navigator.pop(context);
                           } else {
-                            // Show error message
                             Navigator.pop(context);
                             Get.snackbar(
                               'Error',
@@ -457,7 +448,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                             );
                           }
                         } catch (e) {
-                          // Show error message
                           Navigator.pop(context);
                           Get.snackbar(
                             'Error',
@@ -489,7 +479,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   void _showMoreOptions() {
-    // Hide keyboard if showing
     FocusScope.of(context).unfocus();
 
     showModalBottomSheet(
@@ -556,7 +545,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        // color: AppColors.primaryBackground,
         borderRadius: BorderRadius.circular(15),
       ),
       child: IconButton(
@@ -683,7 +671,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              // Fix the Insta Talk timer to avoid layout issues
               if (widget.isInstaTalk && !_instaTalkExpired)
                 Container(
                   padding:
@@ -704,7 +691,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       ),
                       const SizedBox(width: 8),
                       SizedBox(
-                        width: 100, // Fixed width for progress indicator
+                        width: 100,
                         child: LinearProgressIndicator(
                           value: _remainingSeconds / widget.instaTalkDuration,
                           backgroundColor: Colors.grey[800],
@@ -715,8 +702,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     ],
                   ),
                 ),
-
-              // Expired trial notification with fixed layout
               if (widget.isInstaTalk && _instaTalkExpired)
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -742,8 +727,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     ],
                   ),
                 ),
-
-              // Action buttons with proper constraints
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 color: AppColors.secondaryBackground,
@@ -752,8 +735,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   children: [],
                 ),
               ),
-
-              // Message list with Expanded to take available space
               Expanded(
                 child: Obx(() {
                   if (_chatController.isLoading.value) {
@@ -769,8 +750,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   }
                 }),
               ),
-
-              // Input area with fixed constraints
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 decoration: const BoxDecoration(
@@ -813,8 +792,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        width: 40, // Fixed width
-                        height: 40, // Fixed height
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
                           color: (widget.isInstaTalk && _instaTalkExpired)
                               ? Colors.grey
@@ -822,7 +801,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          iconSize: 20, // Fixed icon size
+                          iconSize: 20,
                           padding: EdgeInsets.zero,
                           icon: const Icon(Icons.send, color: Colors.white),
                           onPressed: (widget.isInstaTalk && _instaTalkExpired)
@@ -832,14 +811,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        width: 40, // Fixed width
-                        height: 40, // Fixed height
+                        width: 40,
+                        height: 40,
                         decoration: const BoxDecoration(
                           color: Colors.green,
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          iconSize: 20, // Fixed icon size
+                          iconSize: 20,
                           padding: EdgeInsets.zero,
                           icon: const Icon(Icons.currency_rupee,
                               color: Colors.white),
@@ -857,7 +836,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     );
   }
 
-  // Modified to send the message and avoid recreating this function in the build method
   void _sendMessage() {
     if (_messageController.text.isEmpty) return;
 
@@ -867,13 +845,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       _messageController.text,
     );
     _messageController.clear();
-    FocusScope.of(context).unfocus(); // Close the keyboard
+    FocusScope.of(context).unfocus();
   }
 
   Widget _buildMessageBubble(Message message) {
     bool isSentByMe = message.senderId!.sId.toString() == currentUserId;
 
-    // Format the createdAt timestamp
     String formattedTime = DateFormat('hh:mm a')
         .format(DateTime.parse(message.createdAt.toString()).toLocal());
 
@@ -889,8 +866,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 widget.profile.photos!.isNotEmpty)
               ClipOval(
                 child: SizedBox(
-                  width: 40, // Smaller size to avoid layout issues
-                  height: 40, // Smaller size to avoid layout issues
+                  width: 40,
+                  height: 40,
                   child: CachedNetworkImage(
                     imageUrl: widget.profile.photos![0],
                     placeholder: (context, url) => const SizedBox(

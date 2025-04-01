@@ -5,8 +5,8 @@ class Constants {
 
   // Socket.io server URL for real-time communication
   // Make sure this exactly matches your backend deployment URL
-  static const String socketUrl = 'http://localhost:3000';
-  // static const String socketUrl = 'https://iftookbackendcopy.vercel.app';
+  // static const String socketUrl = 'http://localhost:3000';
+  static const String socketUrl = 'https://iftookbackendcopy.vercel.app';
 
   // API base URL
   // static const String apiBaseUrl = 'http://localhost:3000/api';

@@ -64,6 +64,39 @@ Future<void> handleNotificationClick(RemoteMessage message) async {
       return;
     }
 
+    // Handle chat notifications
+    if (message.data['type'] == 'chat') {
+      final String? chatRoomId = message.data['chatRoomId'];
+      final String? senderId = message.data['senderId'];
+      final String? senderName = message.data['senderName'];
+      final String? senderPhoto = message.data['senderPhoto'];
+
+      if (chatRoomId != null && senderId != null) {
+        debugPrint(
+            "Navigating to chat from notification. ChatRoom: $chatRoomId");
+
+        // Create a minimal User object from notification data
+        final userData = User(
+          sId: senderId,
+          name: senderName ?? 'User',
+          photos: senderPhoto != null ? [senderPhoto] : [],
+        );
+
+        // Give app a moment to initialize before navigating
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Navigate to chat screen with the sender's profile and chatRoomId
+        Get.to(
+          () => ChatRoomScreen(
+            profile: userData,
+            existingChatRoomId:
+                chatRoomId, // Add this parameter to ChatRoomScreen
+          ),
+        );
+        return;
+      }
+    }
+
     // Extract chat related data from notification
     final String? chatRoomId = message.data['chatRoomId'];
     final String? senderId = message.data['senderId'];

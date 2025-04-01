@@ -13,8 +13,8 @@ import '../../features/friends/data/message.dart';
 
 class ApiService {
   // static const String baseUrl = 'https://iftook-backend.vercel.app/api';
-  // static const String baseUrl = 'https://iftookbackendcopy.vercel.app/api';
-  static const String baseUrl = 'http://localhost:3000/api';
+  static const String baseUrl = 'https://iftookbackendcopy.vercel.app/api';
+  // static const String baseUrl = 'http://localhost:3000/api';
 
   static Future<bool> refreshToken() async {
     try {
@@ -830,6 +830,32 @@ class ApiService {
           body: json.encode({
             'userId': userId,
           }),
+        ));
+  }
+
+  static Future<http.Response> transferToBank(Map<String, dynamic> data) async {
+    final token = await SharedPrefs.getAccessToken();
+
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/payments/transfer-to-bank'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(data),
+        ));
+  }
+
+  static Future<http.Response> checkTransferStatus(String orderId) async {
+    final token = await SharedPrefs.getAccessToken();
+
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/payments/transfer-status'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'orderId': orderId}),
         ));
   }
 }

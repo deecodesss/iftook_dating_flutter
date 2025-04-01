@@ -39,6 +39,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   // Controllers - make these nullable and initialize them properly
   LiveController? _liveController;
   WalletController? _walletController;
+  late HomeController _homeController;
 
   // Static profile data with proper typing
   UserProfile profile = UserProfile(
@@ -89,6 +90,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       // If WalletController fails to initialize, create a new instance
       _walletController = WalletController();
       Get.put(_walletController!);
+    }
+
+    // HomeController initialization
+    try {
+      if (!Get.isRegistered<HomeController>()) {
+        Get.put(HomeController());
+      }
+      _homeController = Get.find<HomeController>();
+    } catch (e) {
+      print('Error initializing HomeController: $e');
+      _homeController = HomeController();
+      Get.put(_homeController);
     }
   }
 
@@ -828,71 +841,57 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           'Insta Talk',
           style: TextStyle(color: AppColors.primaryColor),
         ),
-        DropdownButton<String>(
-          value: _selectedTrialOption,
-          dropdownColor: const Color(0xFF1E1E1E),
-          style: const TextStyle(color: Colors.white),
-          items: ['Chat', 'Call', 'Video'].map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(value),
-            );
-          }).toList(),
-          onChanged: (String? newValue) {
-            setState(() => _selectedTrialOption = newValue!);
-            _startInstaTalk(_selectedTrialOption);
-          },
+        Obx(
+          () => _homeController.isInstaTalkLoading.value
+              ? SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primaryColor,
+                  ),
+                )
+              : DropdownButton<String>(
+                  value: _selectedTrialOption,
+                  dropdownColor: const Color(0xFF1E1E1E),
+                  style: const TextStyle(color: Colors.white),
+                  underline: Container(
+                    height: 1,
+                    color: Colors.grey[700],
+                  ),
+                  items: ['Chat', 'Call', 'Video'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    if (newValue != null &&
+                        !_homeController.isInstaTalkLoading.value) {
+                      setState(() => _selectedTrialOption = newValue);
+                      _startInstaTalk(newValue);
+                    }
+                  },
+                ),
         ),
       ],
     );
   }
 
-  void _startInstaTalk(String option) {
-    // Check if user is online
-    if (widget.profile.isOnline != true) {
-      Get.snackbar(
-        'User Offline',
-        '${widget.profile.name} is currently offline. Insta Talk requires the user to be online.',
-        backgroundColor: Colors.grey[800],
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-      );
-      return;
-    }
+  void _startInstaTalk(String option) async {
+    if (widget.profile.sId == null) return;
 
-    // Get HomeController to record Insta Talk usage
-    final homeController = Get.find<HomeController>();
-    // homeController.recordInstaTalkUsage(widget.profile.sId!);
-
-    // Direct navigation based on option type
+    // Get the InstaTalk type based on the selected option
+    String instaTalkType;
     switch (option.toLowerCase()) {
       case 'chat':
-        // Navigate directly to chat screen with insta flag
-        Get.to(() => ChatRoomScreen(
-              profile: widget.profile,
-              isInstaTalk: true,
-              instaTalkDuration: 30, // seconds
-            ));
+        instaTalkType = 'chat';
         break;
       case 'call':
-        // Navigate directly to voice call with insta flag
-        Get.to(() => VoiceCallLoadingScreen(
-              participant: widget.profile,
-              scheduleTime: DateTime.now(),
-              type: "voice",
-              isInstaTalk: true,
-              instaTalkDuration: 30, // seconds
-            ));
+        instaTalkType = 'voice';
         break;
       case 'video':
-        // Navigate directly to video call with insta flag
-        Get.to(() => VideoCallLoadingScreen(
-              participant: widget.profile,
-              scheduleTime: DateTime.now(),
-              type: "video",
-              isInstaTalk: true,
-              instaTalkDuration: 30, // seconds
-            ));
+        instaTalkType = 'video';
         break;
       default:
         Get.snackbar(
@@ -901,6 +900,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           backgroundColor: Colors.red,
           colorText: Colors.white,
         );
+        return;
     }
+
+    // Check if InstaTalk already exists or create a new one
+    final result = await _homeController.createInstaTalk(
+        widget.profile.sId!, instaTalkType);
+
+    // If creation failed, return early
+    if (result == null) return;
+
+    // If creation succeeded, show success message
+    Get.snackbar(
+      'InstaTalk Request Sent',
+      '${widget.profile.name} will need to accept your request',
+      backgroundColor: Colors.green.withOpacity(0.8),
+      colorText: Colors.white,
+      duration: const Duration(seconds: 3),
+    );
   }
 }
