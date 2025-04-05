@@ -8,13 +8,15 @@ import 'package:http/http.dart' as http;
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/friends/data/chatroom.dart';
 import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
+import 'package:iftook/helpers/app_constants.dart';
 
 import '../../features/friends/data/message.dart';
 
 class ApiService {
   // static const String baseUrl = 'https://iftook-backend.vercel.app/api';
-  static const String baseUrl = 'https://iftookbackendcopy.vercel.app/api';
+  // static const String baseUrl = 'https://iftookbackendcopy.vercel.app/api';
   // static const String baseUrl = 'http://localhost:3000/api';
+  static const String baseUrl = AppConstants.BASE_URL;
 
   static Future<bool> refreshToken() async {
     try {
@@ -29,11 +31,17 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+
+        // Save both new tokens
         await SharedPrefs.saveTokens(
           data['accessToken'],
-          data['refreshToken'],
+          data['refreshToken'], // Server should return new refresh token too
         );
         return true;
+      } else if (response.statusCode == 401) {
+        // If refresh token is invalid/expired, clear tokens and return false
+        await SharedPrefs.clearTokens();
+        return false;
       }
       return false;
     } catch (e) {
@@ -54,7 +62,8 @@ class ApiService {
           // Retry the original request with new token
           response = await requestFunction();
         } else {
-          // Handle failed refresh - redirect to login
+          // Clear all tokens and redirect to login
+          await SharedPrefs.clearUserSharedPreferences();
           Get.offAll(() => const LoginScreen());
           throw Exception('Session expired');
         }
@@ -145,37 +154,46 @@ class ApiService {
         ));
   }
 
-  static Future<http.Response> getRatings(String userId) async {
+  static Future<http.Response> getRatings(String creator) async {
     final token = await SharedPrefs.getAccessToken();
-    final userId = await SharedPrefs.getUserIdSharedPreference();
-    print("userid: $userId");
-
     return authenticatedRequest(() => http.get(
-          Uri.parse('$baseUrl/users/reviews/$userId'),
-          headers: {'Authorization': 'Bearer $token'},
+          Uri.parse('$baseUrl/ratings/$creator'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
         ));
   }
 
-  static Future<http.Response> submitRating(
+  static Future<http.Response> addRating(
     String userId,
-    double rating,
+    Map<String, double> ratings,
     String review,
-    String interactionType,
   ) async {
     final token = await SharedPrefs.getAccessToken();
+    final currentUserId = await SharedPrefs.getUserIdSharedPreference();
+
+    print('Adding rating for user: $userId by reviewer: $currentUserId');
+
+    final ratingData = {
+      'creator': userId, // Changed from userId to creator
+      'reviewer': currentUserId,
+      'politeness': ratings['Politeness'],
+      'communication': ratings['Communication'],
+      'professionalism': ratings['Professionalism'],
+      'punctuality': ratings['Punctuality'],
+      'review': review,
+    };
+
+    print('Sending rating data: $ratingData');
 
     return authenticatedRequest(() => http.post(
-          Uri.parse('$baseUrl/users/review/add'),
+          Uri.parse('$baseUrl/ratings/add'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $token',
           },
-          body: jsonEncode({
-            'userId': userId,
-            'rating': rating,
-            'review': review,
-            'interactionType': interactionType, // "chat", "voice", or "video"
-          }),
+          body: jsonEncode(ratingData),
         ));
   }
 

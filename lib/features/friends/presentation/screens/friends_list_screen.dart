@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
@@ -718,11 +719,11 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        title: const Text(
+        title: Text(
           'My List',
-          style: TextStyle(
-            color: Colors.white,
+          style: GoogleFonts.manrope(
             fontSize: 20,
+            color: Colors.white,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -735,12 +736,14 @@ class _FriendsListScreenState extends State<FriendsListScreen>
             dividerColor: Colors.transparent,
             labelColor: AppColors.primaryColor,
             unselectedLabelColor: Colors.white.withOpacity(0.6),
-            labelStyle: const TextStyle(
+            labelStyle: GoogleFonts.manrope(
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
             tabs: const [
-              Tab(text: 'My Wishlist'),
+              Tab(
+                text: 'My Wishlist',
+              ),
               Tab(text: 'My Friends'),
             ],
           ),

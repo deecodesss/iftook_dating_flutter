@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
 import 'package:iftook/features/home/presentation/screens/home_screen.dart';
@@ -44,7 +45,17 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _checkIsLoggedIn() async {
-    isLoggedIn = await SharedPrefs.getUserTokenSharedPreference() != null;
+    final accessToken = await SharedPrefs.getAccessToken();
+    final refreshToken = await SharedPrefs.getRefreshToken();
+
+    // Only consider logged out if both tokens are null
+    isLoggedIn = (accessToken != null || refreshToken != null);
+
+    if (isLoggedIn) {
+      // Try refreshing the token during splash screen
+      final refreshed = await ApiService.refreshToken();
+      isLoggedIn = refreshed; // Update login state based on refresh result
+    }
   }
 
   @override

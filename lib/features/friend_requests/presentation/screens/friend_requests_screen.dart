@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
@@ -93,9 +94,13 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     super.dispose();
   }
 
-  String _formatMeetingTime(DateTime meetingTime) {
-    final now = DateTime.now();
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
+  String _formatMeetingTime(DateTime meetingTimeUtc) {
+    // Convert to IST (UTC+5:30)
+    final meetingTime =
+        meetingTimeUtc.add(const Duration(hours: 5, minutes: 30));
+
+    final now = DateTime.now().add(const Duration(hours: 5, minutes: 30));
+    final tomorrow = now.add(const Duration(days: 1));
 
     if (now.difference(meetingTime).inMinutes <= 30 &&
         now.difference(meetingTime).inMinutes >= 0) {
@@ -407,6 +412,340 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     }
   }
 
+  void _handleInstaTalkJoin(Map<String, dynamic> meeting) async {
+    final participantData = meeting['participant'];
+    final type = meeting['type'];
+    final amount = (meeting['amount'] ?? 0).toDouble();
+
+    final participant = User(
+      sId: participantData['_id'],
+      name: participantData['name'],
+      photos: participantData['photos'] is List
+          ? List<String>.from(participantData['photos'])
+          : [],
+    );
+
+    try {
+      switch (type) {
+        case 'chat':
+          await Get.to(() => ChatRoomScreen(
+                profile: participant,
+                isInstaTalk: true,
+                instaTalkDuration: 30, // 30 seconds for InstaTalk
+                onSessionEnd: () =>
+                    _showContinueSessionDialog(participant, amount, type),
+              ));
+          break;
+
+        case 'voice':
+          await Get.to(() => VoiceCallLoadingScreen(
+                participant: participant,
+                scheduleTime: DateTime.now(),
+                type: "voice",
+                isInstaTalk: true,
+                instaTalkDuration: 30, // 30 seconds for InstaTalk
+                onSessionEnd: () =>
+                    _showContinueSessionDialog(participant, amount, type),
+              ));
+          break;
+
+        case 'video':
+          await Get.to(() => VideoCallLoadingScreen(
+                participant: participant,
+                scheduleTime: DateTime.now(),
+                type: "video",
+                isInstaTalk: true,
+                instaTalkDuration: 30, // 30 seconds for InstaTalk
+                onSessionEnd: () =>
+                    _showContinueSessionDialog(participant, amount, type),
+              ));
+          break;
+      }
+    } catch (e) {
+      print('Navigation error: $e');
+      // Handle any navigation errors here
+    }
+  }
+
+  void _handleMeetingJoin(Map<String, dynamic> meeting) async {
+    final participantData = meeting['participant'];
+    final type = meeting['type'];
+    final amount = (meeting['amount'] ?? 0).toDouble();
+
+    final participant = User(
+      sId: participantData['_id'],
+      name: participantData['name'],
+      photos: participantData['photos'] is List
+          ? List<String>.from(participantData['photos'])
+          : [],
+    );
+
+    try {
+      switch (type) {
+        case 'chat':
+          await Get.to(() => ChatRoomScreen(
+                profile: participant,
+                isInstaTalk: false,
+                instaTalkDuration: 1800, // 30 minutes in seconds
+                onSessionEnd: () =>
+                    _showContinueSessionDialog(participant, amount, type),
+              ));
+          break;
+
+        case 'voice':
+          await Get.to(() => VoiceCallLoadingScreen(
+                participant: participant,
+                scheduleTime: DateTime.now(),
+                type: "voice",
+                isInstaTalk: false,
+                instaTalkDuration: 1800, // 30 minutes in seconds
+                onSessionEnd: () =>
+                    _showContinueSessionDialog(participant, amount, type),
+              ));
+          break;
+
+        case 'video':
+          await Get.to(() => VideoCallLoadingScreen(
+                participant: participant,
+                scheduleTime: DateTime.now(),
+                type: "video",
+                isInstaTalk: false,
+                instaTalkDuration: 1800, // 30 minutes in seconds
+                onSessionEnd: () =>
+                    _showContinueSessionDialog(participant, amount, type),
+              ));
+          break;
+      }
+    } catch (e) {
+      print('Navigation error: $e');
+      // Handle any navigation errors here
+    }
+  }
+
+  void _handleJoinMeeting(Map<String, dynamic> meeting) async {
+    final isInstaTalk =
+        meeting['isInstaTalk'] ?? false; // Add this flag in your meeting data
+
+    if (isInstaTalk) {
+      _handleInstaTalkJoin(meeting);
+    } else {
+      _handleMeetingJoin(meeting);
+    }
+  }
+
+  void _showContinueSessionDialog(
+      User participant, double amount, String type) {
+    Get.dialog(
+      Dialog(
+        backgroundColor: AppColors.secondaryBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.timer_off,
+                  size: 48, color: AppColors.primaryColor),
+              const SizedBox(height: 16),
+              const Text(
+                'Session Ended',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your 30-minute session with ${participant.name} has ended. Would you like to continue for another 30 minutes?',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Rate: ₹$amount for 30 minutes',
+                style: TextStyle(
+                  color: AppColors.primaryColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    onPressed: () => Get.back(),
+                    child: const Text('End Session'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () =>
+                        _purchaseContinuation(participant, amount, type),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryColor,
+                    ),
+                    child: const Text('Continue'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _purchaseContinuation(
+      User participant, double amount, String type) async {
+    final chatController = Get.find<ChatController>();
+
+    await chatController.fetchWalletBalance();
+
+    if (chatController.userWalletBalance.value < amount) {
+      Get.back();
+      Get.snackbar(
+        'Insufficient Balance',
+        'Please add funds to your wallet to continue the session',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        mainButton: TextButton(
+          onPressed: () => Get.toNamed('/wallet/topup'),
+          child: const Text('Top Up', style: TextStyle(color: Colors.white)),
+        ),
+      );
+      return;
+    }
+
+    final success =
+        await chatController.purchaseChatSession(participant.sId!, amount);
+
+    if (success) {
+      Get.back();
+      switch (type) {
+        case 'chat':
+          Get.off(() => ChatRoomScreen(
+                profile: participant,
+                isInstaTalk: true,
+                instaTalkDuration: 30,
+                onSessionEnd: () =>
+                    _showContinueSessionDialog(participant, amount, type),
+              ));
+          break;
+        case 'voice':
+          Get.off(() => VoiceCallLoadingScreen(
+                participant: participant,
+                scheduleTime: DateTime.now(),
+                type: "voice",
+                isInstaTalk: true,
+                instaTalkDuration: 30,
+                onSessionEnd: () =>
+                    _showContinueSessionDialog(participant, amount, type),
+              ));
+          break;
+        case 'video':
+          Get.off(() => VideoCallLoadingScreen(
+                participant: participant,
+                scheduleTime: DateTime.now(),
+                type: "video",
+                isInstaTalk: true,
+                instaTalkDuration: 30,
+                onSessionEnd: () =>
+                    _showContinueSessionDialog(participant, amount, type),
+              ));
+          break;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        title: Text(
+          'Connections',
+          style: GoogleFonts.manrope(
+            fontSize: 20,
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: AppColors.primaryColor,
+          indicatorWeight: 3,
+          dividerColor: Colors.transparent,
+          labelColor: AppColors.primaryColor,
+          unselectedLabelColor: Colors.white.withOpacity(0.6),
+          labelStyle: GoogleFonts.manrope(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+          unselectedLabelStyle: GoogleFonts.manrope(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+          tabs: const [
+            Tab(text: 'Meetings'),
+            Tab(text: 'Requests'),
+            Tab(text: 'InstaTalk'),
+          ],
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          MeetingsTabView(
+            controller: controller,
+            buildMeetingCard: _buildMeetingCard,
+            buildEmptyView: _buildEmptyMeetingsView,
+          ),
+          FriendRequestsTabView(
+            controller: controller,
+            buildRequestCard: _buildRequestCard,
+            buildSentRequestCard: _buildSentRequestCard,
+          ),
+          InstaTalkTabView(
+            controller: controller,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyMeetingsView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.calendar_today_outlined,
+            size: 64,
+            color: Colors.grey[600],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Meetings Scheduled',
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Your scheduled meetings will appear here',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMeetingCard(Map<String, dynamic> meeting) {
     final scheduledTime = DateTime.parse(meeting['scheduledTime']);
     final participant = meeting['participant'] as Map<String, dynamic>;
@@ -616,37 +955,29 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 ),
               ),
               if (canJoin)
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      top: BorderSide(
-                        color: Colors.grey[850]!,
-                        width: 1,
+                Padding(
+                  padding: const EdgeInsets.only(
+                      top: 8, left: 24, right: 24, bottom: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _handleJoinMeeting(meeting),
+                      icon: Icon(
+                        type == 'video'
+                            ? Icons.videocam
+                            : type == 'voice'
+                                ? Icons.call
+                                : Icons.chat,
+                        color: Colors.white,
                       ),
-                    ),
-                  ),
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      // Handle join meeting
-                    },
-                    icon: Icon(
-                      type == 'video'
-                          ? Icons.videocam
-                          : type == 'voice'
-                              ? Icons.phone
-                              : Icons.chat,
-                      size: 20,
-                    ),
-                    label: const Text('Join Now'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      label: const Text('Join Now'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ),
@@ -655,92 +986,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           ),
         );
       },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        title: const Text(
-          'Connections',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppColors.primaryColor,
-          indicatorWeight: 3,
-          dividerColor: Colors.transparent,
-          labelColor: AppColors.primaryColor,
-          unselectedLabelColor: Colors.white.withOpacity(0.6),
-          labelStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-          isScrollable: true,
-          tabs: const [
-            Tab(text: 'Meetings'),
-            Tab(text: 'Requests'),
-            Tab(text: 'InstaTalk'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          MeetingsTabView(
-            controller: controller,
-            buildMeetingCard: _buildMeetingCard,
-            buildEmptyView: _buildEmptyMeetingsView,
-          ),
-          FriendRequestsTabView(
-            controller: controller,
-            buildRequestCard: _buildRequestCard,
-            buildSentRequestCard: _buildSentRequestCard,
-          ),
-          InstaTalkTabView(
-            controller: controller,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyMeetingsView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.calendar_today_outlined,
-            size: 64,
-            color: Colors.grey[600],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No Meetings Scheduled',
-            style: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Your scheduled meetings will appear here',
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -966,8 +1211,12 @@ class _MeetingsTabViewState extends State<MeetingsTabView>
     with AutomaticKeepAliveClientMixin {
   final List<Map<String, dynamic>> _meetings = [];
   bool _isLoading = true;
+  int _currentDisplayCount = 10; // Number of items to show initially
+  static const int _loadMoreCount =
+      10; // Number of items to add when loading more
+  final ScrollController _scrollController = ScrollController();
 
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
+  bool get _canLoadMore => _currentDisplayCount < _meetings.length;
 
   @override
   bool get wantKeepAlive => true;
@@ -976,18 +1225,19 @@ class _MeetingsTabViewState extends State<MeetingsTabView>
   void initState() {
     super.initState();
     _fetchMeetings();
+  }
 
-    Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) {
-        _refreshMeetings();
-      }
-    });
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchMeetings() async {
-    setState(() => _isLoading = true);
-
-    await Future.delayed(Duration.zero);
+    setState(() {
+      _isLoading = true;
+      _currentDisplayCount = 10; // Reset to initial count
+    });
 
     try {
       if (widget.controller.meetings.isNotEmpty) {
@@ -1004,15 +1254,10 @@ class _MeetingsTabViewState extends State<MeetingsTabView>
     }
   }
 
-  void _refreshMeetings() {
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+    super.build(
+        context); // Important: call super.build for AutomaticKeepAliveClientMixin
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -1024,25 +1269,50 @@ class _MeetingsTabViewState extends State<MeetingsTabView>
 
     return RefreshIndicator(
       onRefresh: _fetchMeetings,
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (ScrollNotification scrollInfo) => true,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final meeting = _meetings[index];
-                    return widget.buildMeetingCard(meeting);
+      child: CustomScrollView(
+        controller: _scrollController, // Add scroll controller
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                if (index >= _currentDisplayCount) return null;
+                final meeting = _meetings[index];
+                return widget.buildMeetingCard(meeting);
+              },
+              childCount: _currentDisplayCount.clamp(0, _meetings.length),
+            ),
+          ),
+          if (_canLoadMore)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _currentDisplayCount += _loadMoreCount;
+                      if (_currentDisplayCount > _meetings.length) {
+                        _currentDisplayCount = _meetings.length;
+                      }
+                    });
                   },
-                  childCount: _meetings.length,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey[400],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                          'Show More (${_meetings.length - _currentDisplayCount})'),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.keyboard_arrow_down, size: 18),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -1315,7 +1585,6 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
 
     final String type = instaTalk['type'] ?? 'chat';
 
-    // Check if user has already used their time
     final bool hasUsedTime = isSender
         ? instaTalk['userOneTimeUsed'] ?? false
         : instaTalk['userTwoTimeUsed'] ?? false;
@@ -1689,7 +1958,6 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
     final bool isAccepted = instaTalk['acceptedByParticipant'] == true;
     final bool isSender = widget.controller.isInstaTalkSender(instaTalk);
 
-    // Early return if time already used
     final bool hasUsedTime = isSender
         ? instaTalk['userOneTimeUsed'] ?? false
         : instaTalk['userTwoTimeUsed'] ?? false;
@@ -1705,10 +1973,9 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
     }
 
     try {
-      // Update time usage BEFORE starting session
       final success = await widget.controller.updateInstaTalkTimeUsage(
         meetingId: meetingId,
-        isUserOne: isSender, // sender = userOne, receiver = userTwo
+        isUserOne: isSender,
       );
 
       if (!success) {
@@ -1721,7 +1988,6 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
         return;
       }
 
-      // Only navigate after successful update
       final participant = User.fromJson(
           isSender ? instaTalk['participant'] : instaTalk['user']);
 

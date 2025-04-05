@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/core/widgets/custom_app_bar.dart';
 import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
@@ -683,11 +684,11 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
                       child: SizedBox(
                         width: 12,
                         height: 12,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
+                        // child: CircularProgressIndicator(
+                        //   strokeWidth: 2,
+                        //   valueColor:
+                        //       AlwaysStoppedAnimation<Color>(Colors.white),
+                        // ),
                       ),
                     ),
                 ],
@@ -809,7 +810,10 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
               : DropdownButton<String>(
                   value: _selectedTrialOption,
                   dropdownColor: const Color(0xFF1E1E1E),
-                  style: const TextStyle(color: Colors.white),
+                  style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                   underline: Container(
                     height: 1,
                     color: Colors.grey[700],

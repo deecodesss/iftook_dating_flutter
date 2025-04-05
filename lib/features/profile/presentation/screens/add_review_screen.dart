@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:iftook/helpers/app_colors.dart';
+import '../../../../core/services/api_service.dart';
+import 'dart:convert';
 
 class AddReviewScreen extends StatefulWidget {
-  const AddReviewScreen({Key? key}) : super(key: key);
+  final String userId;
+
+  const AddReviewScreen({
+    Key? key,
+    required this.userId,
+  }) : super(key: key);
 
   @override
   _AddReviewScreenState createState() => _AddReviewScreenState();
@@ -10,29 +18,73 @@ class AddReviewScreen extends StatefulWidget {
 
 class _AddReviewScreenState extends State<AddReviewScreen> {
   final TextEditingController _reviewController = TextEditingController();
+  bool isSubmitting = false;
 
   // Rating values for each factor
   Map<String, double> ratings = {
     'Politeness': 0,
-    'Compatibility': 0,
-    'Problem Solving': 0,
-    'Interactiveness': 0,
-    'Energetic': 0,
+    'Communication': 0,
+    'Professionalism': 0,
+    'Punctuality': 0,
   };
-
-  // List to store reviews (static for now)
-  List<String> reviews = [];
 
   double get averageRating {
     if (ratings.isEmpty) return 0;
     return ratings.values.reduce((a, b) => a + b) / ratings.length;
   }
 
+  Future<void> _submitReview() async {
+    // Check if any rating is missing
+    for (var entry in ratings.entries) {
+      if (entry.value == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Please rate ${entry.key}')),
+        );
+        return;
+      }
+    }
+
+    setState(() => isSubmitting = true);
+
+    try {
+      final response = await ApiService.addRating(
+        widget.userId,
+        ratings,
+        _reviewController.text,
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Review submitted successfully!')),
+        );
+      } else {
+        final error = jsonDecode(response.body);
+        if (error['error']?.toString()?.contains('already rated') ?? false) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You have already rated this user')),
+          );
+        } else {
+          throw Exception(error['error'] ?? 'Failed to submit review');
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}')),
+      );
+    } finally {
+      setState(() => isSubmitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Review & Rating'),
+        title: Text(
+          'Add Review & Rating',
+          style: GoogleFonts.manrope(),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -64,9 +116,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(5, (index) {
                       return Icon(
-                        index < (averageRating.round())
-                            ? Icons.star
-                            : Icons.star_border,
+                        index < averageRating ? Icons.star : Icons.star_border,
                         color: Colors.amber,
                         size: 24,
                       );
@@ -85,7 +135,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
 
             // Review Text Field
             Text(
-              'Write Your Review',
+              'Write Your Review (Optional)',
               style: TextStyle(
                 color: Colors.grey[300],
                 fontSize: 18,
@@ -106,68 +156,32 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide.none,
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[700]!),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Theme.of(context).primaryColor),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Submit Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  if (_reviewController.text.isNotEmpty) {
-                    setState(() {
-                      reviews.add(_reviewController.text);
-                      _reviewController.clear();
-                      // Show success message
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('Review submitted successfully!'),
-                          backgroundColor: Colors.green[700],
-                        ),
-                      );
-                    });
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'Submit Review',
-                  style: TextStyle(fontSize: 16),
-                ),
               ),
             ),
 
             const SizedBox(height: 24),
 
-            // Previous Reviews Section
-            if (reviews.isNotEmpty) ...[
-              Text(
-                'Previous Reviews',
-                style: TextStyle(
-                  color: Colors.grey[300],
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+            // Submit Button
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: isSubmitting ? null : _submitReview,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
+                child: isSubmitting
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
+                        'Submit Review',
+                        style: TextStyle(fontSize: 16),
+                      ),
               ),
-              const SizedBox(height: 8),
-              ...reviews.map((review) => _buildReviewCard(review)),
-            ],
+            ),
           ],
         ),
       ),
@@ -200,7 +214,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                 child: Padding(
                   padding: const EdgeInsets.only(right: 4),
                   child: Icon(
-                    index < (ratings[factor]?.round() ?? 0)
+                    index < (ratings[factor] ?? 0)
                         ? Icons.star
                         : Icons.star_border,
                     color: Colors.amber,
@@ -211,20 +225,6 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
             }),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildReviewCard(String review) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      color: Colors.grey[850],
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(
-          review,
-          style: const TextStyle(color: Colors.white),
-        ),
       ),
     );
   }

@@ -128,9 +128,12 @@ class AuthController extends GetxController {
         await SharedPrefs.saveTokens(
             responseData['accessToken'], responseData['refreshToken']);
 
-        // Save user ID
+        // Save user ID and other necessary data
         await SharedPrefs.saveUserIdSharedPreference(
             responseData['user']['_id']);
+        await SharedPrefs.saveUserEmailSharedPreference(email);
+        await SharedPrefs.saveUsernameSharedPreference(
+            responseData['user']['name']);
 
         // Update FCM token
         updateFCMToken();

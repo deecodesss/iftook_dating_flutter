@@ -75,7 +75,9 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
               // Full width image carousel
               CarouselSlider.builder(
                   carouselController: carouselController,
-                  itemCount: widget.profile.photos!.length,
+                  itemCount: (widget.profile.photos?.isEmpty ?? true)
+                      ? 1
+                      : widget.profile.photos!.length,
                   options: CarouselOptions(
                     height: double.infinity,
                     viewportFraction: 1.0,
@@ -85,11 +87,14 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
                     },
                   ),
                   itemBuilder: (context, index, _) {
+                    final hasPhotos =
+                        widget.profile.photos?.isNotEmpty ?? false;
+                    final imageUrl = hasPhotos
+                        ? widget.profile.photos![index]
+                        : 'https://api.randomuser.me/portraits/${widget.profile.gender?.toLowerCase() == 'female' ? 'women' : 'men'}/${(widget.profile.sId?.hashCode ?? 0) % 70}.jpg';
+                    print('Image URL: $imageUrl');
                     return CachedNetworkImage(
-                      imageUrl: widget.profile.photos != null &&
-                              widget.profile.photos!.isNotEmpty
-                          ? widget.profile.photos![index]
-                          : 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTl8fHBlcnNvbnxlbnwwfHwwfHx8MA%3D%3D', // Default network image
+                      imageUrl: imageUrl,
                       fit: BoxFit.cover,
                       width: double.infinity,
                       height: double.infinity,
@@ -100,7 +105,7 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
                         ),
                       ),
                       errorWidget: (context, url, error) => Image.network(
-                        'https://via.placeholder.com/300', // Fallback image
+                        'https://api.randomuser.me/portraits/men/${DateTime.now().millisecondsSinceEpoch % 70}.jpg',
                         fit: BoxFit.cover,
                       ),
                     );
@@ -235,10 +240,12 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
             borderRadius: BorderRadius.circular(20),
           ),
           child: Icon(
-            // Use different icons for each state
-            HugeIcons.strokeRoundedStar, // Outline star for not wishlisted
+            isInWishlist
+                ? Icons.star_rounded // Filled star when wishlisted
+                : HugeIcons
+                    .strokeRoundedStar, // Outline star when not wishlisted
             size: 20,
-            color: isInWishlist ? Colors.amber : Colors.white,
+            color: isInWishlist ? Colors.redAccent : Colors.white,
           ),
         ),
       );

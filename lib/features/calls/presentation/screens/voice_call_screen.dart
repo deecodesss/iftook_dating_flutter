@@ -9,11 +9,14 @@ class VoiceCallScreen extends StatefulWidget {
   final String meetingId;
   final String token;
   final String channel;
+  final Function? onSessionEnd;
+
   const VoiceCallScreen({
     Key? key,
     required this.meetingId,
     required this.token,
     required this.channel,
+    this.onSessionEnd,
   }) : super(key: key);
 
   @override
@@ -139,7 +142,12 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   void _endCall() {
     _engine.leaveChannel();
     _engine.release();
-    Get.off(() => AddReviewScreen());
+    if (widget.onSessionEnd != null) {
+      widget.onSessionEnd!();
+    }
+    Get.off(() => AddReviewScreen(
+          userId: 'll',
+        ));
   }
 
   @override

@@ -7,12 +7,15 @@ class VideoCallScreen extends StatefulWidget {
   final String meetingId;
   final String token;
   final String channel;
-  const VideoCallScreen(
-      {Key? key,
-      required this.meetingId,
-      required this.token,
-      required this.channel})
-      : super(key: key);
+  final Function? onSessionEnd;
+
+  const VideoCallScreen({
+    Key? key,
+    required this.meetingId,
+    required this.token,
+    required this.channel,
+    this.onSessionEnd,
+  }) : super(key: key);
 
   @override
   State<VideoCallScreen> createState() => _VideoCallScreenState();
@@ -199,6 +202,9 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   void _endCall() {
     _leaveChannel();
     _allowScreenshots();
+    if (widget.onSessionEnd != null) {
+      widget.onSessionEnd!();
+    }
     Navigator.pop(context);
   }
 

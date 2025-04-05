@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
 import '../../../../core/services/api_service.dart';
@@ -21,6 +23,8 @@ class _ViewReviewsScreenState extends State<ViewReviewsScreen> {
   List<Review> reviews = [];
   Map<String, double> ratings = {};
   double averageRating = 0.0;
+  final _reviewController = TextEditingController();
+  double _userRating = 0;
 
   @override
   void initState() {
@@ -54,16 +58,25 @@ class _ViewReviewsScreenState extends State<ViewReviewsScreen> {
         if (data['reviews'] != null) {
           reviews = (data['reviews'] as List)
               .map((review) => Review(
-                    name: review['userName'] ?? 'Anonymous',
+                    name: review['reviewerId']?['name'] ?? 'Anonymous',
                     rating: review['rating']?.toDouble() ?? 0.0,
-                    comment: review['comment'] ?? '',
-                    date: review['createdAt'] ?? '',
+                    comment: review['review'] ?? '',
+                    date: review['createdAt'] != null
+                        ? DateTime.parse(review['createdAt'])
+                            .toString()
+                            .split('.')[0]
+                        : '',
                   ))
               .toList();
         }
+      } else {
+        throw Exception('Failed to fetch ratings');
       }
     } catch (e) {
       print('Error fetching ratings: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching ratings: $e')),
+      );
     } finally {
       setState(() => isLoading = false);
     }
@@ -80,7 +93,23 @@ class _ViewReviewsScreenState extends State<ViewReviewsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ratings & Reviews'),
+          title: Text('Ratings & Reviews', style: GoogleFonts.manrope())),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AddReviewScreen(userId: widget.userId),
+            ),
+          );
+
+          if (result == true) {
+            // Refresh reviews if a new review was added
+            await _fetchUserRatings();
+          }
+        },
+        child: const Icon(Icons.rate_review),
+        backgroundColor: AppColors.primaryColor,
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -172,6 +201,10 @@ class _ViewReviewsScreenState extends State<ViewReviewsScreen> {
   }
 
   Widget _buildDetailedRatingsCard() {
+    // Remove 'Overall' from detailed breakdown
+    final detailedRatings = Map<String, double>.from(ratings)
+      ..remove('Overall');
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
@@ -191,7 +224,8 @@ class _ViewReviewsScreenState extends State<ViewReviewsScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          ...ratings.entries
+          // Build rating bars only for detailed ratings
+          ...detailedRatings.entries
               .map((entry) => _buildRatingBar(entry.key, entry.value)),
         ],
       ),
@@ -231,7 +265,6 @@ class _ViewReviewsScreenState extends State<ViewReviewsScreen> {
               AppColors.primaryColor,
             ),
             minHeight: 8,
-            borderRadius: BorderRadius.circular(4),
           ),
         ],
       ),

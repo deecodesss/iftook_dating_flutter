@@ -13,12 +13,39 @@ class ChatController extends GetxController {
   var errorMessage = ''.obs;
   var userWalletBalance = 0.0.obs;
   var isTransferring = false.obs;
+  var isSessionRenewed = false.obs; // Add new observable
   Timer? _pollingTimer;
   final apiService = ApiService();
   final ScrollController scrollController = ScrollController();
 
+  // Session timer for paid chats
+  Timer? _sessionTimer;
+  var sessionTimeRemaining = 0.obs;
+  Function? onSessionEnd;
+
+  void startSessionTimer(int durationInMinutes, {Function? onEnd}) {
+    sessionTimeRemaining.value = durationInMinutes * 60;
+    onSessionEnd = onEnd;
+
+    _sessionTimer?.cancel();
+    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (sessionTimeRemaining.value > 0) {
+        sessionTimeRemaining.value--;
+      } else {
+        timer.cancel();
+        onSessionEnd?.call();
+      }
+    });
+  }
+
+  void stopSessionTimer() {
+    _sessionTimer?.cancel();
+    _sessionTimer = null;
+  }
+
   @override
   void onClose() {
+    stopSessionTimer();
     stopPolling();
     scrollController.dispose();
     super.onClose();
@@ -27,13 +54,33 @@ class ChatController extends GetxController {
   Future<void> openChatRoom(String userId, String participantId) async {
     try {
       isLoading(true);
+      errorMessage.value = '';
+
+      // First try to fetch existing chatroom
       chatRoom.value =
           await apiService.createOrGetChatRoom(userId, participantId);
-      await fetchMessages();
-      startPolling();
-      await fetchWalletBalance(); // Fetch wallet balance when opening chat
+
+      if (chatRoom.value == null || chatRoom.value?.sId == null) {
+        // If no existing chatroom, explicitly try to create one
+        chatRoom.value =
+            await apiService.createOrGetChatRoom(userId, participantId);
+
+        if (chatRoom.value == null || chatRoom.value?.sId == null) {
+          throw Exception('Failed to create or get chat room');
+        }
+      }
+
+      // Only proceed with fetching messages and starting polling if we have a valid chatroom
+      if (chatRoom.value != null && chatRoom.value?.sId != null) {
+        await fetchMessages();
+        startPolling();
+        await fetchWalletBalance();
+      } else {
+        throw Exception('Invalid chat room state');
+      }
     } catch (e) {
-      errorMessage.value = e.toString();
+      errorMessage.value = 'Failed to open chat room: ${e.toString()}';
+      print('Error opening chat room: $e');
     } finally {
       isLoading(false);
     }
@@ -56,12 +103,17 @@ class ChatController extends GetxController {
   Future<void> sendMessage(
       String senderId, String chatRoomId, String text) async {
     if (text.trim().isEmpty) return;
+    if (chatRoom.value == null || chatRoom.value?.sId == null) {
+      errorMessage.value = 'No active chat room';
+      return;
+    }
 
     try {
       await apiService.sendMessage(senderId, chatRoomId, text);
-      await fetchMessages(); // Refresh messages after sending
+      await fetchMessages();
     } catch (e) {
-      errorMessage.value = e.toString();
+      errorMessage.value = 'Failed to send message: ${e.toString()}';
+      print('Error sending message: $e');
     }
   }
 
@@ -179,18 +231,28 @@ class ChatController extends GetxController {
     }
   }
 
-  // Purchase a chat session when Insta Talk expires
-  Future<bool> purchaseChatSession(String participantId, double amount) async {
+  // Add new method to calculate per-minute rate
+  double calculatePerMinuteRate(double thirtyMinuteRate) {
+    return thirtyMinuteRate /
+        30; // Divides 30-minute rate by 30 to get per-minute rate
+  }
+
+  // Modify purchaseChatSession method
+  Future<bool> purchaseChatSession(String participantId, double baseAmount,
+      {int minutes = 1}) async {
     try {
+      final perMinuteRate = calculatePerMinuteRate(baseAmount);
+      final finalAmount = perMinuteRate * minutes;
+
       // Check balance
       await fetchWalletBalance();
 
-      if (userWalletBalance.value < amount) {
+      if (userWalletBalance.value < finalAmount) {
         return false;
       }
 
       // Deduct money from wallet
-      final deductResponse = await ApiService.deductMoneyToWallet(amount);
+      final deductResponse = await ApiService.deductMoneyToWallet(finalAmount);
       if (deductResponse.statusCode != 200) {
         return false;
       }
@@ -198,13 +260,26 @@ class ChatController extends GetxController {
       // Refresh wallet balance
       await fetchWalletBalance();
 
-      // Record the chat session purchase
-      // This could include an API call to create a meeting/session
-      // For now, we'll just return success
+      // Set session as renewed
+      isSessionRenewed.value = true;
+
+      // Start new timer for purchased minutes
+      startSessionTimer(minutes);
+
       return true;
     } catch (e) {
       print('Error purchasing chat session: $e');
       return false;
     }
   }
+
+  bool isFreeChat(double? chatRate) {
+    return chatRate == null || chatRate == 0;
+  }
+
+  // Add helper method to check chatroom status
+  bool get hasChatRoom => chatRoom.value != null && chatRoom.value?.sId != null;
+
+  // Add helper method to get chatroom ID safely
+  String? get currentChatRoomId => chatRoom.value?.sId;
 }

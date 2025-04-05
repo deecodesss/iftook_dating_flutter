@@ -45,29 +45,29 @@ class _RatingAndReviewWidgetState extends State<RatingAndReviewWidget> {
     });
 
     try {
-      final response = await ApiService.submitRating(
-        widget.userId,
-        _rating,
-        _reviewController.text,
-        widget.interactionType,
-      );
+      // final response = await ApiService.addRating(
+      //   // widget.userId,
+      //   // _rating,
+      //   // _reviewController.text,
+      //   // widget.interactionType,
+      // );
 
-      if (response.statusCode == 200) {
-        Get.back(); // Close dialog
-        Get.snackbar(
-          'Thank you',
-          'Your rating has been submitted',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-      } else {
-        Get.snackbar(
-          'Error',
-          'Failed to submit rating',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-      }
+      // if (response.statusCode == 200) {
+      //   Get.back(); // Close dialog
+      //   Get.snackbar(
+      //     'Thank you',
+      //     'Your rating has been submitted',
+      //     backgroundColor: Colors.green,
+      //     colorText: Colors.white,
+      //   );
+      // } else {
+      //   Get.snackbar(
+      //     'Error',
+      //     'Failed to submit rating',
+      //     backgroundColor: Colors.red,
+      //     colorText: Colors.white,
+      //   );
+      // }
     } catch (e) {
       Get.snackbar(
         'Error',

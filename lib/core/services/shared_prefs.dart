@@ -90,12 +90,19 @@ class SharedPrefs {
   }
 
   /// Clearing all data from shared preferences (Local Storage)
+  static Future<bool> clearTokens() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove('userAccessToken');
+    await prefs.remove('userRefreshToken');
+    return true;
+  }
+
   static Future<void> clearUserSharedPreferences() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove(sharedPreferenceUserNameKey);
     await prefs.remove(sharedPreferenceUserEmailKey);
     await prefs.remove(sharedPreferenceUserIdKey);
-    await prefs.remove(sharedPreferenceUserTokenKey);
+    await clearTokens(); // Clear tokens along with other data
     await prefs.remove(sharedPreferenceUserProfileKey);
   }
 }

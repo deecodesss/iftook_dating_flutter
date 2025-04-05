@@ -3,13 +3,10 @@ class Constants {
   static const String agoraAppId = '5da40b914dcf4a089e8bbee75a926178';
   static const String agoraAppCertificate = 'b2e9d04ef46d4d29a608c74886d95880';
 
-  // Socket.io server URL for real-time communication
-  // Make sure this exactly matches your backend deployment URL
+////CHANGE THIS ONE URL and ONE IN APPCONSTANTS.DART FILE FOR LOCAL TESTING
   // static const String socketUrl = 'http://localhost:3000';
   static const String socketUrl = 'https://iftookbackendcopy.vercel.app';
 
-  // API base URL
-  // static const String apiBaseUrl = 'http://localhost:3000/api';
   static const String apiBaseUrl = '${socketUrl}/api';
 
   // App name

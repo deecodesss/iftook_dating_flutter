@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:iftook/features/home/presentation/screens/search_screen.dart';
 import 'package:iftook/helpers/myassets.dart';
 import 'package:iftook/features/home/controllers/home_controller.dart';
@@ -28,10 +29,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   children: [
                     Text(
                       controller.selectedCountry.value,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: GoogleFonts.manrope(
                         fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const Icon(Icons.arrow_drop_down, color: Colors.white),
@@ -46,7 +46,13 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                       value: country,
                       child: Row(
                         children: [
-                          Text(country),
+                          Text(
+                            country,
+                            style: GoogleFonts.manrope(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           if (country == controller.selectedCountry.value)
                             const Icon(Icons.check, size: 18),
                         ],

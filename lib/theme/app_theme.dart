@@ -46,7 +46,7 @@ class AppThemes {
         foregroundColor: Colors.white,
       ),
     ),
-    textTheme: GoogleFonts.robotoTextTheme().apply(
+    textTheme: GoogleFonts.interTextTheme().apply(
       bodyColor: AppColors['accentColor'],
       displayColor: AppColors['accentColor'],
     ),
@@ -100,7 +100,7 @@ class AppThemes {
         backgroundColor: const Color(0xff487FD9),
       ),
     ),
-    textTheme: GoogleFonts.robotoTextTheme().apply(),
+    textTheme: GoogleFonts.manropeTextTheme().apply(),
     colorScheme: const ColorScheme.dark(
       primary: Color(0xff487FD9),
       secondary: Color.fromARGB(255, 60, 162, 236),

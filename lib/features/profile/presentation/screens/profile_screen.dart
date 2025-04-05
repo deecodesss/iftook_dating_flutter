@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:iftook/core/widgets/charges_bottom_sheet.dart';
 import 'package:iftook/core/widgets/interests_bottom_sheet.dart';
 import 'package:iftook/features/about_us/presentation/screens/cancellation_and_refund_policy_screen.dart';
@@ -141,9 +142,9 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Profile',
-          style: TextStyle(
+          style: GoogleFonts.manrope(
             color: Colors.white,
             fontSize: 20,
             fontWeight: FontWeight.w600,
@@ -208,7 +209,7 @@ class ProfileScreen extends StatelessWidget {
                     Get.to(() => const WalletScreen());
                   },
                   trailing: Text(
-                    '₹${user.walletBalance ?? '0'}',
+                    '₹${(user.walletBalance ?? 0).toStringAsFixed(2)}',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 16,

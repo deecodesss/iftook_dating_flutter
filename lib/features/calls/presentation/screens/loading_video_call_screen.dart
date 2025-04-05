@@ -13,6 +13,7 @@ class VideoCallLoadingScreen extends StatefulWidget {
   final DateTime scheduleTime;
   final bool isInstaTalk;
   final int instaTalkDuration;
+  final Function? onSessionEnd;
 
   const VideoCallLoadingScreen({
     Key? key,
@@ -21,6 +22,7 @@ class VideoCallLoadingScreen extends StatefulWidget {
     required this.scheduleTime,
     this.isInstaTalk = false,
     this.instaTalkDuration = 30,
+    this.onSessionEnd,
   }) : super(key: key);
 
   @override
@@ -38,30 +40,37 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
   bool _showingPaymentPrompt = false;
   bool _timerStarted = false;
 
-  @override
-  void initState() {
-    super.initState();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _callController.initiateCall(
-          widget.participant.sId.toString(), widget.type, widget.scheduleTime);
-    });
-
-    // If this is an Insta Talk call, start timer after a delay
+  void _startTimer() {
     if (widget.isInstaTalk) {
-      _startupDelayTimer = Timer(Duration(seconds: 5), () {
-        if (mounted) {
-          _startInstaTimer();
-        }
-      });
+      _startInstaTimer();
+    } else {
+      _startRegularTimer();
     }
   }
 
-  void _startInstaTimer() {
-    if (!widget.isInstaTalk || _timerStarted) return;
-
+  void _startRegularTimer() {
     setState(() {
-      _remainingSeconds = widget.instaTalkDuration;
+      _remainingSeconds = 1800; // 30 minutes in seconds
+      _timerStarted = true;
+    });
+
+    _instaTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          _instaTimer?.cancel();
+          if (!_showingPaymentPrompt) {
+            _showContinueCallPrompt();
+          }
+        }
+      });
+    });
+  }
+
+  void _startInstaTimer() {
+    setState(() {
+      _remainingSeconds = 30; // 30 seconds
       _timerStarted = true;
     });
 
@@ -80,8 +89,58 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
     });
   }
 
+  String _formatTimer(int seconds) {
+    if (widget.isInstaTalk) {
+      return '$seconds seconds remaining';
+    } else {
+      final minutes = seconds ~/ 60;
+      final remainingSeconds = seconds % 60;
+      return '$minutes:${remainingSeconds.toString().padLeft(2, '0')} remaining';
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.isInstaTalk) {
+      final callRate = widget.participant.earnings?.videoRate ?? 0;
+      if (!_callController.isFreeCall(callRate)) {
+        _startupDelayTimer = Timer(Duration(seconds: 5), () {
+          if (mounted) {
+            _startTimer();
+          }
+        });
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.isInstaTalk) {
+        _callController.initiateInstaTalkCall(
+          widget.participant.sId.toString(),
+          widget.type,
+        );
+      } else {
+        _callController.initiateMeetingCall(
+          widget.participant.sId.toString(),
+          widget.type,
+          widget.scheduleTime,
+        );
+      }
+    });
+  }
+
   void _showContinueCallPrompt() {
     _showingPaymentPrompt = true;
+
+    if (widget.onSessionEnd != null) {
+      widget.onSessionEnd!();
+      return;
+    }
+
+    final prompt = widget.isInstaTalk
+        ? '30-second free video call'
+        : '30-minute video call session';
 
     showDialog(
       context: context,
@@ -96,7 +155,7 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Your 30-second free video call with ${widget.participant.name ?? "User"} has ended.',
+              'Your $prompt with ${widget.participant.name ?? "User"} has ended.',
               style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
@@ -139,64 +198,35 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
     );
   }
 
-  void _purchaseCall() {
+  void _purchaseCall() async {
     try {
       final callRate = widget.participant.earnings?.videoRate ?? 450.0;
-      final walletController = Get.find<WalletController>();
-
-      if (!walletController.hasEnoughBalance(callRate)) {
-        Get.snackbar(
-          'Insufficient Balance',
-          'Please add funds to your wallet to continue this call.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 3),
-          mainButton: TextButton(
-            onPressed: () => Get.toNamed('/wallet'),
-            child:
-                const Text('Add Funds', style: TextStyle(color: Colors.white)),
-          ),
-        );
-        return;
-      }
-
-      Get.dialog(
-        const Center(child: CircularProgressIndicator()),
-        barrierDismissible: false,
+      final success = await _callController.purchaseCallSession(
+        widget.participant.sId!,
+        callRate,
+        'video',
+        minutes: 30,
       );
 
-      walletController
-          .sendTip(widget.participant.sId!, callRate)
-          .then((success) {
-        Get.back();
+      if (success) {
+        setState(() {
+          _instaTalkExpired = false;
+          _timerStarted = false;
+        });
 
-        if (success) {
-          setState(() {
-            _instaTalkExpired = false;
-            _timerStarted = false; // Reset timer state
-          });
-
-          Get.snackbar(
-            'Success',
-            'Video call session purchased. You can continue for 30 minutes.',
-            backgroundColor: Colors.green,
-            colorText: Colors.white,
-          );
-        } else {
-          Get.snackbar(
-            'Error',
-            'Failed to purchase video call session. The call will end.',
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-          );
-
-          _endCall();
-        }
-      });
+        Get.snackbar(
+          'Success',
+          'Video call session purchased',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } else {
+        throw Exception('Failed to purchase session');
+      }
     } catch (e) {
       Get.snackbar(
         'Error',
-        'An error occurred: $e',
+        'Failed to purchase call session',
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
@@ -259,9 +289,9 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      '00:00',
-                      style: TextStyle(
+                    Text(
+                      _formatTimer(_remainingSeconds),
+                      style: const TextStyle(
                         fontSize: 16,
                         color: Colors.grey,
                       ),
