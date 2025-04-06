@@ -311,12 +311,64 @@ class FriendController extends GetxController {
           ? instaTalk['userOneTimeUsed'] ?? false
           : instaTalk['userTwoTimeUsed'] ?? false;
 
-      if (timeAlreadyUsed) {
-        print('Time already used for this user');
+      // if (timeAlreadyUsed) {
+      //   print('Time already used for this user');
+      //   return false;
+      // }
+
+      final response = await ApiService.updateInstaTalkTimeUsage(
+        meetingId: meetingId,
+        userId: userId,
+        isUserOne: isUserOne,
+      );
+
+      if (response.statusCode == 200) {
+        print('Time usage updated successfully');
+        await fetchInstaTalkRequests(); // Refresh to get updated status
+        return true;
+      }
+
+      print('Failed to update time usage: ${response.body}');
+      return false;
+    } catch (e) {
+      print('Error updating InstaTalk time usage: $e');
+      return false;
+    }
+  }
+
+  Future<bool> renewInstatalk({
+    required String meetingId,
+    required bool isUserOne,
+  }) async {
+    try {
+      final userId = getCurrentUserId;
+      if (userId == null) return false;
+
+      print(
+          'Updating InstaTalk time usage - Meeting: $meetingId, IsUserOne: $isUserOne');
+
+      // Double check if time is already used
+      final instaTalk = instaTalkRequests.firstWhere(
+        (talk) => talk['_id'] == meetingId,
+        orElse: () => <String, dynamic>{},
+      );
+
+      if (instaTalk.isEmpty) {
+        print('InstaTalk not found in requests');
         return false;
       }
 
-      final response = await ApiService.updateInstaTalkTimeUsage(
+      // Check if time is already used for this user
+      final bool timeAlreadyUsed = isUserOne
+          ? instaTalk['userOneTimeUsed'] ?? false
+          : instaTalk['userTwoTimeUsed'] ?? false;
+
+      // if (timeAlreadyUsed) {
+      //   print('Time already used for this user');
+      //   return false;
+      // }
+
+      final response = await ApiService.renewInstatalk(
         meetingId: meetingId,
         userId: userId,
         isUserOne: isUserOne,

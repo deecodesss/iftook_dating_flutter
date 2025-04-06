@@ -58,7 +58,7 @@ class _ViewReviewsScreenState extends State<ViewReviewsScreen> {
         if (data['reviews'] != null) {
           reviews = (data['reviews'] as List)
               .map((review) => Review(
-                    name: review['reviewerId']?['name'] ?? 'Anonymous',
+                    name: review['reviewer']?['name'] ?? 'Anonymous',
                     rating: review['rating']?.toDouble() ?? 0.0,
                     comment: review['review'] ?? '',
                     date: review['createdAt'] != null

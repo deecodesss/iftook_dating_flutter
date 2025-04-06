@@ -1,10 +1,10 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
+import 'package:iftook/features/wallet/controllers/wallet_controller.dart';
 
 class HomeController extends GetxController {
   var profiles = <User>[].obs;
@@ -22,6 +22,14 @@ class HomeController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    // Initialize WalletController if not already registered
+    try {
+      if (!Get.isRegistered<WalletController>()) {
+        Get.put(WalletController());
+      }
+    } catch (e) {
+      print('Error initializing WalletController: $e');
+    }
     fetchProfiles();
     fetchWalletBalance();
     fetchWishlist();
@@ -47,24 +55,32 @@ class HomeController extends GetxController {
     try {
       isInstaTalkLoading(true);
 
+      // First check if InstaTalk was previously used
+      final hasUsed = await hasUsedInstaTalk(participantId);
+
+      if (hasUsed) {
+        // Get current profile for rate
+        final currentProfile = profiles[currentIndex.value];
+        final instaTalkRate = currentProfile.earnings?.liveRate ?? 500.0;
+
+        // Process payment first
+        final paymentSuccess = await processInstaTalkPayment(
+          userId: participantId,
+          amount: instaTalkRate,
+        );
+
+        if (!paymentSuccess) {
+          return null;
+        }
+      }
+
+      // Create InstaTalk request after payment (if required)
       final response = await ApiService.createInstaTalk(participantId, type);
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
         print('InstaTalk created successfully: ${data['data']}');
         return data['data'];
-      } else if (response.statusCode == 400) {
-        // Handle case where InstaTalk already exists
-        final data = jsonDecode(response.body);
-        errorMessage(
-            data['message'] ?? 'InstaTalk already used with this user');
-        Get.snackbar(
-          'Info',
-          errorMessage.value,
-          backgroundColor: Colors.orange.withOpacity(0.8),
-          colorText: Colors.white,
-        );
-        return null;
       } else {
         final data = jsonDecode(response.body);
         errorMessage(data['message'] ?? 'Failed to create InstaTalk');
@@ -363,6 +379,68 @@ class HomeController extends GetxController {
         'Error',
         'Failed to create meeting: ${e.toString()}',
         isError: true,
+      );
+      return false;
+    }
+  }
+
+  Future<bool> processInstaTalkPayment({
+    required String userId,
+    required double amount,
+  }) async {
+    try {
+      await fetchWalletBalance();
+
+      // Safely get or create WalletController
+      WalletController? walletController;
+      try {
+        if (!Get.isRegistered<WalletController>()) {
+          Get.put(WalletController());
+        }
+        walletController = Get.find<WalletController>();
+      } catch (e) {
+        print('Error initializing WalletController: $e');
+        // Fall back to using our own balance check
+        if (userWalletBalance.value < amount) {
+          Get.snackbar(
+            'Insufficient Balance',
+            'Please top up your wallet to continue',
+            backgroundColor: Colors.red.withOpacity(0.8),
+            colorText: Colors.white,
+          );
+          return false;
+        }
+      }
+
+      // Check balance using WalletController if available, otherwise use our balance
+      if (walletController != null &&
+          !walletController.hasEnoughBalance(amount)) {
+        Get.snackbar(
+          'Insufficient Balance',
+          'Please top up your wallet to continue',
+          backgroundColor: Colors.red.withOpacity(0.8),
+          colorText: Colors.white,
+        );
+        return false;
+      }
+
+      // Deduct money from wallet
+      final deductResponse = await ApiService.deductMoneyToWallet(amount);
+      if (deductResponse.statusCode == 200) {
+        print('Money deducted successfully for InstaTalk: $amount');
+        await fetchWalletBalance(); // Refresh wallet balance
+        return true;
+      } else {
+        print('Failed to deduct money: ${deductResponse.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error processing InstaTalk payment: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to process payment',
+        backgroundColor: Colors.red.withOpacity(0.8),
+        colorText: Colors.white,
       );
       return false;
     }

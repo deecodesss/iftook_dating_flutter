@@ -844,6 +844,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     if (_homeController.profiles.isEmpty) return;
 
     final currentProfile = _homeController.profiles[_currentProfileIndex];
+    final walletController = Get.find<WalletController>();
 
     // Get the InstaTalk type based on the selected option
     String instaTalkType;
@@ -867,14 +868,95 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
         return;
     }
 
-    // Check if InstaTalk already exists or create a new one
+    // Check if InstaTalk was previously used
+    final hasUsedInstaTalk =
+        await _homeController.hasUsedInstaTalk(currentProfile.sId!);
+
+    if (hasUsedInstaTalk) {
+      // Get live rate from profile
+      final liveRate = currentProfile.earnings?.liveRate ?? 500.0;
+      final hasEnoughBalance = walletController.hasEnoughBalance(liveRate);
+
+      // Show payment confirmation dialog
+      final shouldProceed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              backgroundColor: const Color(0xFF1A1A1A),
+              title: const Text('Payment Required',
+                  style: TextStyle(color: Colors.white)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'You have already used your free InstaTalk with this user. You need to pay ₹${liveRate.toInt()} to continue.',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  if (!hasEnoughBalance) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.withOpacity(0.5)),
+                      ),
+                      child: const Text(
+                        'Insufficient wallet balance. Please add funds.',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: hasEnoughBalance
+                      ? () => Navigator.pop(context, true)
+                      : () {
+                          Navigator.pop(context, false);
+                          Get.to(() => const WalletScreen());
+                        },
+                  child:
+                      Text(hasEnoughBalance ? 'Pay & Continue' : 'Add Funds'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+
+      if (!shouldProceed) return;
+
+      // Process payment
+      final paymentSuccess = await _homeController.processInstaTalkPayment(
+        userId: currentProfile.sId!,
+        amount: liveRate,
+      );
+
+      if (!paymentSuccess) {
+        Get.snackbar(
+          'Payment Failed',
+          'Unable to process payment. Please try again.',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+    }
+
+    // Create InstaTalk request
     final result = await _homeController.createInstaTalk(
         currentProfile.sId!, instaTalkType);
 
-    // If creation failed, return early
     if (result == null) return;
 
-    // If creation succeeded, show success message
     Get.snackbar(
       'InstaTalk Request Sent',
       '${currentProfile.name} will need to accept your request',

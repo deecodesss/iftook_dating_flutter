@@ -30,6 +30,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   bool _localUserJoined = false;
   late RtcEngine _engine;
 
+  RxBool isConnecting = true.obs;
+  RxString connectionStatus = 'Initializing...'.obs;
+
   @override
   void initState() {
     super.initState();
@@ -41,8 +44,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   // Initialize Agora SDK
   Future<void> _initAgora() async {
     try {
+      connectionStatus('Checking permissions...');
       await _requestPermissions();
 
+      connectionStatus('Initializing engine...');
       _engine = createAgoraRtcEngine();
       await _engine.initialize(RtcEngineContext(
         appId: appId,
@@ -50,6 +55,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
       ));
 
       _setupEventHandlers();
+
+      connectionStatus('Joining channel...');
+      print('Joining channel: ${widget.channel} with token: ${widget.token}');
 
       // Join the channel - Voice specific configuration
       await _engine.joinChannel(
@@ -64,8 +72,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
         ),
       );
     } catch (e) {
-      print("Error in voice call: $e");
-      Get.snackbar('Error', 'Failed to initialize voice call');
+      print("Error in voice call initialization: $e");
+      connectionStatus('Failed to initialize call');
+      Get.snackbar(
+        'Error',
+        'Failed to initialize call. Please try again.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -114,17 +128,31 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     _engine.registerEventHandler(
       RtcEngineEventHandler(
         onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
-          debugPrint("Local user ${connection.localUid} joined");
-          setState(() => _localUserJoined = true);
+          print("Local user ${connection.localUid} joined successfully");
+          setState(() {
+            _localUserJoined = true;
+            connectionStatus('Waiting for other participant...');
+          });
         },
         onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
-          debugPrint("Remote user $remoteUid joined");
-          setState(() => _remoteUid = remoteUid);
+          print("Remote user $remoteUid joined");
+          setState(() {
+            _remoteUid = remoteUid;
+            isConnecting.value = false;
+            connectionStatus('Connected');
+          });
         },
         onUserOffline: (RtcConnection connection, int remoteUid,
             UserOfflineReasonType reason) {
-          debugPrint("Remote user $remoteUid left");
-          setState(() => _remoteUid = null);
+          print("Remote user $remoteUid left channel");
+          setState(() {
+            _remoteUid = null;
+            connectionStatus('User disconnected');
+          });
+        },
+        onError: (ErrorCodeType err, String msg) {
+          print("Agora error: $err - $msg");
+          connectionStatus('Connection error: $err');
         },
       ),
     );
@@ -172,17 +200,13 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
             ),
             Column(
               children: [
-                Text(
-                  _remoteUid != null
-                      ? "Connected"
-                      : _localUserJoined
-                          ? "Waiting for other user to join..."
-                          : "Connecting...",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    color: Colors.white,
-                  ),
-                ),
+                Obx(() => Text(
+                      connectionStatus.value,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        color: Colors.white,
+                      ),
+                    )),
                 const SizedBox(height: 8),
                 if (_remoteUid != null)
                   const Text(

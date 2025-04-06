@@ -661,8 +661,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             color: AppColors.primaryColor,
             backgroundColor: Colors.transparent,
             onPressed: () {
-              // TODO: Implement friend request functionality
-              // _homeController.sendFriendRequest(widget.profile.sId.toString());
+              if (widget.profile.sId != null) {
+                _homeController
+                    .sendFriendRequest(widget.profile.sId.toString());
+              }
             },
           ),
           _buildActionButtonWithLabel(

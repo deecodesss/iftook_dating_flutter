@@ -2,6 +2,7 @@ import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:no_screenshot/no_screenshot.dart';
+import 'package:get/get.dart';
 
 class VideoCallScreen extends StatefulWidget {
   final String meetingId;
@@ -29,6 +30,8 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       false; // Indicates if local user has joined the channel
   late RtcEngine _engine;
   final _noScreenshot = NoScreenshot.instance;
+  RxBool isConnecting = true.obs;
+  RxString connectionStatus = 'Initializing...'.obs;
 
   // Get Agora app ID from environment or config
   // This should ideally be loaded from a config file or environment
@@ -77,16 +80,20 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   // Initialize Agora SDK
   Future<void> _initAgora() async {
     try {
+      connectionStatus('Checking permissions...');
       await _requestPermissions();
+
+      connectionStatus('Initializing engine...');
       _engine = createAgoraRtcEngine();
       await _engine.initialize(RtcEngineContext(appId: appId));
 
+      connectionStatus('Setting up video...');
       await _engine.enableVideo();
       _setupEventHandlers();
-      debugPrint(
-          "Joining channel: ${widget.channel} with token: ${widget.token}");
 
-      // Join the channel
+      print('Joining channel: ${widget.channel} with token: ${widget.token}');
+      connectionStatus('Joining channel...');
+
       await _engine.joinChannel(
         token: widget.token,
         channelId: widget.channel,
@@ -100,11 +107,14 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         ),
       );
     } catch (e) {
-      setState(() {
-        // _isLoading = false;
-        // _errorMessage = "Failed to initialize Agora SDK: ${e.toString()}";
-        print("error in agora: $e");
-      });
+      print("Error in video call: $e");
+      connectionStatus('Failed to initialize');
+      Get.snackbar(
+        'Error',
+        'Failed to initialize video call',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -113,17 +123,31 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     _engine.registerEventHandler(
       RtcEngineEventHandler(
         onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
-          debugPrint("Local user ${connection.localUid} joined");
-          setState(() => _localUserJoined = true);
+          print("Local user ${connection.localUid} joined successfully");
+          setState(() {
+            _localUserJoined = true;
+            connectionStatus('Waiting for other participant...');
+          });
         },
         onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
-          debugPrint("Remote user $remoteUid joined");
-          setState(() => _remoteUid = remoteUid);
+          print("Remote user $remoteUid joined successfully");
+          setState(() {
+            _remoteUid = remoteUid;
+            isConnecting.value = false;
+            connectionStatus('Connected');
+          });
         },
         onUserOffline: (RtcConnection connection, int remoteUid,
             UserOfflineReasonType reason) {
-          debugPrint("Remote user $remoteUid left");
-          setState(() => _remoteUid = null);
+          print("Remote user $remoteUid left channel");
+          setState(() {
+            _remoteUid = null;
+            connectionStatus('User disconnected');
+          });
+        },
+        onError: (ErrorCodeType err, String msg) {
+          print("Agora error: $err - $msg");
+          connectionStatus('Connection error: $err');
         },
       ),
     );

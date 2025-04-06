@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:iftook/features/home/controllers/home_controller.dart';
 import 'package:iftook/features/home/controllers/search_controller.dart';
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
@@ -12,6 +13,7 @@ import '../../../profile/data/models/user.dart';
 class SearchScreen extends StatelessWidget {
   final SearchControllerCustom _searchController =
       Get.put(SearchControllerCustom());
+  final HomeController _homeController = Get.put(HomeController());
   final TextEditingController _textController = TextEditingController();
 
   SearchScreen({Key? key}) : super(key: key);
@@ -351,8 +353,10 @@ class SearchScreen extends StatelessWidget {
                   children: [
                     InkWell(
                       onTap: () {
-                        // Add friend functionality here
-                        _searchController.addFriend(profile.sId.toString());
+                        if (profile.sId != null) {
+                          _homeController
+                              .sendFriendRequest(profile.sId.toString());
+                        }
                       },
                       borderRadius: BorderRadius.circular(6),
                       child: Container(
@@ -372,7 +376,7 @@ class SearchScreen extends StatelessWidget {
                             ),
                             SizedBox(width: 4),
                             Text(
-                              "Add Friend",
+                              "Send Friend Request",
                               style: TextStyle(
                                 color: AppColors.primaryColor,
                                 fontWeight: FontWeight.w600,

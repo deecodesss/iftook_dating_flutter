@@ -816,6 +816,36 @@ class ApiService {
     }
   }
 
+  static Future<http.Response> renewInstatalk({
+    required String meetingId,
+    required String userId,
+    required bool isUserOne,
+  }) async {
+    try {
+      final token = await SharedPrefs.getAccessToken();
+      final String fieldToUpdate =
+          isUserOne ? 'userOneTimeUsed' : 'userTwoTimeUsed';
+
+      print(
+          'Updating InstaTalk time usage: ${meetingId} - Field: ${fieldToUpdate}');
+
+      final response = await authenticatedRequest(() => http.patch(
+            Uri.parse('$baseUrl/insta-talk/$meetingId/renew'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'userId': userId, 'field': fieldToUpdate}),
+          ));
+
+      print('Update response: ${response.statusCode} - ${response.body}');
+      return response;
+    } catch (e) {
+      print('Error updating InstaTalk time usage: $e');
+      rethrow;
+    }
+  }
+
   static Future<http.Response> checkInstaTalkStatus(
       String participantId) async {
     final userId = await SharedPrefs.getUserIdSharedPreference();

@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:get/get.dart';
 import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/material.dart';
 
 import '../../../core/services/api_service.dart';
 import '../presentation/screens/voice_call_screen.dart';
@@ -13,6 +14,8 @@ class CallController extends GetxController {
   RxString token = ''.obs;
   RxString meetingId = ''.obs;
   RxString channel = ''.obs;
+  RxBool isJoining = false.obs;
+  RxString callStatus = ''.obs;
 
   Future<void> handleCameraAndMic(Permission permisison) async {
     final status = await permisison.request();
@@ -25,39 +28,73 @@ class CallController extends GetxController {
     DateTime scheduleTime,
   ) async {
     try {
+      isJoining(true);
+      callStatus('Initializing call...');
+
       final response =
           await ApiService.initiateCall(participantId, type, scheduleTime);
+
+      print('Call Initiation Response: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseMap = jsonDecode(response.body)['data'];
 
-        channel.value = responseMap['channelName'];
-        meetingId.value = responseMap['meeting']['_id'];
-        token.value = responseMap['token'];
+        if (responseMap == null) {
+          throw Exception('Invalid response data');
+        }
 
-        print(
-            "Received from API - channel: ${channel.value}, token: ${token.value}");
+        channel.value = responseMap['channelName'] ?? '';
+        meetingId.value = responseMap['meeting']?['_id'] ?? '';
+        token.value = responseMap['token'] ?? '';
 
-        Get.off(
-          () => type == 'voice'
-              ? VoiceCallScreen(
-                  channel: channel.value,
-                  meetingId: meetingId.value,
-                  token: token.value,
-                )
-              : VideoCallScreen(
-                  channel: channel.value,
-                  meetingId: meetingId.value,
-                  token: token.value,
-                ),
-        );
+        print('Call Details:'
+            '\nChannel: ${channel.value}'
+            '\nMeeting ID: ${meetingId.value}'
+            '\nToken: ${token.value}');
+
+        if (channel.value.isEmpty || token.value.isEmpty) {
+          throw Exception('Missing channel or token');
+        }
+
+        callStatus('Joining call...');
+
+        // Add delay to ensure other user has time to initialize
+        await Future.delayed(const Duration(seconds: 2));
+
+        if (type == 'voice') {
+          Get.off(
+            () => VoiceCallScreen(
+              channel: channel.value,
+              meetingId: meetingId.value,
+              token: token.value,
+              onSessionEnd: onSessionEnd,
+            ),
+            preventDuplicates: true,
+          );
+        } else {
+          Get.off(
+            () => VideoCallScreen(
+              channel: channel.value,
+              meetingId: meetingId.value,
+              token: token.value,
+              onSessionEnd: onSessionEnd,
+            ),
+            preventDuplicates: true,
+          );
+        }
       } else {
-        log("Call initiation failed: ${response.statusCode} - ${response.body}");
-        Get.snackbar('Error', 'Failed to initiate call');
+        throw Exception('Call initiation failed: ${response.statusCode}');
       }
     } catch (e) {
       log("Error initiating call: $e");
-      Get.snackbar('Error', 'An error occurred while initiating the call');
+      Get.snackbar(
+        'Error',
+        'Failed to start call. Please try again.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      isJoining(false);
     }
   }
 
@@ -96,8 +133,7 @@ class CallController extends GetxController {
       String participantId, double baseAmount, String type,
       {int minutes = 1}) async {
     try {
-      final perMinuteRate =
-          baseAmount / 30; // 30-minute rate to per-minute rate
+      final perMinuteRate = baseAmount; // Live rate is already per minute
       final finalAmount = perMinuteRate * minutes;
 
       // Deduct money from wallet
@@ -118,30 +154,19 @@ class CallController extends GetxController {
 
   // Different initiate methods for InstaTalk and regular meetings
   Future<void> initiateInstaTalkCall(String participantId, String type) async {
-    try {
-      final response = await ApiService.initiateCall(
-        participantId,
-        type,
-        DateTime.now(),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseMap = jsonDecode(response.body)['data'];
-        channel.value = responseMap['channelName'];
-        meetingId.value = responseMap['meeting']['_id'];
-        token.value = responseMap['token'];
-      } else {
-        throw Exception('Failed to initiate InstaTalk call');
-      }
-    } catch (e) {
-      print('Error initiating InstaTalk call: $e');
-      throw e;
-    }
+    callStatus('Starting InstaTalk call...');
+    await initiateCall(participantId, type, DateTime.now());
   }
 
   Future<void> initiateMeetingCall(
       String participantId, String type, DateTime scheduleTime) async {
     try {
+      callStatus('Starting scheduled call...');
+      print('Initiating meeting call for existing meeting');
+      print('Participant: $participantId');
+      print('Type: $type');
+      print('Schedule Time: $scheduleTime');
+
       final response = await ApiService.initiateCall(
         participantId,
         type,
@@ -150,11 +175,24 @@ class CallController extends GetxController {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseMap = jsonDecode(response.body)['data'];
-        channel.value = responseMap['channelName'];
-        meetingId.value = responseMap['meeting']['_id'];
-        token.value = responseMap['token'];
+
+        // Log the received data
+        print('Meeting response: ${response.body}');
+
+        channel.value = responseMap['channelName'] ?? '';
+        meetingId.value = responseMap['meeting']?['_id'] ?? '';
+        token.value = responseMap['token'] ?? '';
+
+        if (channel.value.isEmpty || token.value.isEmpty) {
+          throw Exception('Invalid meeting credentials received');
+        }
+
+        print('Successfully initialized meeting:'
+            '\nChannel: ${channel.value}'
+            '\nMeeting ID: ${meetingId.value}'
+            '\nToken: ${token.value}');
       } else {
-        throw Exception('Failed to initiate meeting call');
+        throw Exception('Failed to initialize meeting: ${response.statusCode}');
       }
     } catch (e) {
       print('Error initiating meeting call: $e');

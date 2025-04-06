@@ -25,7 +25,8 @@ class ChatRoomScreen extends StatefulWidget {
   final bool isInstaTalk;
   final int instaTalkDuration;
   final String? existingChatRoomId;
-  final Function? onSessionEnd; // Add this parameter
+  final Function? onSessionEnd;
+  final bool isInstaTalkSender; // Add this line
 
   const ChatRoomScreen({
     super.key,
@@ -34,7 +35,8 @@ class ChatRoomScreen extends StatefulWidget {
     this.isInstaTalk = false,
     this.instaTalkDuration = 30,
     this.existingChatRoomId,
-    this.onSessionEnd, // Add this parameter
+    this.onSessionEnd,
+    this.isInstaTalkSender = false, // Add this line
   });
 
   @override
@@ -55,7 +57,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   bool _instaTalkExpired = false;
   bool _showingPaymentPrompt = false;
 
-  // Add new state variables
   bool _hasRenewedSession = false;
   bool _isRenewing = false;
 
@@ -66,9 +67,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _focusNode.addListener(_onFocusChange);
     _chatController.messages.listen((_) => _chatController.scrollToBottom());
 
-    if (widget.isInstaTalk) {
-      final chatRate = widget.profile.earnings?.chatRate ?? 0;
-      if (!_chatController.isFreeChat(chatRate)) {
+    if (widget.isInstaTalk && widget.isInstaTalkSender) {
+      final liveRate = widget.profile.earnings?.liveRate ?? 0;
+      if (!_chatController.isFreeChat(liveRate)) {
         _remainingSeconds = widget.instaTalkDuration;
         _startInstaTimer();
       }
@@ -98,7 +99,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   void _startInstaTimer() {
-    // Cancel any existing timer first
     _instaTimer?.cancel();
 
     _instaTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -109,7 +109,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           _instaTimer?.cancel();
           if (!_showingPaymentPrompt && !_instaTalkExpired) {
             _instaTalkExpired = true;
-            _showingPaymentPrompt = true; // Set flag when showing prompt
+            _showingPaymentPrompt = true;
             _showContinueChatPrompt();
           }
         }
@@ -118,14 +118,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   void _showContinueChatPrompt() {
-    if (_chatController.isFreeChat(widget.profile.earnings?.chatRate)) {
-      // Don't show prompt for free chats
+    if (_chatController.isFreeChat(widget.profile.earnings?.liveRate)) {
       return;
     }
 
     _showingPaymentPrompt = true;
-    final baseRate = widget.profile.earnings?.chatRate ?? 150.0;
-    final perMinuteRate = _chatController.calculatePerMinuteRate(baseRate);
+    final baseRate = widget.profile.earnings?.liveRate ?? 150.0;
+    final perMinuteRate = baseRate;
 
     showDialog(
       context: context,
@@ -202,29 +201,26 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       );
 
       if (success) {
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+
         setState(() {
           _instaTalkExpired = false;
           _hasRenewedSession = true;
           _isRenewing = false;
-          _remainingSeconds = minutes * 60; // Reset timer for purchased minutes
-          _showingPaymentPrompt = false; // Reset prompt flag
+          _remainingSeconds = minutes * 60;
+          _showingPaymentPrompt = false;
         });
 
-        // Start a new timer that will trigger expiration again
         _startInstaTimer();
 
-        // Show success snackbar
         Get.snackbar(
           'Success',
           'Session renewed for $minutes minute${minutes > 1 ? 's' : ''}!',
           backgroundColor: Colors.green,
           colorText: Colors.white,
         );
-
-        // Close any open dialogs
-        if (Get.isDialogOpen ?? false) {
-          Get.back();
-        }
       } else {
         throw Exception('Failed to purchase session');
       }
@@ -248,14 +244,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
 
-    // Only show review screen if session was renewed
     if (_hasRenewedSession) {
-      // Use async to handle the navigation properly
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Get.to(
           () => AddReviewScreen(userId: widget.profile.sId!),
-          fullscreenDialog: true, // This ensures clean navigation
-          popGesture: false, // Prevent swipe back
+          fullscreenDialog: true,
+          popGesture: false,
         );
       });
     }
@@ -592,10 +586,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     return Stack(
       children: [
         Scaffold(
-          // backgroundColor: AppColors.primaryBackground,
           appBar: AppBar(
             scrolledUnderElevation: 0,
-            // backgroundColor: AppColors.secondaryBackground,
             elevation: 0,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -635,7 +627,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                           decoration: BoxDecoration(
                             color: Colors.green,
                             border: Border.all(
-                              // color: AppColors.secondaryBackground,
                               width: 2,
                             ),
                             borderRadius: BorderRadius.circular(6),
@@ -672,7 +663,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ],
             ),
             actions: [
-              // Only show call buttons if not in InstaTalk mode
               if (!widget.isInstaTalk) ...[
                 _buildActionButton(
                   icon: Icons.videocam,
@@ -708,9 +698,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                if (widget.isInstaTalk) ...[
+                if (widget.isInstaTalk && widget.isInstaTalkSender) ...[
                   if (_chatController
-                      .isFreeChat(widget.profile.earnings?.chatRate))
+                      .isFreeChat(widget.profile.earnings?.liveRate))
                     Container(
                       padding: const EdgeInsets.symmetric(
                           vertical: 8, horizontal: 16),
@@ -764,7 +754,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       ),
                     ),
                 ],
-                if (widget.isInstaTalk && _instaTalkExpired)
+                if (widget.isInstaTalk &&
+                    widget.isInstaTalkSender &&
+                    _instaTalkExpired)
                   Container(
                     padding: const EdgeInsets.all(16),
                     color: Colors.redAccent.withOpacity(0.1),
@@ -792,7 +784,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   ),
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  // color: AppColors.secondaryBackground,
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [],
@@ -816,7 +807,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                   decoration: const BoxDecoration(
-                    // color: AppColors.secondaryBackground,
                     borderRadius:
                         BorderRadius.vertical(top: Radius.circular(25)),
                   ),
@@ -898,7 +888,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             ),
           ),
         ),
-        // Loading overlay
         if (_isRenewing)
           Container(
             color: Colors.black54,
@@ -992,15 +981,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           ),
           if (isSentByMe) ...[
             const SizedBox(width: 8),
-            // const CircleAvatar(
-            //   radius: 16,
-            //   backgroundColor: AppColors.secondaryBackground,
-            //   child: Icon(
-            //     Icons.person,
-            //     color: Colors.white,
-            //     size: 16,
-            //   ),
-            // ),
           ],
         ],
       ),

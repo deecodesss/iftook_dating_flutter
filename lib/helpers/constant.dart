@@ -4,8 +4,8 @@ class Constants {
   static const String agoraAppCertificate = 'b2e9d04ef46d4d29a608c74886d95880';
 
 ////CHANGE THIS ONE URL and ONE IN APPCONSTANTS.DART FILE FOR LOCAL TESTING
-  // static const String socketUrl = 'http://localhost:3000';
-  static const String socketUrl = 'https://iftookbackendcopy.vercel.app';
+  static const String socketUrl = 'http://localhost:3000';
+  // static const String socketUrl = 'https://iftookbackendcopy.vercel.app';
 
   static const String apiBaseUrl = '${socketUrl}/api';
 
