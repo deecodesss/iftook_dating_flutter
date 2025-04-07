@@ -106,7 +106,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     // Check for "Join Now" condition using UTC time for accurate comparison
     if (now.difference(meetingTimeUtc).inMinutes <= 30 &&
         now.difference(meetingTimeUtc).inMinutes >= 0) {
-      return 'Join Now';
+      return 'Join Now ${DateFormat('h:mm a').format(meetingTime)} IST';
     }
 
     // Check for "In X min" condition using UTC time for accurate comparison

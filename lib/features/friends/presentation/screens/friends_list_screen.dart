@@ -311,30 +311,6 @@ class _FriendsListScreenState extends State<FriendsListScreen>
   }
 
   void _showInstaOptions(User friend) {
-    // Check if user is online first - same logic as main home page
-    if (friend.isOnline != true) {
-      Get.snackbar(
-        'User Offline',
-        '${friend.name} is currently offline. Insta Talk requires the user to be online.',
-        backgroundColor: Colors.grey[800],
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-      );
-      return;
-    }
-
-    // Check if user has already used Insta Talk with this friend
-    // if (_homeController.hasUsedInstaTalk(friend.sId!)) {
-    //   Get.snackbar(
-    //     'Insta Talk Used',
-    //     'You have already used your free Insta Talk with ${friend.name}. Please schedule a regular session.',
-    //     backgroundColor: Colors.grey[800],
-    //     colorText: Colors.white,
-    //     duration: const Duration(seconds: 3),
-    //   );
-    //   return;
-    // }
-
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
@@ -445,25 +421,8 @@ class _FriendsListScreenState extends State<FriendsListScreen>
   }
 
   void _startInstaTalk(String option, User friend) {
-    // Check if user is online - redundant but kept for safety
-    if (friend.isOnline != true) {
-      Get.snackbar(
-        'User Offline',
-        '${friend.name} is currently offline. Insta Talk requires the user to be online.',
-        backgroundColor: Colors.grey[800],
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-      );
-      return;
-    }
-
-    // Record that Insta Talk has been used with this friend
-    // _homeController.recordInstaTalkUsage(friend.sId!);
-
-    // Direct navigation based on option type
     switch (option.toLowerCase()) {
       case 'chat':
-        // Navigate directly to chat screen with insta flag
         Get.to(() => ChatRoomScreen(
               profile: friend,
               isInstaTalk: true,
@@ -471,7 +430,6 @@ class _FriendsListScreenState extends State<FriendsListScreen>
             ));
         break;
       case 'call':
-        // Navigate directly to voice call with insta flag
         Get.to(() => VoiceCallLoadingScreen(
               participant: friend,
               scheduleTime: DateTime.now(),
@@ -481,7 +439,6 @@ class _FriendsListScreenState extends State<FriendsListScreen>
             ));
         break;
       case 'video':
-        // Navigate directly to video call with insta flag
         Get.to(() => VideoCallLoadingScreen(
               participant: friend,
               scheduleTime: DateTime.now(),
@@ -667,19 +624,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                               Expanded(
                                 child: OutlinedButton(
                                   onPressed: () {
-                                    // Check if user is online first
-                                    if (profile.isOnline == true) {
-                                      _showInstaOptions(profile);
-                                    } else {
-                                      // Show offline message
-                                      Get.snackbar(
-                                        'User Offline',
-                                        '${profile.name} is currently offline. Insta Talk requires the user to be online.',
-                                        backgroundColor: Colors.grey[800],
-                                        colorText: Colors.white,
-                                        duration: const Duration(seconds: 3),
-                                      );
-                                    }
+                                    _showInstaOptions(profile);
                                   },
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: AppColors.primaryColor,
