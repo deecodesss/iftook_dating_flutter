@@ -3,19 +3,31 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:no_screenshot/no_screenshot.dart';
 import 'package:get/get.dart';
+import 'dart:async';
+import 'package:iftook/features/profile/data/models/user.dart';
+import 'package:iftook/features/calls/controllers/call_controller.dart';
+import 'package:iftook/helpers/app_colors.dart';
 
 class VideoCallScreen extends StatefulWidget {
   final String meetingId;
   final String token;
   final String channel;
   final Function? onSessionEnd;
+  final User? participant;
+  final bool isInstaTalk;
+  final int instaTalkDuration;
+  final int initialTimer;
 
   const VideoCallScreen({
     Key? key,
     required this.meetingId,
     required this.token,
     required this.channel,
+    this.initialTimer = 30,
     this.onSessionEnd,
+    this.participant,
+    this.isInstaTalk = false,
+    this.instaTalkDuration = 30,
   }) : super(key: key);
 
   @override
@@ -33,9 +45,22 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   RxBool isConnecting = true.obs;
   RxString connectionStatus = 'Initializing...'.obs;
 
+  // Timer variables moved from loading screen
+  Timer? _instaTimer;
+  Timer? _startupDelayTimer;
+  int _remainingSeconds = 0;
+  bool _instaTalkExpired = false;
+  bool _showingPaymentPrompt = false;
+  bool _timerStarted = false;
+  final CallController _callController = Get.put(CallController());
+
   // Get Agora app ID from environment or config
   // This should ideally be loaded from a config file or environment
   final String appId = "5da40b914dcf4a089e8bbee75a926178";
+
+  // Timer variables
+  late Timer _callTimer;
+  int _timeLeft = 0; // This will store the remaining time for the call
 
   @override
   void initState() {
@@ -45,6 +70,191 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     print(
         "Initializing with token: ${widget.token}, channel: ${widget.channel}");
     _initAgora();
+
+    // Initialize timer with the provided initialTimer value
+    _timeLeft = widget.initialTimer;
+    _startCallTimer();
+
+    // Start timer if it's an InstaTalk call
+    if (widget.isInstaTalk && widget.participant != null) {
+      final callRate = widget.participant!.earnings?.videoRate ?? 0;
+      if (!_callController.isFreeCall(callRate)) {
+        _startupDelayTimer = Timer(const Duration(seconds: 5), () {
+          if (mounted) {
+            _startTimer();
+          }
+        });
+      }
+    }
+  }
+
+  // Timer functions moved from loading screen
+  void _startTimer() {
+    if (widget.isInstaTalk) {
+      _startInstaTimer();
+    } else {
+      _startRegularTimer();
+    }
+  }
+
+  void _startRegularTimer() {
+    setState(() {
+      _remainingSeconds = 1800; // 30 minutes in seconds
+      _timerStarted = true;
+    });
+
+    _instaTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          _instaTimer?.cancel();
+          if (!_showingPaymentPrompt) {
+            _showContinueCallPrompt();
+          }
+        }
+      });
+    });
+  }
+
+  void _startInstaTimer() {
+    setState(() {
+      _remainingSeconds = widget.instaTalkDuration; // Use the provided duration
+      _timerStarted = true;
+    });
+
+    _instaTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          _instaTimer?.cancel();
+          if (!_showingPaymentPrompt && !_instaTalkExpired) {
+            _instaTalkExpired = true;
+            _showContinueCallPrompt();
+          }
+        }
+      });
+    });
+  }
+
+  String _formatTimer(int seconds) {
+    if (widget.isInstaTalk) {
+      return '$seconds seconds remaining';
+    } else {
+      final minutes = seconds ~/ 60;
+      final remainingSeconds = seconds % 60;
+      return '$minutes:${remainingSeconds.toString().padLeft(2, '0')} remaining';
+    }
+  }
+
+  void _showContinueCallPrompt() {
+    _showingPaymentPrompt = true;
+
+    if (widget.onSessionEnd != null) {
+      widget.onSessionEnd!();
+      return;
+    }
+
+    if (widget.participant == null) return;
+
+    final prompt = widget.isInstaTalk
+        ? '30-second free video call'
+        : '30-minute video call session';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Free Trial Ended',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Your $prompt with ${widget.participant!.name ?? "User"} has ended.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Would you like to continue this call?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Rate: ₹${widget.participant!.earnings?.videoRate ?? 450} for 30 minutes',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _endCall();
+            },
+            child:
+                const Text('End Call', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              _purchaseCall();
+            },
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _purchaseCall() async {
+    if (widget.participant == null) return;
+
+    try {
+      final callRate = widget.participant!.earnings?.videoRate ?? 450.0;
+      final success = await _callController.purchaseCallSession(
+        widget.participant!.sId!,
+        callRate,
+        'video',
+        minutes: 30,
+      );
+
+      if (success) {
+        setState(() {
+          _instaTalkExpired = false;
+          _timerStarted = false;
+          // Restart timer
+          _startTimer();
+        });
+
+        Get.snackbar(
+          'Success',
+          'Video call session purchased',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } else {
+        throw Exception('Failed to purchase session');
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to purchase call session',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 
   // Prevent screenshots using the no_screenshot package
@@ -229,13 +439,89 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     if (widget.onSessionEnd != null) {
       widget.onSessionEnd!();
     }
+    _instaTimer?.cancel();
+    _startupDelayTimer?.cancel();
+    _callTimer.cancel(); // Cancel the main call timer
     Navigator.pop(context);
+  }
+
+  // New method to start the main call timer
+  void _startCallTimer() {
+    _callTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_timeLeft > 0) {
+          _timeLeft--;
+        } else {
+          _callTimer.cancel();
+          // Call has ended due to time expiry
+          _showTimeExpiredDialog();
+        }
+      });
+    });
+  }
+
+  // Format the time left for display
+  String _formatCallTime(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final remainingSeconds = seconds % 60;
+
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+    } else {
+      return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+    }
+  }
+
+  // Show dialog when time expires
+  void _showTimeExpiredDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A),
+          title: const Text(
+            'Call Time Expired',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            'Your call time has ended.',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _endCall();
+              },
+              child:
+                  const Text('End Call', style: TextStyle(color: Colors.white)),
+            ),
+            if (widget.participant != null)
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryColor,
+                ),
+                onPressed: () {
+                  Navigator.pop(context);
+                  _purchaseCall();
+                },
+                child: const Text('Continue Call'),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   @override
   void dispose() {
     _leaveChannel();
     _allowScreenshots();
+    _instaTimer?.cancel();
+    _startupDelayTimer?.cancel();
+    _callTimer.cancel(); // Cancel the main call timer
     super.dispose();
   }
 
@@ -243,7 +529,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(title: const Text('Agora Video Call')),
       body: Stack(
         children: [
           // Remote video
@@ -281,6 +566,106 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                 ),
               ),
             ),
+
+          // Main timer display at the top
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              color: Colors.black.withOpacity(0.5),
+              child: SafeArea(
+                bottom: false,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.timer, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text(
+                      _formatCallTime(_timeLeft),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Add Insta Talk timer if active (now below the main timer)
+          if (widget.isInstaTalk && _timerStarted && !_instaTalkExpired)
+            Positioned(
+              top: MediaQuery.of(context).padding.top +
+                  40, // Position below the main timer
+              left: 0,
+              right: 0,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                color: Colors.amber.withOpacity(0.2),
+                child: Row(
+                  children: [
+                    const Icon(Icons.timer, color: Colors.amber),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Free trial: $_remainingSeconds seconds remaining',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    LinearProgressIndicator(
+                      value: _remainingSeconds / widget.instaTalkDuration,
+                      backgroundColor: Colors.grey[800],
+                      color: Colors.amber,
+                      minHeight: 5,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Expired notice (adjust position)
+          if (widget.isInstaTalk && _instaTalkExpired)
+            Positioned(
+              top: MediaQuery.of(context).padding.top +
+                  40, // Position below the main timer
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                color: Colors.redAccent.withOpacity(0.3),
+                child: SafeArea(
+                  bottom: false,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber, color: Colors.white),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Free trial ended. Purchase to continue.',
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryColor,
+                        ),
+                        onPressed: () => _showContinueCallPrompt(),
+                        child: const Text('Continue'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
           // Call controls
           Align(
             alignment: Alignment.bottomCenter,

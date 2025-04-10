@@ -151,6 +151,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
             meetingId: widget.meetingId,
             channel: widget.channelName,
             token: widget.token,
+            initialTimer: 30, // Example initial timer value initialTimer
           ));
     } else {
       Get.off(() => VoiceCallScreen(

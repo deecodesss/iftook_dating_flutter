@@ -6,6 +6,7 @@ import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/core/widgets/webview_screen.dart';
 import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 import 'dart:async';
+import 'package:url_launcher/url_launcher.dart';
 
 class WalletController extends GetxController {
   var balance = 0.0.obs;
@@ -82,17 +83,39 @@ class WalletController extends GetxController {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
+        final url = data['payPageUrl'];
 
-        Get.to(() => WebViewScreen(
-              url: data['payPageUrl'],
-              title: "Wallet Top Up",
-              amount: amount,
-            ));
+        if (url != null) {
+          // Simpler approach that doesn't rely on canLaunchUrl
+          try {
+            final Uri uri = Uri.parse(url);
+            await launchUrl(
+              uri,
+              // webOnlyWindowName: '_blank',
+            );
+          } catch (e) {
+            print('Error launching URL directly: $e');
+            // Fallback: show the URL to the user
+            Get.snackbar(
+              'Payment Link',
+              'Please open this link: $url',
+              duration: const Duration(seconds: 10),
+              mainButton: TextButton(
+                onPressed: () => Get.back(),
+                child: const Text('OK', style: TextStyle(color: Colors.white)),
+              ),
+              backgroundColor: Colors.blue,
+              colorText: Colors.white,
+            );
+          }
+        } else {
+          throw Exception('Payment URL not provided');
+        }
       } else {
         throw Exception('Failed to make payment');
       }
     } catch (e) {
-      print(e);
+      print('Error in payment process: $e');
       Get.snackbar('Error', 'Failed to make payment: $e');
     } finally {
       isLoading(false);

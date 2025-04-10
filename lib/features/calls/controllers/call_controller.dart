@@ -78,6 +78,7 @@ class CallController extends GetxController {
               meetingId: meetingId.value,
               token: token.value,
               onSessionEnd: onSessionEnd,
+              initialTimer: 30,
             ),
             preventDuplicates: true,
           );
@@ -98,7 +99,6 @@ class CallController extends GetxController {
     }
   }
 
-  // Helper method to check if call is free
   bool isFreeCall(double? callRate) {
     return callRate == null || callRate == 0;
   }

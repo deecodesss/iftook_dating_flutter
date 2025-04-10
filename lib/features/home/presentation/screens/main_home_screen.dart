@@ -17,6 +17,7 @@ import 'package:iftook/features/profile/presentation/screens/view_reviews_screen
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:iftook/features/home/data/enums/meeting_type.dart';
 import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
+import 'package:iftook/helpers/permissions_handler.dart';
 
 import '../../../calls/presentation/screens/laoding_voice_call_screen.dart';
 import '../../../calls/presentation/screens/loading_video_call_screen.dart';
@@ -165,6 +166,13 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
   void initState() {
     super.initState();
     _initControllers();
+    _requestPermissions();
+  }
+
+  // Add this new method to request permissions when the home screen loads
+  void _requestPermissions() async {
+    // Request all necessary permissions
+    await PermissionsHandler().requestAllPermissions();
   }
 
   void _initControllers() {

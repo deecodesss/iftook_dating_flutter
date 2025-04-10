@@ -154,7 +154,7 @@ Future<void> main() async {
 
   NotificationBody? body;
   try {
-    await requestNotificationPermission();
+    // Removed permission request code
     await handleInitialNotification(); // Handle notification if app opened from terminated state
     await setupNotificationClickHandlers(); // Setup handlers for background/foreground states
 
@@ -172,25 +172,6 @@ class MyApp extends StatefulWidget {
 
   @override
   State<MyApp> createState() => _MyAppState();
-}
-
-Future<void> requestNotificationPermission() async {
-  FirebaseMessaging messaging = FirebaseMessaging.instance;
-
-  NotificationSettings settings = await messaging.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-    provisional: false,
-  );
-
-  if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    print("User granted permission for notifications.");
-  } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
-    print("User granted provisional permission.");
-  } else {
-    print("User denied notification permission.");
-  }
 }
 
 class _MyAppState extends State<MyApp> {

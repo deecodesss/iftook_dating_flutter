@@ -1,4 +1,7 @@
 class AppConstants {
-  static const BASE_URL = "https://iftookbackendcopy.vercel.app/api"; // DEV URL
-  // static const BASE_URL = "http://localhost:3000/api"; // Local URL
+  // static const URL = "https://iftookbackendcopy.vercel.app"; // DEV URL
+
+  static const URL = "http://localhost:3000"; // Local URL
+
+  static const BASE_URL = '$URL/api';
 }

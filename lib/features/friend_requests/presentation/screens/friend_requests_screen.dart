@@ -531,8 +531,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
   }
 
   void _handleJoinMeeting(Map<String, dynamic> meeting) async {
-    final isInstaTalk =
-        meeting['isInstaTalk'] ?? false; // Add this flag in your meeting data
+    final isInstaTalk = meeting['isInstaTalk'] ?? false;
 
     if (isInstaTalk) {
       _handleInstaTalkJoin(meeting);

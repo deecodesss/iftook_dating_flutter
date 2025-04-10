@@ -7,7 +7,7 @@ class Constants {
 
 ////CHANGE THIS ONE URL and ONE IN APPCONSTANTS.DART FILE FOR LOCAL TESTING
   // static const String socketUrl = 'http://localhost:3000';
-  static const String socketUrl = 'https://iftookbackendcopy.vercel.app';
+  static const String socketUrl = AppConstants.URL;
 
   static const String apiBaseUrl = AppConstants.BASE_URL;
 

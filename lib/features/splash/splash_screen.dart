@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
+import 'package:iftook/core/services/socket_service.dart';
 import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
 import 'package:iftook/features/home/presentation/screens/home_screen.dart';
 
@@ -55,6 +56,10 @@ class _SplashScreenState extends State<SplashScreen>
       // Try refreshing the token during splash screen
       final refreshed = await ApiService.refreshToken();
       isLoggedIn = refreshed; // Update login state based on refresh result
+
+      if (isLoggedIn) {
+        await SocketService().initSocket(); // 👈 connect socket if login valid
+      }
     }
   }
 

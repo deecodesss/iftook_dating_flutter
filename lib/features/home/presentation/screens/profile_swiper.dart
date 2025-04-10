@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:iftook/core/services/socket_service.dart';
 import 'package:iftook/features/home/controllers/home_controller.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
@@ -206,9 +207,11 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
     return Obx(() {
       final isInWishlist =
           _homeController.isUserInWishlist(widget.profile.sId ?? '');
+      final Sock = SocketService().isUserOnline(widget.profile.sId ?? '');
 
       // Enhanced logging to track wishlist state
       print('📋 WISHLIST STATE CHECK:');
+      print('📋 ONLINE STATUS CHECK: $Sock');
       print('📋 Profile: ${widget.profile.name} (ID: ${widget.profile.sId})');
       print('📋 Is in wishlist: $isInWishlist');
       print('📋 Wishlist count: ${_homeController.wishlistUsers.length}');

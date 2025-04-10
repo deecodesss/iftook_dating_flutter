@@ -13,9 +13,6 @@ import 'package:iftook/helpers/app_constants.dart';
 import '../../features/friends/data/message.dart';
 
 class ApiService {
-  // static const String baseUrl = 'https://iftook-backend.vercel.app/api';
-  // static const String baseUrl = 'https://iftookbackendcopy.vercel.app/api';
-  // static const String baseUrl = 'http://localhost:3000/api';
   static const String baseUrl = AppConstants.BASE_URL;
 
   static Future<bool> refreshToken() async {
@@ -35,11 +32,10 @@ class ApiService {
         // Save both new tokens
         await SharedPrefs.saveTokens(
           data['accessToken'],
-          data['refreshToken'], // Server should return new refresh token too
+          data['refreshToken'],
         );
         return true;
       } else if (response.statusCode == 401) {
-        // If refresh token is invalid/expired, clear tokens and return false
         await SharedPrefs.clearTokens();
         return false;
       }
@@ -59,7 +55,6 @@ class ApiService {
       if (response.statusCode == 401) {
         final refreshed = await refreshToken();
         if (refreshed) {
-          // Retry the original request with new token
           response = await requestFunction();
         } else {
           // Clear all tokens and redirect to login
@@ -79,7 +74,7 @@ class ApiService {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/signup'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body), // Ensure the body is JSON-encoded
+      body: jsonEncode(body),
     );
     print(response.body);
     return response;
@@ -139,7 +134,7 @@ class ApiService {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $token'
           },
-          body: jsonEncode(body), // Ensure the body is JSON-encoded
+          body: jsonEncode(body),
         ));
   }
 

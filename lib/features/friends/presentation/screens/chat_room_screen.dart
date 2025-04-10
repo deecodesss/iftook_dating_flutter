@@ -26,7 +26,7 @@ class ChatRoomScreen extends StatefulWidget {
   final int instaTalkDuration;
   final String? existingChatRoomId;
   final Function? onSessionEnd;
-  final bool isInstaTalkSender; // Add this line
+  final bool isInstaTalkSender;
 
   const ChatRoomScreen({
     super.key,
@@ -36,7 +36,7 @@ class ChatRoomScreen extends StatefulWidget {
     this.instaTalkDuration = 30,
     this.existingChatRoomId,
     this.onSessionEnd,
-    this.isInstaTalkSender = false, // Add this line
+    this.isInstaTalkSender = false,
   });
 
   @override
@@ -50,7 +50,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   final FocusNode _focusNode = FocusNode();
   final ChatController _chatController = Get.put(ChatController());
   String? currentUserId;
-  static const double MESSAGE_FEE = 10; // Static fee per message in dollars
+  static const double MESSAGE_FEE = 10;
 
   Timer? _instaTimer;
   int _remainingSeconds = 0;

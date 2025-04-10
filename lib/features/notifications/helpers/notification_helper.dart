@@ -595,6 +595,7 @@ class NotificationHelper {
                 meetingId: meetingId,
                 channel: channel,
                 token: token,
+                initialTimer: 30, //change thsi as well initialTimer
               ));
         } else {
           Get.to(() => VoiceCallScreen(
