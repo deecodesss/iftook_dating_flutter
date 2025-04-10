@@ -4,11 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:iftook/core/services/api_service.dart';
+import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/core/widgets/custom_app_bar.dart';
 import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
+import 'package:iftook/features/friends/controllers/instaTalkController.dart';
 import 'package:iftook/features/home/presentation/screens/profile_swiper.dart';
 import 'package:iftook/features/home/presentation/screens/schedule_meeting_screen.dart';
 import 'package:iftook/features/home/presentation/screens/swiper_animation.dart';
+import 'package:iftook/features/instatalk/presentation/instatalk_schedule.dart';
 import 'package:iftook/features/live/controllers/live_controller.dart';
 import 'package:iftook/features/live/screens/broadcaster_screen.dart';
 import 'package:iftook/features/live/screens/live_streams_screen.dart';
@@ -155,6 +159,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
 
   // Replace direct find with proper initialization
   late HomeController _homeController;
+  late InstaTalkController _instaTalkController;
   late LiveController _liveController;
 
   // Add these variables to track live status
@@ -193,6 +198,18 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
       print('Error initializing HomeController: $e');
       _homeController = HomeController();
       Get.put(_homeController);
+    }
+    try {
+      if (!Get.isRegistered<InstaTalkController>()) {
+        Get.put(InstaTalkController());
+      }
+      _instaTalkController = Get.find<InstaTalkController>();
+
+      _instaTalkController.currentIndex.listen((index) {});
+    } catch (e) {
+      print('Error initializing _instaTalkController: $e');
+      _instaTalkController = InstaTalkController();
+      Get.put(_instaTalkController);
     }
 
     // Initialize LiveController
@@ -837,9 +854,23 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
                         !_homeController.isInstaTalkLoading.value) {
                       // Only update the selected option, don't trigger setState
                       _selectedTrialOption = newValue;
+                      MeetingType value = newValue == 'Chat'
+                          ? MeetingType.chat
+                          : newValue == 'Call'
+                              ? MeetingType.voice
+                              : MeetingType.video;
+
+                      final currentProfile =
+                          _homeController.profiles[_currentProfileIndex];
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => ScheduleInstaTalkScreen(
+                                participant: currentProfile!, type: value)),
+                      );
 
                       // Call InstaTalk without causing a rebuild
-                      _startInstaTalk(newValue);
+                      // _startInstaTalk(newValue);
                     }
                   },
                 ),
@@ -848,131 +879,132 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     );
   }
 
-  void _startInstaTalk(String option) async {
-    if (_homeController.profiles.isEmpty) return;
+  // void _startInstaTalk(String option) async {
+  //   if (_homeController.profiles.isEmpty) return;
 
-    final currentProfile = _homeController.profiles[_currentProfileIndex];
-    final walletController = Get.find<WalletController>();
+  //   final currentProfile = _homeController.profiles[_currentProfileIndex];
+  //   final walletController = Get.find<WalletController>();
 
-    // Get the InstaTalk type based on the selected option
-    String instaTalkType;
-    switch (option.toLowerCase()) {
-      case 'chat':
-        instaTalkType = 'chat';
-        break;
-      case 'call':
-        instaTalkType = 'voice';
-        break;
-      case 'video':
-        instaTalkType = 'video';
-        break;
-      default:
-        Get.snackbar(
-          'Invalid Option',
-          'Please select a valid option: Chat, Call, or Video',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-    }
+  //   // Get the InstaTalk type based on the selected option
+  //   String instaTalkType;
+  //   switch (option.toLowerCase()) {
+  //     case 'chat':
+  //       instaTalkType = 'chat';
+  //       break;
+  //     case 'call':
+  //       instaTalkType = 'voice';
+  //       break;
+  //     case 'video':
+  //       instaTalkType = 'video';
+  //       break;
+  //     default:
+  //       Get.snackbar(
+  //         'Invalid Option',
+  //         'Please select a valid option: Chat, Call, or Video',
+  //         backgroundColor: Colors.red,
+  //         colorText: Colors.white,
+  //       );
+  //       return;
+  //   }
 
-    // Check if InstaTalk was previously used
-    final hasUsedInstaTalk =
-        await _homeController.hasUsedInstaTalk(currentProfile.sId!);
+  //   // Check if InstaTalk was previously used
+  //   final hasUsedInstaTalk = await ApiService.checkIfTrialUsed(
+  //       currentProfile.sId!,
+  //       SharedPrefs.getUserIdSharedPreference().toString());
 
-    if (hasUsedInstaTalk) {
-      // Get live rate from profile
-      final liveRate = currentProfile.earnings?.liveRate ?? 500.0;
-      final hasEnoughBalance = walletController.hasEnoughBalance(liveRate);
+  //   if (hasUsedInstaTalk == true) {
+  //     // Get live rate from profile
+  //     final liveRate = currentProfile.earnings?.liveRate ?? 500.0;
+  //     final hasEnoughBalance = walletController.hasEnoughBalance(liveRate);
 
-      // Show payment confirmation dialog
-      final shouldProceed = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              backgroundColor: const Color(0xFF1A1A1A),
-              title: const Text('Payment Required',
-                  style: TextStyle(color: Colors.white)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'You have already used your free InstaTalk with this user. You need to pay ₹${liveRate.toInt()} to continue.',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                  if (!hasEnoughBalance) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.withOpacity(0.5)),
-                      ),
-                      child: const Text(
-                        'Insufficient wallet balance. Please add funds.',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: hasEnoughBalance
-                      ? () => Navigator.pop(context, true)
-                      : () {
-                          Navigator.pop(context, false);
-                          Get.to(() => const WalletScreen());
-                        },
-                  child:
-                      Text(hasEnoughBalance ? 'Pay & Continue' : 'Add Funds'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
+  //     // Show payment confirmation dialog
+  //     final shouldProceed = await showDialog<bool>(
+  //           context: context,
+  //           builder: (context) => AlertDialog(
+  //             backgroundColor: const Color(0xFF1A1A1A),
+  //             title: const Text('Payment Required',
+  //                 style: TextStyle(color: Colors.white)),
+  //             content: Column(
+  //               mainAxisSize: MainAxisSize.min,
+  //               children: [
+  //                 Text(
+  //                   'You have already used your free InstaTalk with this user. You need to pay ₹${liveRate.toInt()} to continue.',
+  //                   style: const TextStyle(color: Colors.white70),
+  //                 ),
+  //                 if (!hasEnoughBalance) ...[
+  //                   const SizedBox(height: 16),
+  //                   Container(
+  //                     padding: const EdgeInsets.all(8),
+  //                     decoration: BoxDecoration(
+  //                       color: Colors.red.withOpacity(0.1),
+  //                       borderRadius: BorderRadius.circular(8),
+  //                       border: Border.all(color: Colors.red.withOpacity(0.5)),
+  //                     ),
+  //                     child: const Text(
+  //                       'Insufficient wallet balance. Please add funds.',
+  //                       style: TextStyle(color: Colors.red),
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ],
+  //             ),
+  //             actions: [
+  //               TextButton(
+  //                 onPressed: () => Navigator.pop(context, false),
+  //                 child: const Text('Cancel'),
+  //               ),
+  //               ElevatedButton(
+  //                 style: ElevatedButton.styleFrom(
+  //                   backgroundColor: AppColors.primaryColor,
+  //                   foregroundColor: Colors.white,
+  //                 ),
+  //                 onPressed: hasEnoughBalance
+  //                     ? () => Navigator.pop(context, true)
+  //                     : () {
+  //                         Navigator.pop(context, false);
+  //                         Get.to(() => const WalletScreen());
+  //                       },
+  //                 child:
+  //                     Text(hasEnoughBalance ? 'Pay & Continue' : 'Add Funds'),
+  //               ),
+  //             ],
+  //           ),
+  //         ) ??
+  //         false;
 
-      if (!shouldProceed) return;
+  //     if (!shouldProceed) return;
 
-      // Process payment
-      final paymentSuccess = await _homeController.processInstaTalkPayment(
-        userId: currentProfile.sId!,
-        amount: liveRate,
-      );
+  //     // Process payment
+  //     final paymentSuccess = await _instaTalkController.processInstaTalkPayment(
+  //       userId: currentProfile.sId!,
+  //       amount: liveRate,
+  //     );
 
-      if (!paymentSuccess) {
-        Get.snackbar(
-          'Payment Failed',
-          'Unable to process payment. Please try again.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-      }
-    }
+  //     if (!paymentSuccess) {
+  //       Get.snackbar(
+  //         'Payment Failed',
+  //         'Unable to process payment. Please try again.',
+  //         backgroundColor: Colors.red,
+  //         colorText: Colors.white,
+  //       );
+  //       return;
+  //     }
+  //   }
 
-    // Create InstaTalk request
-    final result = await _homeController.createInstaTalk(
-        currentProfile.sId!, instaTalkType);
+  //   // Create InstaTalk request
+  //   final result = await _instaTalkController.createInstaTalk(
+  //       currentProfile.sId!, instaTalkType);
 
-    if (result == null) return;
+  //   if (result == null) return;
 
-    Get.snackbar(
-      'InstaTalk Request Sent',
-      '${currentProfile.name} will need to accept your request',
-      backgroundColor: Colors.green.withOpacity(0.8),
-      colorText: Colors.white,
-      duration: const Duration(seconds: 3),
-    );
-  }
+  //   Get.snackbar(
+  //     'InstaTalk Request Sent',
+  //     '${currentProfile.name} will need to accept your request',
+  //     backgroundColor: Colors.green.withOpacity(0.8),
+  //     colorText: Colors.white,
+  //     duration: const Duration(seconds: 3),
+  //   );
+  // }
 
   void _handleGoLive() async {
     // Create controllers to capture input

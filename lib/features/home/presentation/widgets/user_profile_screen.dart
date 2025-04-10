@@ -2,6 +2,7 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:iftook/features/friends/controllers/instaTalkController.dart';
 import 'package:iftook/features/home/presentation/screens/main_home_screen.dart';
 import 'package:iftook/features/home/presentation/screens/profile_swiper.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
@@ -40,6 +41,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   LiveController? _liveController;
   WalletController? _walletController;
   late HomeController _homeController;
+  late InstaTalkController _instaTalkController;
 
   // Static profile data with proper typing
   UserProfile profile = UserProfile(
@@ -906,7 +908,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
 
     // Check if InstaTalk already exists or create a new one
-    final result = await _homeController.createInstaTalk(
+    final result = await _instaTalkController.createInstaTalk(
         widget.profile.sId!, instaTalkType);
 
     // If creation failed, return early

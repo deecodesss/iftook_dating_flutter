@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
+import 'package:iftook/features/friends/controllers/instaTalkController.dart';
 import 'package:iftook/features/home/controllers/home_controller.dart'; // Add HomeController import
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
@@ -29,6 +30,8 @@ class _FriendsListScreenState extends State<FriendsListScreen>
   final FriendController _friendController = Get.put(FriendController());
   final HomeController _homeController =
       Get.find<HomeController>(); // Add HomeController
+  final InstaTalkController _instaTalkController =
+      Get.find<InstaTalkController>(); // Add _instaTalkController
 
   @override
   void initState() {
@@ -305,11 +308,6 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     }
   }
 
-  void _handleInstaChat(User friend) {
-    // Use the cleaner approach from main home page
-    _startInstaTalk('Chat', friend);
-  }
-
   void _showInstaOptions(User friend) {
     showModalBottomSheet(
       context: context,
@@ -348,8 +346,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                   label: 'Chat',
                   price: friend.earnings?.chatRate.toInt() ?? 150,
                   onTap: () {
-                    Navigator.pop(context);
-                    _startInstaTalk('Chat', friend);
+                    _instaTalkController.createInstaTalk(friend.sId!, 'chat');
                   },
                 ),
                 _buildInstaOption(
@@ -357,8 +354,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                   label: 'Call',
                   price: friend.earnings?.voiceRate.toInt() ?? 300,
                   onTap: () {
-                    Navigator.pop(context);
-                    _startInstaTalk('Call', friend);
+                    _instaTalkController.createInstaTalk(friend.sId!, 'call');
                   },
                 ),
                 _buildInstaOption(
@@ -366,8 +362,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                   label: 'Video',
                   price: friend.earnings?.videoRate.toInt() ?? 450,
                   onTap: () {
-                    Navigator.pop(context);
-                    _startInstaTalk('Video', friend);
+                    _instaTalkController.createInstaTalk(friend.sId!, 'video');
                   },
                 ),
               ],
@@ -420,42 +415,42 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     );
   }
 
-  void _startInstaTalk(String option, User friend) {
-    switch (option.toLowerCase()) {
-      case 'chat':
-        Get.to(() => ChatRoomScreen(
-              profile: friend,
-              isInstaTalk: true,
-              instaTalkDuration: 30, // seconds
-            ));
-        break;
-      case 'call':
-        Get.to(() => VoiceCallLoadingScreen(
-              participant: friend,
-              scheduleTime: DateTime.now(),
-              type: "voice",
-              isInstaTalk: true,
-              instaTalkDuration: 30, // seconds
-            ));
-        break;
-      case 'video':
-        Get.to(() => VideoCallLoadingScreen(
-              participant: friend,
-              scheduleTime: DateTime.now(),
-              type: "video",
-              isInstaTalk: true,
-              instaTalkDuration: 30, // seconds
-            ));
-        break;
-      default:
-        Get.snackbar(
-          'Invalid Option',
-          'Please select a valid option: Chat, Call, or Video',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-    }
-  }
+  // void _startInstaTalk(String option, User friend) {
+  //   switch (option.toLowerCase()) {
+  //     case 'chat':
+  //       Get.to(() => ChatRoomScreen(
+  //             profile: friend,
+  //             isInstaTalk: true,
+  //             instaTalkDuration: 30, // seconds
+  //           ));
+  //       break;
+  //     case 'call':
+  //       Get.to(() => VoiceCallLoadingScreen(
+  //             participant: friend,
+  //             scheduleTime: DateTime.now(),
+  //             type: "voice",
+  //             isInstaTalk: true,
+  //             instaTalkDuration: 30, // seconds
+  //           ));
+  //       break;
+  //     case 'video':
+  //       Get.to(() => VideoCallLoadingScreen(
+  //             participant: friend,
+  //             scheduleTime: DateTime.now(),
+  //             type: "video",
+  //             isInstaTalk: true,
+  //             instaTalkDuration: 30, // seconds
+  //           ));
+  //       break;
+  //     default:
+  //       Get.snackbar(
+  //         'Invalid Option',
+  //         'Please select a valid option: Chat, Call, or Video',
+  //         backgroundColor: Colors.red,
+  //         colorText: Colors.white,
+  //       );
+  //   }
+  // }
 
   void _navigateToChat(User friend) {
     // Fix: Create an instance of ApiService first

@@ -57,43 +57,15 @@ class InstaTalkController extends GetxController {
     super.onClose();
   }
 
-  Future<bool> hasUsedInstaTalk(String userId) async {
-    try {
-      final response = await ApiService.checkInstaTalkStatus(userId);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['exists'] ?? false;
-      }
-      return false;
-    } catch (e) {
-      print('Error checking InstaTalk status: $e');
-      return false;
-    }
-  }
-
   Future<Map<String, dynamic>?> createInstaTalk(
       String participantId, String type) async {
     try {
       isInstaTalkLoading(true);
 
       // First check if InstaTalk was previously used
-      final hasUsed = await hasUsedInstaTalk(participantId);
-
-      if (hasUsed) {
-        // Get current profile for rate
-        final currentProfile = profiles[currentIndex.value];
-        final instaTalkRate = currentProfile.earnings?.liveRate ?? 500.0;
-
-        // Process payment first
-        final paymentSuccess = await processInstaTalkPayment(
-          userId: participantId,
-          amount: instaTalkRate,
-        );
-
-        if (!paymentSuccess) {
-          return null;
-        }
+      final userId = await SharedPrefs.getUserIdSharedPreference();
+      if (userId == null) {
+        throw Exception('User ID is null');
       }
 
       // Create InstaTalk request after payment (if required)
@@ -192,58 +164,58 @@ class InstaTalkController extends GetxController {
     }
   }
 
-  Future<bool> createMeeting(String participantId, String type,
-      DateTime scheduleTime, double amount) async {
-    try {
-      await fetchWalletBalance();
+  // Future<bool> createMeeting(String participantId, String type,
+  //     DateTime scheduleTime, double amount) async {
+  //   try {
+  //     await fetchWalletBalance();
 
-      if (userWalletBalance.value < amount) {
-        _showSnackbar(
-          'Insufficient Balance',
-          'Please top up your wallet to schedule this meeting',
-          isError: true,
-          mainButton: TextButton(
-            onPressed: () => Get.toNamed('/wallet/topup'),
-            child: Text('Top Up', style: TextStyle(color: Colors.white)),
-          ),
-        );
-        return false;
-      }
+  //     if (userWalletBalance.value < amount) {
+  //       _showSnackbar(
+  //         'Insufficient Balance',
+  //         'Please top up your wallet to schedule this meeting',
+  //         isError: true,
+  //         mainButton: TextButton(
+  //           onPressed: () => Get.toNamed('/wallet/topup'),
+  //           child: Text('Top Up', style: TextStyle(color: Colors.white)),
+  //         ),
+  //       );
+  //       return false;
+  //     }
 
-      print(
-          'Creating meeting: $participantId, $type, $scheduleTime, Amount: $amount');
+  //     print(
+  //         'Creating meeting: $participantId, $type, $scheduleTime, Amount: $amount');
 
-      final response = await ApiService.createMeeting(
-        participantId,
-        type,
-        scheduleTime,
-      );
+  //     final response = await ApiService.createMeeting(
+  //       participantId,
+  //       type,
+  //       scheduleTime,
+  //     );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        print('Meeting created successfully: ${response.body}');
+  //     if (response.statusCode == 200 || response.statusCode == 201) {
+  //       print('Meeting created successfully: ${response.body}');
 
-        final deductResponse = await ApiService.deductMoneyToWallet(amount);
-        if (deductResponse.statusCode == 200) {
-          print('Money deducted successfully');
-          await fetchWalletBalance();
-        } else {
-          print('Failed to deduct money: ${deductResponse.body}');
-        }
+  //       final deductResponse = await ApiService.deductMoneyToWallet(amount);
+  //       if (deductResponse.statusCode == 200) {
+  //         print('Money deducted successfully');
+  //         await fetchWalletBalance();
+  //       } else {
+  //         print('Failed to deduct money: ${deductResponse.body}');
+  //       }
 
-        return true;
-      } else {
-        throw Exception('Failed to create meeting: ${response.body}');
-      }
-    } catch (e) {
-      print('Error creating meeting: $e');
-      _showSnackbar(
-        'Error',
-        'Failed to create meeting: ${e.toString()}',
-        isError: true,
-      );
-      return false;
-    }
-  }
+  //       return true;
+  //     } else {
+  //       throw Exception('Failed to create meeting: ${response.body}');
+  //     }
+  //   } catch (e) {
+  //     print('Error creating meeting: $e');
+  //     _showSnackbar(
+  //       'Error',
+  //       'Failed to create meeting: ${e.toString()}',
+  //       isError: true,
+  //     );
+  //     return false;
+  //   }
+  // }
 
   Future<bool> processInstaTalkPayment({
     required String userId,

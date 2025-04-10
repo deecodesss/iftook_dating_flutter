@@ -763,6 +763,38 @@ class ApiService {
         ));
   }
 
+  // Check if trial used
+  static Future<http.Response> checkIfTrialUsed(
+      String participantId, String userId) async {
+    final url = Uri.parse('$baseUrl/insta-talk/checkExistingInstaTalk');
+    final token = await SharedPrefs.getAccessToken();
+
+    // Ensure userId is a string and not a Future
+    if (userId == null) {
+      throw Exception('User ID is null');
+    }
+
+    // Log the actual values being sent
+    print(
+        'Checking InstaTalk trial with userId: $userId and participantId: $participantId');
+
+    final body = {
+      'userId': userId,
+      'participantId': participantId,
+    };
+
+    // Make the API call and return the response
+    return authenticatedRequest(() => http.post(
+          url,
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            'Authorization': 'Bearer $token',
+          },
+          body: json.encode(body),
+        ));
+  }
+
   static Future<http.Response> acceptInstaTalk(
       String meetingId, String userId) async {
     final url = Uri.parse('$baseUrl/insta-talk/$meetingId/accept');

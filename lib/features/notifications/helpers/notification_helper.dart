@@ -12,6 +12,7 @@ import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/auth/controllers/auth_controller.dart';
 import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
+import 'package:iftook/features/friends/controllers/instaTalkController.dart';
 import 'package:iftook/features/friends/presentation/screens/chat_room_screen.dart';
 import 'package:iftook/features/home/controllers/home_controller.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
@@ -868,6 +869,7 @@ class NotificationHelper {
   static Future<void> _acceptInstaTalkRequest(String meetingId) async {
     try {
       final homeController = Get.find<HomeController>();
+      final _instaTalkController = Get.find<InstaTalkController>();
       final userId = await SharedPrefs.getUserIdSharedPreference();
 
       Get.dialog(
@@ -875,7 +877,7 @@ class NotificationHelper {
         barrierDismissible: false,
       );
 
-      final result = await homeController.acceptInstaTalk(meetingId);
+      final result = await _instaTalkController.acceptInstaTalk(meetingId);
 
       Get.back(); // Close loading dialog
 
