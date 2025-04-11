@@ -7,6 +7,7 @@ import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/friends/controllers/instaTalkController.dart';
 import 'package:iftook/features/home/controllers/home_controller.dart'; // Add HomeController import
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
+import 'package:iftook/features/instatalk/presentation/instatalk_schedule.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
@@ -52,6 +53,8 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     Get.to(() => ChatRoomScreen(
           profile: profile,
           isTrial: isTrial,
+          duration: 1,
+          isFriend: true,
         ));
   }
 
@@ -346,7 +349,13 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                   label: 'Chat',
                   price: friend.earnings?.chatRate.toInt() ?? 150,
                   onTap: () {
-                    _instaTalkController.createInstaTalk(friend.sId!, 'chat');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => ScheduleInstaTalkScreen(
+                              participant: friend, type: MeetingType.chat)),
+                    );
+                    // _instaTalkController.createInstaTalk(friend.sId!, 'chat');
                   },
                 ),
                 _buildInstaOption(
@@ -354,7 +363,13 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                   label: 'Call',
                   price: friend.earnings?.voiceRate.toInt() ?? 300,
                   onTap: () {
-                    _instaTalkController.createInstaTalk(friend.sId!, 'call');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => ScheduleInstaTalkScreen(
+                              participant: friend, type: MeetingType.voice)),
+                    );
+                    // _instaTalkController.createInstaTalk(friend.sId!, 'call');
                   },
                 ),
                 _buildInstaOption(
@@ -362,7 +377,13 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                   label: 'Video',
                   price: friend.earnings?.videoRate.toInt() ?? 450,
                   onTap: () {
-                    _instaTalkController.createInstaTalk(friend.sId!, 'video');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => ScheduleInstaTalkScreen(
+                              participant: friend, type: MeetingType.video)),
+                    );
+                    // _instaTalkController.createInstaTalk(friend.sId!, 'video');
                   },
                 ),
               ],
@@ -461,7 +482,11 @@ class _FriendsListScreenState extends State<FriendsListScreen>
         .createOrGetChatRoom(SharedPrefs.sharedPreferenceUserIdKey, friend.sId!)
         .then((chatRoom) {
       // Fix: Add the required 'profile' parameter to ChatRoomScreen
-      Get.to(() => ChatRoomScreen(profile: friend));
+      Get.to(() => ChatRoomScreen(
+            profile: friend,
+            duration: 1,
+            isFriend: true,
+          ));
     }).catchError((error) {
       print('Error creating chat room: $error');
       Get.snackbar(

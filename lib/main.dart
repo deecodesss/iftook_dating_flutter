@@ -89,6 +89,7 @@ Future<void> handleNotificationClick(RemoteMessage message) async {
         Get.to(
           () => ChatRoomScreen(
             profile: userData,
+            duration: 60,
             existingChatRoomId:
                 chatRoomId, // Add this parameter to ChatRoomScreen
           ),
@@ -115,7 +116,10 @@ Future<void> handleNotificationClick(RemoteMessage message) async {
         await Future.delayed(const Duration(milliseconds: 500));
 
         // Navigate to chat screen with the sender's profile
-        Get.to(() => ChatRoomScreen(profile: userData));
+        Get.to(() => ChatRoomScreen(
+              profile: userData,
+              duration: 60,
+            ));
         return;
       }
     }

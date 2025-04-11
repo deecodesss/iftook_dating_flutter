@@ -12,6 +12,7 @@ import 'package:iftook/features/friend_requests/controller/friend_controller.dar
 import 'package:iftook/features/friend_requests/data/models/friend_request.dart';
 import 'package:iftook/features/friends/presentation/screens/chat_room_screen.dart';
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
+import 'package:iftook/features/instatalk/presentation/instatalk_schedule.dart';
 import 'package:iftook/features/wallet/controllers/wallet_controller.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
@@ -416,127 +417,180 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     }
   }
 
-  void _handleInstaTalkJoin(Map<String, dynamic> meeting) async {
-    final participantData = meeting['participant'];
-    final type = meeting['type'];
-    final amount = (meeting['amount'] ?? 0).toDouble();
-
-    final participant = User(
-      sId: participantData['_id'],
-      name: participantData['name'],
-      photos: participantData['photos'] is List
-          ? List<String>.from(participantData['photos'])
-          : [],
-    );
-
-    try {
-      switch (type) {
-        case 'chat':
-          await Get.to(() => ChatRoomScreen(
-                profile: participant,
-                isInstaTalk: true,
-                instaTalkDuration: 30, // 30 seconds for InstaTalk
-                isInstaTalkSender: controller.isInstaTalkSender(meeting),
-                onSessionEnd: () =>
-                    _showContinueSessionDialog(participant, amount, type),
-              ));
-          break;
-
-        case 'voice':
-          await Get.to(() => VoiceCallLoadingScreen(
-                participant: participant,
-                scheduleTime: DateTime.now(),
-                type: "voice",
-                isInstaTalk: true,
-                instaTalkDuration: 30, // 30 seconds for InstaTalk
-                onSessionEnd: () =>
-                    _showContinueSessionDialog(participant, amount, type),
-              ));
-          break;
-
-        case 'video':
-          await Get.to(() => VideoCallLoadingScreen(
-                participant: participant,
-                scheduleTime: DateTime.now(),
-                type: "video",
-                isInstaTalk: true,
-                instaTalkDuration: 30, // 30 seconds for InstaTalk
-                onSessionEnd: () =>
-                    _showContinueSessionDialog(participant, amount, type),
-              ));
-          break;
-      }
-    } catch (e) {
-      print('Navigation error: $e');
-      // Handle any navigation errors here
-    }
-  }
-
-  void _handleMeetingJoin(Map<String, dynamic> meeting) async {
-    final participantData = meeting['participant'];
-    final type = meeting['type'];
-    final scheduledTime = DateTime.parse(meeting['scheduledTime']);
-    final meetingId = meeting['_id'];
-
-    final participant = User(
-      sId: participantData['_id'],
-      name: participantData['name'],
-      photos: participantData['photos'] is List
-          ? List<String>.from(participantData['photos'])
-          : [],
-    );
-
-    // Add logging for debugging
-    print('Joining existing meeting: $meetingId');
-    print('Meeting type: $type');
-    print('Scheduled time: $scheduledTime');
-
-    try {
-      switch (type) {
-        case 'voice':
-          await Get.to(() => VoiceCallLoadingScreen(
-                participant: participant,
-                scheduleTime: scheduledTime,
-                type: "voice",
-                isInstaTalk: false,
-              ));
-          break;
-
-        case 'video':
-          await Get.to(() => VideoCallLoadingScreen(
-                participant: participant,
-                scheduleTime: scheduledTime,
-                type: "video",
-                isInstaTalk: false,
-              ));
-          break;
-
-        case 'chat':
-          await Get.to(() => ChatRoomScreen(
-                profile: participant,
-                isInstaTalk: false,
-                isInstaTalkSender: controller.isInstaTalkSender(meeting),
-              ));
-          break;
-      }
-    } catch (e) {
-      print('Meeting join error: $e');
-      Get.snackbar(
-        'Error',
-        'Could not join meeting. Please try again.',
-        backgroundColor: Colors.red.withOpacity(0.8),
-        colorText: Colors.white,
-      );
-    }
-  }
-
   void _handleJoinMeeting(Map<String, dynamic> meeting) async {
     final isInstaTalk = meeting['isInstaTalk'] ?? false;
 
     if (isInstaTalk) {
       _handleInstaTalkJoin(meeting);
     } else {
-      _handleMeetingJoin(meeting);
+      _handleRegularMeetingJoin(meeting);
+    }
+  }
+
+  void _handleInstaTalkJoin(Map<String, dynamic> meeting) async {
+    try {
+      final participantData = meeting['participant'];
+      final type = meeting['type'];
+      final amount = (meeting['amount'] ?? 0).toDouble();
+      final meetingId = meeting['_id'];
+      final isSender = controller.isInstaTalkSender(meeting);
+
+      final participant = User(
+          sId: participantData['_id'],
+          name: participantData['name'],
+          photos: participantData['photos'] is List
+              ? List<String>.from(participantData['photos'])
+              : [],
+          earnings: Earnings(
+            chat: participantData['earnings']['chat'] ?? 0,
+            video: participantData['earnings']['video'] ?? 0,
+            voice: participantData['earnings']['voice'] ?? 0,
+          ));
+
+      // Check if the user already used their time
+      final bool hasUsedTime = isSender
+          ? meeting['userOneTimeUsed'] ?? false
+          : meeting['userTwoTimeUsed'] ?? false;
+
+      if (hasUsedTime) {
+        Get.snackbar(
+          'Session Already Used',
+          'You have already joined this InstaTalk session',
+          backgroundColor: Colors.orange.withOpacity(0.8),
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      // Mark time as used
+      final success = await controller.updateInstaTalkTimeUsage(
+        meetingId: meetingId,
+        isUserOne: isSender,
+      );
+
+      if (!success) {
+        Get.snackbar(
+          'Error',
+          'Unable to start InstaTalk session',
+          backgroundColor: Colors.red.withOpacity(0.8),
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      switch (type) {
+        case 'chat':
+          await Get.to(() => ChatRoomScreen(
+                profile: participant,
+                isInstaTalk: true,
+                duration: meeting['duration'],
+                isInstaTalkSender: isSender,
+                onSessionEnd: () =>
+                    _showContinueSessionDialog(participant, amount, type),
+              ));
+          break;
+
+        case 'voice':
+          await Get.to(() => VoiceCallLoadingScreen(
+                participant: participant,
+                scheduleTime: DateTime.now(),
+                type: "voice",
+                isInstaTalk: true,
+                instaTalkDuration:
+                    meeting['duration'], // 30 seconds for InstaTalk
+                onSessionEnd: () =>
+                    _showContinueSessionDialog(participant, amount, type),
+              ));
+          break;
+
+        case 'video':
+          await Get.to(() => VideoCallLoadingScreen(
+                participant: participant,
+                scheduleTime: DateTime.now(),
+                type: "video",
+                isInstaTalk: true,
+                instaTalkDuration:
+                    meeting['duration'], // 30 seconds for InstaTalk
+                onSessionEnd: () =>
+                    _showContinueSessionDialog(participant, amount, type),
+              ));
+          break;
+      }
+    } catch (e) {
+      print('InstaTalk join error: $e');
+      Get.snackbar(
+        'Error',
+        'Could not join InstaTalk session. Please try again.',
+        backgroundColor: Colors.red.withOpacity(0.8),
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  void _handleRegularMeetingJoin(Map<String, dynamic> meeting) async {
+    try {
+      final participantData = meeting['participant'];
+      final type = meeting['type'];
+      final scheduledTime = DateTime.parse(meeting['scheduledTime']);
+      final meetingId = meeting['_id'];
+
+      final participant = User(
+          sId: participantData['_id'],
+          name: participantData['name'],
+          photos: participantData['photos'] is List
+              ? List<String>.from(participantData['photos'])
+              : [],
+          earnings: Earnings(
+            chat: participantData['earnings']['chat'] ?? 0,
+            video: participantData['earnings']['video'] ?? 0,
+            voice: participantData['earnings']['voice'] ?? 0,
+          ));
+
+      print('Joining regular meeting: $meetingId');
+      print('Meeting type: $type');
+      print('Scheduled time: $scheduledTime');
+      // print("Tiem for meeting start ${DateTime(meeting['scheduledTime'])}");
+      print(meeting['scheduledTime']);
+      print('Duration : ${meeting['duration']}');
+
+      switch (type) {
+        case 'voice':
+          await Get.to(() => VoiceCallLoadingScreen(
+                participant: participant,
+                scheduleTime: scheduledTime,
+                type: "voice",
+                isInstaTalk: false,
+              ));
+          break;
+
+        case 'video':
+          await Get.to(() => VideoCallLoadingScreen(
+                participant: participant,
+                scheduleTime: scheduledTime,
+                type: "video",
+                isInstaTalk: false,
+              ));
+          break;
+
+        case 'chat':
+          await Get.to(() => ChatRoomScreen(
+                profile: participant,
+                isInstaTalk: false,
+                duration: meeting['duration'],
+                isFriend: false,
+                isInstaTalkSender: controller.isInstaTalkSender(meeting),
+                scheduledTime: DateTime.parse(meeting['scheduledTime']),
+              ));
+          break;
+      }
+    } catch (e) {
+      print('Regular meeting join error: $e');
+      Get.snackbar(
+        'Error',
+        'Could not join meeting. Please try again.',
+        backgroundColor: Colors.red.withOpacity(0.8),
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -634,7 +688,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           Get.off(() => ChatRoomScreen(
                 profile: participant,
                 isInstaTalk: true,
-                instaTalkDuration: 30,
+                // instaTalkDuration: 30,
+                duration: 60,
                 isInstaTalkSender: controller.isInstaTalkSender({
                   'user': {
                     '_id': currentUserId,
@@ -1911,7 +1966,17 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onPressed: () => _showContinueInstaTalkDialog(instaTalk),
+                  onPressed: () => {
+                    // Navigator.push(
+                    //   context,
+                    //   MaterialPageRoute(
+                    //       builder: (context) => ScheduleInstaTalkScreen(
+                    //             participant: instaTalk['participantId'],
+                    //             type: instaTalk['type'],
+                    //           )),
+                    // ),
+                    _showContinueInstaTalkDialog(instaTalk),
+                  },
                   child: Text(
                     'Continue Session',
                     style: GoogleFonts.manrope(color: Colors.white),
@@ -2028,7 +2093,8 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
           await Get.to(() => ChatRoomScreen(
                 profile: participant,
                 isInstaTalk: true,
-                instaTalkDuration: 30,
+                // instaTalkDuration: 30,
+                duration: instaTalk['duration'] ?? 30,
                 isInstaTalkSender:
                     widget.controller.isInstaTalkSender(instaTalk),
                 // rate: liveRate,
@@ -2149,6 +2215,37 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
       );
 
       if (shouldContinue ?? false) {
+        // Show loading indicator
+        Get.dialog(
+          Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.secondaryBackground,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(
+                      color: AppColors.primaryColor,
+                    ),
+                    const SizedBox(height: 15),
+                    const Text(
+                      'Processing payment...',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          barrierDismissible: false,
+        );
+
         // Process payment
         final deductResponse = await ApiService.deductMoneyToWallet(liveRate);
         if (deductResponse.statusCode == 200) {
@@ -2158,17 +2255,55 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
             isUserOne: isSender,
           );
 
+          // Close loading dialog
+          Get.back();
+
           if (success) {
-            // Navigate to appropriate screen based on type
-            _joinInstaTalk(instaTalk);
+            // Reset usage flags locally
+            final updatedInstaTalk = Map<String, dynamic>.from(instaTalk);
+            if (isSender) {
+              updatedInstaTalk['userOneTimeUsed'] = false;
+            } else {
+              updatedInstaTalk['userTwoTimeUsed'] = false;
+            }
+
+            // Update the request in the controller
+            final index = widget.controller.instaTalkRequests.indexWhere(
+              (req) => req['_id'] == instaTalk['_id'],
+            );
+            if (index != -1) {
+              widget.controller.instaTalkRequests[index] = updatedInstaTalk;
+            }
+
+            // Show success message
+            Get.snackbar(
+              'Session Renewed',
+              'You can now join the InstaTalk session with ${user.name}',
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 3),
+              snackPosition: SnackPosition.BOTTOM,
+              margin: const EdgeInsets.all(10),
+              borderRadius: 10,
+            );
+
+            // Refresh the InstaTalk list
+            widget.controller.fetchInstaTalkRequests();
           } else {
             throw Exception('Failed to update InstaTalk status');
           }
         } else {
+          // Close loading dialog
+          Get.back();
           throw Exception('Failed to process payment');
         }
       }
     } catch (e) {
+      // Close loading dialog if it's open
+      if (Get.isDialogOpen ?? false) {
+        Get.back();
+      }
+
       Get.snackbar(
         'Error',
         'Failed to continue session: $e',

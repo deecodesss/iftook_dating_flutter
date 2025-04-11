@@ -39,7 +39,7 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
   bool isLoading = true;
   bool isTrialUsed = false;
   MeetingType _selectedType = MeetingType.video;
-  int durationInMinutes = 30; // Default duration
+  int durationInMinutes = 1; // Default duration
 
   double get meetingRate {
     final earnings = widget.participant.earnings;
@@ -47,11 +47,11 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
 
     switch (_selectedType) {
       case MeetingType.video:
-        return earnings.videoRate;
+        return earnings.liveRate;
       case MeetingType.voice:
-        return earnings.voiceRate;
+        return earnings.liveRate;
       case MeetingType.chat:
-        return earnings.chatRate;
+        return earnings.liveRate;
     }
   }
 
@@ -170,8 +170,10 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
                                 : Colors.green.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: isTrialUsed ? Colors.amber : Colors.green,
-                              width: 1,
+                              color: isTrialUsed
+                                  ? Colors.amber
+                                  : Colors.green.withOpacity(0.8),
+                              width: 0.1,
                             ),
                           ),
                           child: Row(
@@ -188,8 +190,8 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
                               Expanded(
                                 child: Text(
                                   isTrialUsed
-                                      ? 'You have already used your free trial with this person'
-                                      : 'You have a free trial available with this person!',
+                                      ? 'Free trial already used'
+                                      : 'Free trial available',
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -224,32 +226,32 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        // Duration Selection (only for non-trial)
-                        if (isTrialUsed) ...[
-                          Text(
-                            'Select Duration',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _buildDurationOption(5, '5 min'),
-                              _buildDurationOption(10, '10 min'),
-                              _buildDurationOption(30, '30 min'),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                        ],
+                        // // Duration Selection (only for non-trial)
+                        // if (isTrialUsed) ...[
+                        //   Text(
+                        //     'Select Duration',
+                        //     style: TextStyle(
+                        //       fontSize: 16,
+                        //       fontWeight: FontWeight.bold,
+                        //       color: Colors.white,
+                        //     ),
+                        //   ),
+                        //   const SizedBox(height: 12),
+                        //   Row(
+                        //     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        //     children: [
+                        //       _buildDurationOption(1, '1 min'),
+                        //       // _buildDurationOption(10, '10 min'),
+                        //       // _buildDurationOption(30, '30 min'),
+                        //     ],
+                        //   ),
+                        const SizedBox(height: 24),
+                        // ],
 
                         // Rate Card
                         Card(
                           child: Padding(
-                            padding: const EdgeInsets.all(16.0),
+                            padding: const EdgeInsets.all(12.0),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -280,7 +282,7 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
                         if (isTrialUsed)
                           Obx(() => Card(
                                 child: Padding(
-                                  padding: const EdgeInsets.all(16.0),
+                                  padding: const EdgeInsets.all(12.0),
                                   child: Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
@@ -374,10 +376,10 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
               ? AppColors.primaryColor.withOpacity(0.2)
               : Colors.grey.withOpacity(0.2),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? AppColors.primaryColor : Colors.grey,
-            width: 1,
-          ),
+          // border: Border.all(
+          //   color: isSelected ? AppColors.primaryColor : Colors.grey,
+          //   width: 1,
+          // ),
         ),
         child: Column(
           children: [

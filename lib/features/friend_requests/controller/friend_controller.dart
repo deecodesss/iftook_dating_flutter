@@ -437,11 +437,12 @@ class FriendController extends GetxController {
     if (instaTalk['status'] == 'completed') return true;
 
     // Check if it's more than 30 minutes old
-    final scheduledTime = DateTime.parse(instaTalk['scheduledTime']);
-    final now = DateTime.now();
-    final difference = now.difference(scheduledTime).inMinutes;
+    // final scheduledTime = DateTime.parse(instaTalk['scheduledTime']);
+    // final now = DateTime.now();
+    // final difference = now.difference(scheduledTime).inMinutes;
 
-    return difference > 60; // Consider expired after 1 hour
+    // return difference > 60; // Consider expired after 1 hour
+    return false; // Consider expired after 1 hour
   }
 
   Future<void> acceptRequest(String requestId, BuildContext context) async {

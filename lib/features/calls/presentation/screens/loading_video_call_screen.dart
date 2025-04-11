@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iftook/features/calls/controllers/call_controller.dart';
@@ -28,6 +30,8 @@ class VideoCallLoadingScreen extends StatefulWidget {
 class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
   final CallController _callController = Get.put(CallController());
 
+  Timer? _startupDelayTimer;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +50,18 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
         );
       }
     });
+
+    // Add timer initialization if needed
+    if (widget.isInstaTalk) {
+      final callRate = widget.participant.earnings?.videoRate ?? 0;
+      if (!_callController.isFreeCall(callRate)) {
+        _startupDelayTimer = Timer(Duration(seconds: 5), () {
+          if (mounted) {
+            _startTimer();
+          }
+        });
+      }
+    }
   }
 
   void _endCall() {

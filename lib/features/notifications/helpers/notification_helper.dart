@@ -242,7 +242,10 @@ class NotificationHelper {
         final userData = User.fromJson(
             (json.decode(response.body) as Map<String, dynamic>)['data']);
 
-        Get.to(() => ChatRoomScreen(profile: userData));
+        Get.to(() => ChatRoomScreen(
+              profile: userData,
+              duration: 60,
+            ));
       }
     } catch (e) {
       debugPrint("Error handling chat notification: $e");
@@ -891,7 +894,8 @@ class NotificationHelper {
             Get.to(() => ChatRoomScreen(
                   profile: participant,
                   isInstaTalk: true,
-                  instaTalkDuration: 30,
+                  duration: result['meeting']['duration'],
+                  // instaTalkDuration: 30,
                 ));
             break;
           case 'voice':

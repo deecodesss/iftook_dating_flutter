@@ -438,7 +438,7 @@ class ApiService {
 
     print(data);
     return authenticatedRequest(() => http.post(
-          Uri.parse('$baseUrl/meeting/create'),
+          Uri.parse('$baseUrl/meeting/create-meeting'),
           headers: {
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -862,7 +862,14 @@ class ApiService {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
             },
-            body: jsonEncode({'userId': userId, 'field': fieldToUpdate}),
+            body: jsonEncode(
+                // {'userId': userId, 'field': fieldToUpdate, 'duration': 1}),
+                {
+                  'userId': userId,
+                  'userOneTimeUsed': false,
+                  'userTwoTimeUsed': false,
+                  'duration': 1
+                }),
           ));
 
       print('Update response: ${response.statusCode} - ${response.body}');

@@ -23,20 +23,24 @@ class ChatRoomScreen extends StatefulWidget {
   final User profile;
   final bool isTrial;
   final bool isInstaTalk;
-  final int instaTalkDuration;
+  final bool isFriend;
+  final int duration;
   final String? existingChatRoomId;
   final Function? onSessionEnd;
   final bool isInstaTalkSender;
+  final DateTime? scheduledTime;
 
   const ChatRoomScreen({
     super.key,
     required this.profile,
+    required this.duration,
     this.isTrial = false,
     this.isInstaTalk = false,
-    this.instaTalkDuration = 30,
+    this.isFriend = false,
     this.existingChatRoomId,
     this.onSessionEnd,
     this.isInstaTalkSender = false,
+    this.scheduledTime, // Add scheduled time parameter
   });
 
   @override
@@ -52,27 +56,67 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   String? currentUserId;
   static const double MESSAGE_FEE = 10;
 
-  Timer? _instaTimer;
+  Timer? _sessionTimer;
   int _remainingSeconds = 0;
-  bool _instaTalkExpired = false;
+  bool _sessionExpired = false;
   bool _showingPaymentPrompt = false;
 
   bool _hasRenewedSession = false;
   bool _isRenewing = false;
+
+  bool _isNearBottom = true;
+
+  DateTime? _meetingStartTime;
+  DateTime? _meetingEndTime;
 
   @override
   void initState() {
     super.initState();
     _initializeChatRoom();
     _focusNode.addListener(_onFocusChange);
-    _chatController.messages.listen((_) => _chatController.scrollToBottom());
 
-    if (widget.isInstaTalk && widget.isInstaTalkSender) {
-      final liveRate = widget.profile.earnings?.liveRate ?? 0;
-      if (!_chatController.isFreeChat(liveRate)) {
-        _remainingSeconds = widget.instaTalkDuration;
-        _startInstaTimer();
+    _chatController.messages.listen((_) {
+      if (_isNearBottom) {
+        _chatController.scrollToBottom();
       }
+    });
+
+    _chatController.scrollController.addListener(_onScroll);
+
+    // Initialize meeting time tracking
+    if (!widget.isFriend) {
+      if (widget.isInstaTalk) {
+        // For InstaTalk, use simple duration-based timer as before
+        final liveRate = widget.profile.earnings?.liveRate ?? 0;
+        if (!_chatController.isFreeChat(liveRate)) {
+          _remainingSeconds =
+              widget.duration * 60; // Convert minutes to seconds
+          _startSessionTimer();
+        }
+      } else if (widget.scheduledTime != null) {
+        // For scheduled meetings, use the scheduled time to determine timer
+        _meetingStartTime = widget.scheduledTime;
+        _meetingEndTime =
+            _meetingStartTime!.add(Duration(minutes: widget.duration));
+        _updateRemainingTimeFromSchedule();
+        _startSessionTimer();
+      } else if (widget.duration > 0) {
+        // Fallback for meetings without scheduled time
+        _meetingStartTime = DateTime.now();
+        _meetingEndTime =
+            _meetingStartTime!.add(Duration(minutes: widget.duration));
+        _remainingSeconds = widget.duration * 60;
+        _startSessionTimer();
+      }
+    }
+  }
+
+  void _onScroll() {
+    if (_chatController.scrollController.hasClients) {
+      final maxScroll =
+          _chatController.scrollController.position.maxScrollExtent;
+      final currentScroll = _chatController.scrollController.offset;
+      _isNearBottom = maxScroll - currentScroll <= 100;
     }
   }
 
@@ -98,33 +142,109 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
   }
 
-  void _startInstaTimer() {
-    _instaTimer?.cancel();
+  bool _isFreeChatSession() {
+    if (widget.isFriend) {
+      print('ChatRoomScreen: Chat is free because users are friends');
+      return true;
+    }
 
-    _instaTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    // For InstaTalk, check liveRate
+    if (widget.isInstaTalk) {
+      final liveRate = widget.profile.earnings?.liveRate;
+      if (liveRate == null) {
+        print('ChatRoomScreen: InstaTalk is free because liveRate is null');
+        return true;
+      } else if (liveRate <= 0) {
+        print(
+            'ChatRoomScreen: InstaTalk is free because liveRate is $liveRate (≤0)');
+        return true;
+      } else {
+        print('ChatRoomScreen: InstaTalk is PAID with liveRate of $liveRate');
+        return false;
+      }
+    }
+    // For regular chats/meetings, check chatRate
+    else {
+      final chatRate = widget.profile.earnings?.chatRate;
+      print("Chat rate: $chatRate");
+      if (chatRate == null) {
+        print("Chat rate: $chatRate");
+        print('ChatRoomScreen: Meeting chat is free because chatRate is null');
+        return true;
+      } else if (chatRate <= 0) {
+        print(
+            'ChatRoomScreen: Meeting chat is free because chatRate is $chatRate (≤0)');
+        return true;
+      } else {
+        print(
+            'ChatRoomScreen: Meeting chat is PAID with chatRate of $chatRate');
+        return false;
+      }
+    }
+  }
+
+  // Add method to update remaining time based on scheduled time
+  void _updateRemainingTimeFromSchedule() {
+    if (_meetingEndTime != null) {
+      final now = DateTime.now();
+      final difference = _meetingEndTime!.difference(now);
+
+      print(
+          'ChatRoomScreen: Meeting scheduled from ${_meetingStartTime?.toString() ?? "N/A"} to ${_meetingEndTime?.toString() ?? "N/A"}');
+      print('ChatRoomScreen: Current time is ${now.toString()}');
+
+      if (difference.isNegative) {
+        _remainingSeconds = 0;
+        _sessionExpired = true;
+        print('ChatRoomScreen: Meeting has already ended');
+      } else {
+        _remainingSeconds = difference.inSeconds;
+        print(
+            'ChatRoomScreen: Meeting has $_remainingSeconds seconds remaining');
+      }
+    }
+  }
+
+  void _startSessionTimer() {
+    _sessionTimer?.cancel();
+
+    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
-        if (_remainingSeconds > 0) {
-          _remainingSeconds--;
+        // For scheduled meetings, recalculate time from schedule
+        if (!widget.isInstaTalk && widget.scheduledTime != null) {
+          _updateRemainingTimeFromSchedule();
         } else {
-          _instaTimer?.cancel();
-          if (!_showingPaymentPrompt && !_instaTalkExpired) {
-            _instaTalkExpired = true;
+          // For InstaTalk or unscheduled meetings, just decrement
+          if (_remainingSeconds > 0) {
+            _remainingSeconds--;
+          }
+        }
+
+        // Check if session has expired
+        if (_remainingSeconds <= 0) {
+          _sessionTimer?.cancel();
+          if (!_showingPaymentPrompt && !_sessionExpired) {
+            _sessionExpired = true;
             _showingPaymentPrompt = true;
-            _showContinueChatPrompt();
+            if (widget.isInstaTalk) {
+              _showInstaTalkContinuePrompt();
+            } else {
+              _showMeetingContinuePrompt();
+            }
           }
         }
       });
     });
   }
 
-  void _showContinueChatPrompt() {
-    if (_chatController.isFreeChat(widget.profile.earnings?.liveRate)) {
+  void _showMeetingContinuePrompt() {
+    if (_isFreeChatSession()) {
       return;
     }
 
     _showingPaymentPrompt = true;
-    final baseRate = widget.profile.earnings?.liveRate ?? 150.0;
-    final perMinuteRate = baseRate;
+    final chatRate = widget.profile.earnings?.chatRate ?? 150.0;
+    final perMinuteRate = chatRate;
 
     showDialog(
       context: context,
@@ -132,7 +252,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
         title: const Text(
-          'Session Ended',
+          'Meeting Session Ended',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: Column(
@@ -140,7 +260,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Your session with ${widget.profile.name} has ended.',
+              'Your meeting session with ${widget.profile.name} has ended.',
               style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
@@ -157,7 +277,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ),
             ),
             Text(
-              '(₹${baseRate.toStringAsFixed(2)} for 30 minutes)',
+              '(₹${chatRate.toStringAsFixed(2)} for 30 minutes)',
               style: TextStyle(
                 color: Colors.grey[400],
                 fontSize: 12,
@@ -178,7 +298,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               backgroundColor: AppColors.primaryColor,
               foregroundColor: Colors.white,
             ),
-            onPressed: () => _purchaseChat(minutes: 1),
+            onPressed: () => _purchaseChat(minutes: 1, isInstaTalk: false),
             child: const Text('Continue (1 min)'),
           ),
         ],
@@ -186,9 +306,84 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     );
   }
 
-  void _purchaseChat({int minutes = 1}) async {
-    final baseRate = widget.profile.earnings?.chatRate ?? 150.0;
-    final perMinuteRate = _chatController.calculatePerMinuteRate(baseRate);
+  void _showInstaTalkContinuePrompt() {
+    if (_isFreeChatSession()) {
+      return;
+    }
+
+    _showingPaymentPrompt = true;
+    final liveRate = widget.profile.earnings?.liveRate ?? 150.0;
+    final perMinuteRate = liveRate;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'InstaTalk Session Ended',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your InstaTalk session with ${widget.profile.name} has ended.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Would you like to continue?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Rate: ₹${perMinuteRate.toStringAsFixed(2)} per minute',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              '(₹${liveRate.toStringAsFixed(2)} for 30 minutes)',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Get.back();
+            },
+            child: const Text('End Chat'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => _purchaseChat(minutes: 1, isInstaTalk: true),
+            child: const Text('Continue (1 min)'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _purchaseChat({int minutes = 1, bool isInstaTalk = false}) async {
+    // Use appropriate rate based on the chat type
+    final rate = isInstaTalk
+        ? widget.profile.earnings?.liveRate ?? 150.0
+        : widget.profile.earnings?.chatRate ?? 150.0;
+
+    final perMinuteRate =
+        isInstaTalk ? rate : _chatController.calculatePerMinuteRate(rate);
+
     final finalAmount = perMinuteRate * minutes;
 
     setState(() => _isRenewing = true);
@@ -196,7 +391,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     try {
       final success = await _chatController.purchaseChatSession(
         widget.profile.sId.toString(),
-        baseRate,
+        rate,
         minutes: minutes,
       );
 
@@ -206,21 +401,30 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         }
 
         setState(() {
-          _instaTalkExpired = false;
+          _sessionExpired = false;
           _hasRenewedSession = true;
           _isRenewing = false;
-          _remainingSeconds = minutes * 60;
+
+          // Update the meeting end time for scheduled meetings
+          if (!isInstaTalk && _meetingEndTime != null) {
+            _meetingEndTime = DateTime.now().add(Duration(minutes: minutes));
+            _updateRemainingTimeFromSchedule();
+          } else {
+            _remainingSeconds = minutes * 60;
+          }
+
           _showingPaymentPrompt = false;
         });
 
-        _startInstaTimer();
-
-        Get.snackbar(
-          'Success',
-          'Session renewed for $minutes minute${minutes > 1 ? 's' : ''}!',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
+        _startSessionTimer();
+        if (Navigator.canPop(context)) {
+          Get.snackbar(
+            'Success',
+            'Session renewed for $minutes minute${minutes > 1 ? 's' : ''}!',
+            backgroundColor: Colors.green,
+            colorText: Colors.white,
+          );
+        }
       } else {
         throw Exception('Failed to purchase session');
       }
@@ -235,10 +439,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
   }
 
+  void _showContinueChatPrompt() {
+    // Call the appropriate prompt based on chat type
+    if (widget.isInstaTalk) {
+      _showInstaTalkContinuePrompt();
+    } else {
+      _showMeetingContinuePrompt();
+    }
+  }
+
   @override
   void dispose() {
-    _instaTimer?.cancel();
+    _sessionTimer?.cancel();
     _chatController.stopPolling();
+    _chatController.scrollController.removeListener(_onScroll);
     _messageController.dispose();
     _amountController.dispose();
     _focusNode.removeListener(_onFocusChange);
@@ -455,15 +669,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
                           if (success) {
                             Navigator.pop(context);
-
                             Get.snackbar(
                               'Success',
                               '${widget.profile.name} has been unfriended',
                               backgroundColor: Colors.green,
                               colorText: Colors.white,
                             );
-
-                            Navigator.pop(context);
                           } else {
                             Navigator.pop(context);
                             Get.snackbar(
@@ -627,6 +838,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                           decoration: BoxDecoration(
                             color: Colors.green,
                             border: Border.all(
+                              color: AppColors.primaryBackground,
                               width: 2,
                             ),
                             borderRadius: BorderRadius.circular(6),
@@ -698,65 +910,43 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                if (widget.isInstaTalk && widget.isInstaTalkSender) ...[
-                  if (_chatController
-                      .isFreeChat(widget.profile.earnings?.liveRate))
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 8, horizontal: 16),
-                      color: Colors.green.withOpacity(0.2),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_circle, color: Colors.green),
-                          const SizedBox(width: 8),
-                          const Expanded(
-                            child: Text(
-                              'This is a free chat session',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                // Chat status banner - different based on chat type
+                if (_isFreeChatSession()) ...[
+                  // Free chat banner - either friend or free rate
+                  !widget.isFriend
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 8, horizontal: 16),
+                          color: Colors.green.withOpacity(0.2),
+                          child: Row(
+                            children: [
+                              widget.isFriend
+                                  ? const Icon(Icons.check_circle,
+                                      color: Colors.green)
+                                  : SizedBox(),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  widget.isFriend
+                                      ? 'Unlimited chat with friend'
+                                      : 'Free chat session',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
-                    )
-                  else if (!_instaTalkExpired)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 8, horizontal: 16),
-                      color: Colors.amber.withOpacity(0.2),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.timer, color: Colors.amber),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Free trial: $_remainingSeconds seconds remaining',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 100,
-                            child: LinearProgressIndicator(
-                              value:
-                                  _remainingSeconds / widget.instaTalkDuration,
-                              backgroundColor: Colors.grey[800],
-                              color: Colors.amber,
-                              minHeight: 5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                        )
+                      : SizedBox()
+                ] else if (!_sessionExpired) ...[
+                  // Timer banner for paid chats - now using the new method
+                  _buildTimerBanner(),
                 ],
-                if (widget.isInstaTalk &&
-                    widget.isInstaTalkSender &&
-                    _instaTalkExpired)
+
+                // Expired session banner
+                if (!_isFreeChatSession() && _sessionExpired)
                   Container(
                     padding: const EdgeInsets.all(16),
                     color: Colors.redAccent.withOpacity(0.1),
@@ -767,7 +957,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         const SizedBox(width: 8),
                         const Expanded(
                           child: Text(
-                            'Your free trial has ended. Purchase a chat session to continue.',
+                            'Your session has ended. Purchase more time to continue.',
                             style: TextStyle(color: Colors.white70),
                           ),
                         ),
@@ -782,13 +972,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       ],
                     ),
                   ),
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [],
-                  ),
-                ),
+
+                // Message list
                 Expanded(
                   child: Obx(() {
                     if (_chatController.isLoading.value) {
@@ -798,12 +983,32 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         controller: _chatController.scrollController,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         itemCount: _chatController.messages.length,
-                        itemBuilder: (context, index) => _buildMessageBubble(
-                            _chatController.messages[index]),
+                        itemBuilder: (context, index) {
+                          final message = _chatController.messages[index];
+
+                          // Check if we need to show a date header
+                          final showDateHeader = index == 0 ||
+                              !_isSameDay(
+                                  DateTime.parse(_chatController
+                                      .messages[index - 1].createdAt
+                                      .toString()),
+                                  DateTime.parse(message.createdAt.toString()));
+
+                          return Column(
+                            children: [
+                              if (showDateHeader)
+                                _buildDateHeader(DateTime.parse(
+                                    message.createdAt.toString())),
+                              _buildMessageBubble(message),
+                            ],
+                          );
+                        },
                       );
                     }
                   }),
                 ),
+
+                // Chat input field
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                   decoration: const BoxDecoration(
@@ -823,11 +1028,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                             keyboardType: TextInputType.multiline,
                             maxLines: 4,
                             minLines: 1,
-                            enabled: !(widget.isInstaTalk && _instaTalkExpired),
+                            enabled: _isFreeChatSession() || !_sessionExpired,
                             decoration: InputDecoration(
-                              hintText: (widget.isInstaTalk &&
-                                      _instaTalkExpired)
-                                  ? 'Free trial ended. Purchase to continue.'
+                              hintText: (!_isFreeChatSession() &&
+                                      _sessionExpired)
+                                  ? 'Session ended. Purchase time to continue.'
                                   : 'Type a message...',
                               hintStyle: TextStyle(
                                   color: Colors.white.withOpacity(0.6)),
@@ -850,7 +1055,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: (widget.isInstaTalk && _instaTalkExpired)
+                            color: (!_isFreeChatSession() && _sessionExpired)
                                 ? Colors.grey
                                 : AppColors.primaryColor,
                             shape: BoxShape.circle,
@@ -859,9 +1064,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                             iconSize: 20,
                             padding: EdgeInsets.zero,
                             icon: const Icon(Icons.send, color: Colors.white),
-                            onPressed: (widget.isInstaTalk && _instaTalkExpired)
-                                ? null
-                                : _sendMessage,
+                            onPressed:
+                                (!_isFreeChatSession() && _sessionExpired)
+                                    ? null
+                                    : _sendMessage,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -902,11 +1108,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   void _sendMessage() {
     if (_messageController.text.isEmpty) return;
 
+    _isNearBottom = true;
+
     _chatController.sendMessage(
       currentUserId.toString(),
       _chatController.chatRoom.value!.sId.toString(),
       _messageController.text,
     );
+
     _messageController.clear();
     FocusScope.of(context).unfocus();
   }
@@ -985,5 +1194,173 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         ],
       ),
     );
+  }
+
+  bool _isSameDay(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
+  }
+
+  Widget _buildDateHeader(DateTime date) {
+    String dateText;
+    final now = DateTime.now();
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+
+    if (_isSameDay(date, now)) {
+      dateText = 'Today';
+    } else if (_isSameDay(date, yesterday)) {
+      dateText = 'Yesterday';
+    } else {
+      dateText = DateFormat('MMMM d, yyyy').format(date);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: Colors.white.withOpacity(0))),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                dateText,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+          Expanded(child: Divider(color: Colors.white.withOpacity(0))),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to format remaining time nicely with improved format
+  String _formatRemainingTime() {
+    if (_remainingSeconds < 60) {
+      return '$_remainingSeconds seconds remaining';
+    } else {
+      final minutes = _remainingSeconds ~/ 60;
+      final seconds = _remainingSeconds % 60;
+
+      if (minutes >= 60) {
+        final hours = minutes ~/ 60;
+        final mins = minutes % 60;
+        return '$hours:${mins.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} remaining';
+      } else {
+        return '$minutes:${seconds.toString().padLeft(2, '0')} remaining';
+      }
+    }
+  }
+
+  // Update banner display to show scheduled meeting time info for meetings
+  Widget _buildTimerBanner() {
+    if (widget.isInstaTalk) {
+      // InstaTalk timer banner
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        color: Colors.amber.withOpacity(0.2),
+        child: Row(
+          children: [
+            const Icon(Icons.timer, color: Colors.amber),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _formatRemainingTime(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 100,
+              child: LinearProgressIndicator(
+                value: _remainingSeconds / (widget.duration * 60),
+                backgroundColor: Colors.grey[800],
+                color: Colors.amber,
+                minHeight: 5,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Meeting timer banner with scheduled time info
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        color: Colors.blue.withOpacity(0.2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Row(
+            //   children: [
+            //     const Icon(Icons.event, color: Colors.blue),
+            //     const SizedBox(width: 8),
+            //     Expanded(
+            //       child: _meetingStartTime != null
+            //           ? Text(
+            //               'Meeting: ${DateFormat('MMM d, h:mm a').format(_meetingStartTime!)}',
+            //               style: const TextStyle(
+            //                 color: Colors.white70,
+            //                 fontSize: 12,
+            //               ),
+            //             )
+            //           : const Text(
+            //               'Meeting in progress',
+            //               style: TextStyle(
+            //                 color: Colors.white70,
+            //                 fontSize: 12,
+            //               ),
+            //             ),
+            //     ),
+            //   ],
+            // ),
+            const SizedBox(height: 5),
+            Row(
+              children: [
+                const Icon(Icons.timer, color: Colors.blue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _formatRemainingTime(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 100,
+                  child: LinearProgressIndicator(
+                    value: _meetingStartTime != null && _meetingEndTime != null
+                        ? 1 -
+                            (_remainingSeconds /
+                                (_meetingEndTime!
+                                    .difference(_meetingStartTime!)
+                                    .inSeconds))
+                        : _remainingSeconds / (widget.duration * 60),
+                    backgroundColor: Colors.grey[800],
+                    color: Colors.blue,
+                    minHeight: 5,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
   }
 }

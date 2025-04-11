@@ -235,7 +235,15 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
           _instaTalkExpired = false;
           _timerStarted = false;
           // Restart timer
-          _startTimer();
+          _timeLeft = 30 * 60; // 30 minutes
+          _callTimer.cancel();
+          _startCallTimer();
+
+          // Reset InstaTalk timer if needed
+          if (widget.isInstaTalk) {
+            _remainingSeconds = 0;
+            _instaTimer?.cancel();
+          }
         });
 
         Get.snackbar(

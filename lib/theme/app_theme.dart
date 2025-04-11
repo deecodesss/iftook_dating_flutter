@@ -85,8 +85,7 @@ class AppThemes {
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      titleTextStyle: TextStyle(
-        // color: Theme.of(context).colorScheme.onSurface,
+      titleTextStyle: GoogleFonts.inter().copyWith(
         fontSize: 20,
         fontWeight: FontWeight.w600,
       ),
