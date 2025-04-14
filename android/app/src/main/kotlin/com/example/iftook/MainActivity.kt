@@ -12,9 +12,9 @@ class MainActivity: FlutterActivity() {
         lateinit var instance: MainActivity
     }
     
-    private val AUDIO_CHANNEL = "com.yourcompany.iftook/audio"
-    private val RESOURCES_CHANNEL = "com.yourcompany.iftook/resources"
-    private val SCREEN_CHANNEL = "com.yourcompany.iftook/screen"
+    private val AUDIO_CHANNEL = "com.application.iftook/audio"
+    private val RESOURCES_CHANNEL = "com.application.iftook/resources"
+    private val SCREEN_CHANNEL = "com.application.iftook/screen"
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

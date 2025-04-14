@@ -97,7 +97,7 @@ class NotificationHelper {
 
   static Future<bool> _checkRingtoneAccess() async {
     try {
-      const channel = MethodChannel('com.yourcompany.iftook/audio');
+      const channel = MethodChannel('com.application.iftook/audio');
       return await channel.invokeMethod('checkRingtoneAccess') ?? false;
     } catch (e) {
       debugPrint('Error checking ringtone access: $e');
@@ -384,7 +384,7 @@ class NotificationHelper {
       );
 
       if (Platform.isAndroid) {
-        const platform = MethodChannel('com.yourcompany.iftook/audio');
+        const platform = MethodChannel('com.application.iftook/audio');
         platform.invokeMethod('playRingtoneAsCall');
       }
     } catch (e) {
@@ -479,7 +479,7 @@ class NotificationHelper {
         await FlutterRingtonePlayer().stop();
 
         if (Platform.isAndroid) {
-          const platform = MethodChannel('com.yourcompany.iftook/audio');
+          const platform = MethodChannel('com.application.iftook/audio');
           await platform.invokeMethod('stopRingtone');
         }
       } catch (e) {
@@ -552,7 +552,7 @@ class NotificationHelper {
 
   static Future<bool> _checkSoundResources() async {
     try {
-      const platform = MethodChannel('com.yourcompany.iftook/resources');
+      const platform = MethodChannel('com.application.iftook/resources');
       final exists = await platform
               .invokeMethod('checkSoundResource', {'name': 'ringtone'}) ??
           false;

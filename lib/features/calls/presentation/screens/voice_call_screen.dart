@@ -336,42 +336,49 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   // Initialize Agora SDK
   Future<void> _initAgora() async {
     try {
-      connectionStatus('Checking permissions...');
-      await _requestPermissions();
-
+      print('Starting Agora initialization...');
       connectionStatus('Initializing engine...');
+
       _engine = createAgoraRtcEngine();
       await _engine.initialize(RtcEngineContext(
         appId: appId,
+        // Set communication profile and parameters
         channelProfile: ChannelProfileType.channelProfileCommunication,
       ));
 
+      // Set up event handlers before joining
       _setupEventHandlers();
 
-      connectionStatus('Joining channel...');
-      print('Joining channel: ${widget.channel} with token: ${widget.token}');
+      // Enable audio
+      await _engine.enableAudio();
+      await _engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
 
-      // Join the channel - Voice specific configuration
+      // Set audio profile for voice call
+      await _engine.setAudioProfile(
+        profile: AudioProfileType.audioProfileDefault,
+        scenario: AudioScenarioType.audioScenarioChatroom,
+      );
+
+      print('Joining channel with params:');
+      print('Channel: ${widget.channel}');
+      print('Token: ${widget.token}');
+
+      // Join channel with options
       await _engine.joinChannel(
         token: widget.token,
         channelId: widget.channel,
-        uid: 0,
+        uid: 0, // Use 0 for first user
         options: const ChannelMediaOptions(
-          autoSubscribeAudio: true, // Auto subscribe to audio
-          publishMicrophoneTrack: true, // Publish microphone audio
-          publishCameraTrack: false, // Don't publish camera for voice call
           clientRoleType: ClientRoleType.clientRoleBroadcaster,
+          autoSubscribeAudio: true,
+          publishMicrophoneTrack: true,
+          enableAudioRecordingOrPlayout: true,
         ),
       );
     } catch (e) {
-      print("Error in voice call initialization: $e");
-      connectionStatus('Failed to initialize call');
-      Get.snackbar(
-        'Error',
-        'Failed to initialize call. Please try again.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      print('Error initializing Agora: $e');
+      connectionStatus('Failed to initialize: $e');
+      rethrow;
     }
   }
 
@@ -420,31 +427,28 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     _engine.registerEventHandler(
       RtcEngineEventHandler(
         onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
-          print("Local user ${connection.localUid} joined successfully");
+          print('Successfully joined channel: ${connection.channelId}');
           setState(() {
-            _localUserJoined = true;
-            connectionStatus('Waiting for other participant...');
+            // _joined = true;
+            connectionStatus('Connected');
           });
         },
+        onError: (ErrorCodeType err, String msg) {
+          print('Agora error: $err - $msg');
+          connectionStatus('Error: $err');
+        },
         onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
-          print("Remote user $remoteUid joined");
+          print('Remote user joined: $remoteUid');
           setState(() {
             _remoteUid = remoteUid;
-            isConnecting.value = false;
-            connectionStatus('Connected');
           });
         },
         onUserOffline: (RtcConnection connection, int remoteUid,
             UserOfflineReasonType reason) {
-          print("Remote user $remoteUid left channel");
+          print('Remote user left: $remoteUid');
           setState(() {
             _remoteUid = null;
-            connectionStatus('User disconnected');
           });
-        },
-        onError: (ErrorCodeType err, String msg) {
-          print("Agora error: $err - $msg");
-          connectionStatus('Connection error: $err');
         },
       ),
     );
