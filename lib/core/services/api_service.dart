@@ -436,7 +436,9 @@ class ApiService {
       "scheduledTime": scheduleTime.toIso8601String(),
     };
 
-    print(data);
+    print('Initiating call with data: $data');
+    print('Token: $token');
+
     return authenticatedRequest(() => http.post(
           Uri.parse('$baseUrl/meeting/create-meeting'),
           headers: {
@@ -459,7 +461,9 @@ class ApiService {
       "scheduledTime": scheduleTime.toIso8601String(),
     };
 
-    print(data);
+    print('Creating meeting with data: $data');
+    print('Token: $token');
+
     return authenticatedRequest(() => http.post(
           Uri.parse('$baseUrl/meeting/create-meeting'),
           headers: {

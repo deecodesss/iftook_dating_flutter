@@ -107,11 +107,32 @@ class InstaTalkController extends GetxController {
       final userId = await SharedPrefs.getUserIdSharedPreference();
 
       final response = await ApiService.acceptInstaTalk(meetingId, userId!);
+      print('Raw response from acceptInstaTalk: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         print('InstaTalk accepted successfully: ${data['data']}');
-        return data['data'];
+
+        // Extract all needed data from the response
+        final responseData = data['data'];
+        final meeting = responseData['meeting'];
+        final user = responseData['user'] as Map<String, dynamic>;
+        final participant = responseData['participant'] as Map<String, dynamic>;
+        final token = responseData['token'];
+        final channelName = responseData['channelName'];
+
+        // Determine which user is the "other" user (not the current user)
+        final otherUser = (user['_id'] == userId) ? participant : user;
+
+        // Build a clean result object with all necessary data
+        final result = {
+          'meeting': meeting,
+          'participant': otherUser,
+          'token': token,
+          'channelName': channelName,
+        };
+
+        return result;
       } else {
         final data = jsonDecode(response.body);
         errorMessage(data['message'] ?? 'Failed to accept InstaTalk');
@@ -125,9 +146,10 @@ class InstaTalkController extends GetxController {
       }
     } catch (e) {
       errorMessage('An error occurred: $e');
+      print('Error accepting InstaTalk: $e');
       Get.snackbar(
         'Error',
-        errorMessage.value,
+        'Failed to connect to the service',
         backgroundColor: Colors.red.withOpacity(0.8),
         colorText: Colors.white,
       );

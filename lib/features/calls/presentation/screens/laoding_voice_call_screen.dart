@@ -113,17 +113,32 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
       }
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.isInstaTalk) {
-        _callController.initiateInstaTalkCall(
-          widget.participant.sId.toString(),
-          widget.type,
-        );
-      } else {
-        _callController.initiateMeetingCall(
-          widget.participant.sId.toString(),
-          widget.type,
-          widget.scheduleTime,
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        print('Initializing voice call...');
+        print('Participant ID: ${widget.participant.sId}');
+        print('Call Type: ${widget.type}');
+        print('Schedule Time: ${widget.scheduleTime}');
+
+        if (widget.isInstaTalk) {
+          _callController.initiateInstaTalkCall(
+            widget.participant.sId.toString(),
+            widget.type,
+          );
+        } else {
+          _callController.initiateMeetingCall(
+            widget.participant.sId.toString(),
+            widget.type,
+            widget.scheduleTime,
+          );
+        }
+      } catch (e) {
+        print('Error initializing voice call: $e');
+        Get.snackbar(
+          'Error',
+          'Failed to initialize voice call: ${e.toString()}',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
         );
       }
     });

@@ -871,7 +871,6 @@ class NotificationHelper {
 
   static Future<void> _acceptInstaTalkRequest(String meetingId) async {
     try {
-      final homeController = Get.find<HomeController>();
       final _instaTalkController = Get.find<InstaTalkController>();
       final userId = await SharedPrefs.getUserIdSharedPreference();
 
@@ -881,50 +880,80 @@ class NotificationHelper {
       );
 
       final result = await _instaTalkController.acceptInstaTalk(meetingId);
+      print('InstaTalk accept result: $result'); // Added for debugging
 
       Get.back(); // Close loading dialog
 
-      if (result != null) {
+      if (result != null &&
+          result.containsKey('meeting') &&
+          result.containsKey('participant')) {
         // Navigate to appropriate screen based on meeting type
         final meetingType = result['meeting']['type'];
-        final participant = User.fromJson(result['participant']);
 
-        switch (meetingType) {
-          case 'chat':
-            Get.to(() => ChatRoomScreen(
-                  profile: participant,
-                  isInstaTalk: true,
-                  duration: result['meeting']['duration'],
-                  // instaTalkDuration: 30,
-                ));
-            break;
-          case 'voice':
-            Get.to(() => VoiceCallLoadingScreen(
-                  participant: participant,
-                  scheduleTime: DateTime.now(),
-                  type: "voice",
-                  isInstaTalk: true,
-                  instaTalkDuration: 30,
-                ));
-            break;
-          case 'video':
-            Get.to(() => VideoCallLoadingScreen(
-                  participant: participant,
-                  scheduleTime: DateTime.now(),
-                  type: "video",
-                  isInstaTalk: true,
-                  instaTalkDuration: 30,
-                ));
-            break;
+        try {
+          // Convert participant data to User object
+          final Map<String, dynamic> participantData =
+              Map<String, dynamic>.from(result['participant']);
+          final User participant = User.fromJson(participantData);
+
+          // Get the duration value, default to 30 seconds if not found
+          final int duration = result['meeting']['duration'] ?? 30;
+
+          // Get token and channel name
+          final String token = result['token'] as String;
+          final String channelName = result['channelName'] as String;
+
+          print('Navigating to $meetingType screen with duration: $duration');
+          print('Token: $token, Channel: $channelName');
+
+          switch (meetingType) {
+            case 'chat':
+              Get.to(() => ChatRoomScreen(
+                    profile: participant,
+                    isInstaTalk: true,
+                    duration: duration,
+                  ));
+              break;
+            case 'voice':
+              Get.to(() => VoiceCallLoadingScreen(
+                    participant: participant,
+                    scheduleTime: DateTime.now(),
+                    type: "voice",
+                    isInstaTalk: true,
+                    instaTalkDuration: duration,
+                    // token: token,
+                    // channel: channelName,
+                    // meetingId: meetingId,
+                  ));
+              break;
+            case 'video':
+              Get.to(() => VideoCallLoadingScreen(
+                    participant: participant,
+                    scheduleTime: DateTime.now(),
+                    type: "video",
+                    isInstaTalk: true,
+                    instaTalkDuration: duration,
+                    // token: token,
+                    // channel: channelName,
+                    // meetingId: meetingId,
+                  ));
+              break;
+          }
+        } catch (e) {
+          print('Error processing participant data: $e');
+          throw Exception('Error processing meeting data: $e');
         }
+      } else {
+        throw Exception('No data returned from AcceptInstaTalk call');
       }
     } catch (e) {
       print('Error accepting InstaTalk request: $e');
       Get.snackbar(
         'Error',
-        'Failed to accept InstaTalk request: $e',
+        'Failed to accept InstaTalk request',
         backgroundColor: Colors.red,
         colorText: Colors.white,
+        duration: const Duration(seconds: 4),
       );
     }
   }

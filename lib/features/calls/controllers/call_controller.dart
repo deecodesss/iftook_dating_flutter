@@ -234,72 +234,72 @@ class CallController extends GetxController {
   // }
 
   // Initiate an InstaTalk call
-  Future<Map<String, dynamic>?> initiateInstaTalkCall(
-    String recipientId,
-    String callType,
-  ) async {
-    try {
-      final userId = await SharedPrefs.getUserIdSharedPreference();
-      if (userId == null) {
-        throw Exception("User not logged in");
-      }
+  // Future<Map<String, dynamic>?> initiateInstaTalkCall(
+  //   String recipientId,
+  //   String callType,
+  // ) async {
+  //   try {
+  //     final userId = await SharedPrefs.getUserIdSharedPreference();
+  //     if (userId == null) {
+  //       throw Exception("User not logged in");
+  //     }
 
-      final response = await _apiService.post('/calls/initiate-instatalk', {
-        'callerId': userId,
-        'recipientId': recipientId,
-        'callType': callType,
-      });
+  //     final response = await _apiService.post('/calls/initiate-instatalk', {
+  //       'callerId': userId,
+  //       'recipientId': recipientId,
+  //       'callType': callType,
+  //     });
 
-      if (response.statusCode == 200) {
-        return response.data;
-      }
-      return null;
-    } catch (e) {
-      print("Error initiating InstaTalk call: $e");
-      return null;
-    }
-  }
+  //     if (response.statusCode == 200) {
+  //       return response.data;
+  //     }
+  //     return null;
+  //   } catch (e) {
+  //     print("Error initiating InstaTalk call: $e");
+  //     return null;
+  //   }
+  // }
 
   // End an ongoing call
-  Future<bool> endCall(String callId) async {
-    try {
-      final userId = await SharedPrefs.getUserIdSharedPreference();
-      if (userId == null) {
-        throw Exception("User not logged in");
-      }
+  // Future<bool> endCall(String callId) async {
+  //   try {
+  //     final userId = await SharedPrefs.getUserIdSharedPreference();
+  //     if (userId == null) {
+  //       throw Exception("User not logged in");
+  //     }
 
-      final response = await _apiService.post('/calls/end', {
-        'callId': callId,
-        'userId': userId,
-      });
+  //     final response = await _apiService.post('/calls/end', {
+  //       'callId': callId,
+  //       'userId': userId,
+  //     });
 
-      return response.statusCode == 200;
-    } catch (e) {
-      print("Error ending call: $e");
-      return false;
-    }
-  }
+  //     return response.statusCode == 200;
+  //   } catch (e) {
+  //     print("Error ending call: $e");
+  //     return false;
+  //   }
+  // }
 
   // Fetch user's current wallet balance
-  Future<void> fetchUserWalletBalance() async {
-    try {
-      final userId = await SharedPrefs.getUserIdSharedPreference();
-      if (userId == null) return;
+  // Future<void> fetchUserWalletBalance() async {
+  //   try {
+  //     final userId = await SharedPrefs.getUserIdSharedPreference();
+  //     if (userId == null) return;
 
-      final response = await _apiService.get('/wallet/$userId');
-      if (response.statusCode == 200 && response.data != null) {
-        userWalletBalance.value =
-            double.tryParse(response.data['balance'].toString()) ?? 0.0;
-      }
-    } catch (e) {
-      print("Error fetching wallet balance: $e");
-    }
-  }
+  //     final response = await _apiService.get('/wallet/$userId');
+  //     if (response.statusCode == 200 && response.data != null) {
+  //       userWalletBalance.value =
+  //           double.tryParse(response.data['balance'].toString()) ?? 0.0;
+  //     }
+  //   } catch (e) {
+  //     print("Error fetching wallet balance: $e");
+  //   }
+  // }
 
   @override
   void onInit() {
     super.onInit();
-    fetchUserWalletBalance();
+    // fetchUserWalletBalance();
   }
 
   @override

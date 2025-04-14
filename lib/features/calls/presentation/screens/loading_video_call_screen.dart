@@ -36,17 +36,32 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
   void initState() {
     super.initState();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.isInstaTalk) {
-        _callController.initiateInstaTalkCall(
-          widget.participant.sId.toString(),
-          widget.type,
-        );
-      } else {
-        _callController.initiateMeetingCall(
-          widget.participant.sId.toString(),
-          widget.type,
-          widget.scheduleTime,
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        print('Initializing video call...');
+        print('Participant ID: ${widget.participant.sId}');
+        print('Call Type: ${widget.type}');
+        print('Schedule Time: ${widget.scheduleTime}');
+
+        if (widget.isInstaTalk) {
+          _callController.initiateInstaTalkCall(
+            widget.participant.sId.toString(),
+            widget.type,
+          );
+        } else {
+          _callController.initiateMeetingCall(
+            widget.participant.sId.toString(),
+            widget.type,
+            widget.scheduleTime,
+          );
+        }
+      } catch (e) {
+        print('Error initializing video call: $e');
+        Get.snackbar(
+          'Error',
+          'Failed to initialize video call: ${e.toString()}',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
         );
       }
     });
@@ -57,7 +72,7 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
       if (!_callController.isFreeCall(callRate)) {
         _startupDelayTimer = Timer(Duration(seconds: 5), () {
           if (mounted) {
-            _startTimer();
+            // _startTimer();
           }
         });
       }
