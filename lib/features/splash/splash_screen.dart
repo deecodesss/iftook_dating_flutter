@@ -5,6 +5,9 @@ import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/core/services/socket_service.dart';
 import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
 import 'package:iftook/features/home/presentation/screens/home_screen.dart';
+// import 'package:iftook/features/permissions/permissions_screen.dart'; // No longer needed here
+// import 'package:iftook/helpers/permissions_handler.dart'; // No longer needed here
+// import 'package:permission_handler/permission_handler.dart'; // No longer needed here
 
 import '../../helpers/myassets.dart';
 
@@ -21,6 +24,7 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _animation;
   String? token = '';
   bool isLoggedIn = false;
+  // final PermissionsHandler _permissionsHandler = PermissionsHandler(); // No longer needed
 
   @override
   void initState() {
@@ -38,8 +42,14 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
     _checkIsLoggedIn();
-    Future.delayed(Duration(seconds: 3), () {
-      Get.off(() => isLoggedIn ? HomeScreen() : LoginScreen());
+    Future.delayed(const Duration(seconds: 3), () async {
+      if (!isLoggedIn) {
+        Get.off(() => LoginScreen());
+        return;
+      }
+      // Permission check and navigation to PermissionsScreen removed.
+      // Always navigate to HomeScreen if logged in.
+      Get.off(() => HomeScreen());
     });
 
     // fetchData();

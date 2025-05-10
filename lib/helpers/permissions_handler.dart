@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:iftook/helpers/permissions_explanation_dialog.dart';
 
 class PermissionsHandler {
   // Singleton instance
@@ -19,7 +20,7 @@ class PermissionsHandler {
     if (_permissionsRequested && !forceRequest) return;
 
     // Show explanation dialog first
-    final shouldProceed = await _showPermissionsExplanationDialog();
+    final shouldProceed = await showPermissionsExplanationDialog();
 
     if (shouldProceed) {
       await requestNotificationPermission();
@@ -233,5 +234,72 @@ class PermissionsHandler {
       print("Error checking notification permissions: $e");
       return false;
     }
+  }
+
+  // New: Request only camera permission
+  Future<bool> requestCameraPermission() async {
+    final status = await Permission.camera.request();
+    if (!status.isGranted && (status.isDenied || status.isPermanentlyDenied)) {
+      _showSpecificPermissionDeniedDialog(Permission.camera);
+    }
+    return status.isGranted;
+  }
+
+  // New: Request only microphone permission
+  Future<bool> requestMicrophonePermission() async {
+    final status = await Permission.microphone.request();
+    if (!status.isGranted && (status.isDenied || status.isPermanentlyDenied)) {
+      _showSpecificPermissionDeniedDialog(Permission.microphone);
+    }
+    return status.isGranted;
+  }
+
+  // New: Helper dialog for specific permission denial
+  void _showSpecificPermissionDeniedDialog(Permission permission) {
+    String permissionName = '';
+    String featureDescription = '';
+
+    if (permission == Permission.camera) {
+      permissionName = 'Camera';
+      featureDescription = 'take photos, record videos, and for video calls';
+    } else if (permission == Permission.microphone) {
+      permissionName = 'Microphone';
+      featureDescription = 'record audio and for voice/video calls';
+    } else {
+      return; // Should not happen for this dialog
+    }
+
+    Get.dialog(
+      AlertDialog(
+        title: Text('$permissionName Permission Denied'),
+        content: Text(
+          'The $permissionName permission is required to $featureDescription. '
+          'Please enable it in app settings if you wish to use these features.',
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Not Now'),
+            onPressed: () => Get.back(),
+          ),
+          TextButton(
+            child: const Text('Open Settings'),
+            onPressed: () {
+              Get.back();
+              openAppSettings();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // New: Check camera permission status
+  Future<bool> checkCameraStatus() async {
+    return Permission.camera.isGranted;
+  }
+
+  // New: Check microphone permission status
+  Future<bool> checkMicrophoneStatus() async {
+    return Permission.microphone.isGranted;
   }
 }

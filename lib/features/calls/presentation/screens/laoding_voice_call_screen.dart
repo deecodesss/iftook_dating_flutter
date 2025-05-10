@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:iftook/features/calls/presentation/screens/voice_call_screen.dart';
 import 'dart:async';
 
 import '../../../../helpers/app_colors.dart';
@@ -12,8 +13,12 @@ class VoiceCallLoadingScreen extends StatefulWidget {
   final String type;
   final DateTime scheduleTime;
   final bool isInstaTalk;
+  final bool isTrial;
   final int instaTalkDuration;
   final Function? onSessionEnd;
+  final String? meetingId;
+  final String? token;
+  final String? channel;
 
   const VoiceCallLoadingScreen({
     Key? key,
@@ -21,8 +26,12 @@ class VoiceCallLoadingScreen extends StatefulWidget {
     required this.type,
     required this.scheduleTime,
     this.isInstaTalk = false,
+    this.isTrial = false,
     this.instaTalkDuration = 30,
     this.onSessionEnd,
+    this.meetingId,
+    this.token,
+    this.channel,
   }) : super(key: key);
 
   @override
@@ -30,7 +39,7 @@ class VoiceCallLoadingScreen extends StatefulWidget {
 }
 
 class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
-  final CallController _callController = Get.put(CallController());
+  late final CallController _callController;
 
   Timer? _instaTimer;
   Timer? _startupDelayTimer;
@@ -101,6 +110,8 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize CallController if not already initialized
+    _callController = Get.put(CallController());
 
     if (widget.isInstaTalk) {
       final callRate = widget.participant.earnings?.voiceRate ?? 0;
@@ -115,6 +126,29 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
+        // If we already have meeting details, skip API call
+        if (widget.meetingId != null &&
+            widget.token != null &&
+            widget.channel != null) {
+          print('Using provided meeting details:');
+          print('Meeting ID: ${widget.meetingId}');
+          print('Channel: ${widget.channel}');
+          print('Token: ${widget.token}');
+
+          // Navigate directly to call screen
+          Get.to(() => VoiceCallScreen(
+                meetingId: widget.meetingId!,
+                channel: widget.channel!,
+                token: widget.token!,
+                initialTimer: widget.instaTalkDuration,
+                isTrial: widget.isTrial,
+                isInstaTalk: widget.isInstaTalk,
+                participant: widget.participant,
+              ));
+          return;
+        }
+
+        // Otherwise proceed with normal initialization
         print('Initializing voice call...');
         print('Participant ID: ${widget.participant.sId}');
         print('Call Type: ${widget.type}');

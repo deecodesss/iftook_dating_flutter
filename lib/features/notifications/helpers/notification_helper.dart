@@ -21,6 +21,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../friends/controllers/chat_controller.dart';
 
 import '../../calls/presentation/screens/video_call_screen.dart';
 import '../../calls/presentation/screens/voice_call_screen.dart';
@@ -584,39 +585,70 @@ class NotificationHelper {
   }
 
   static Future<void> _handleNotificationAction(
-      String actionId, Map<String, dynamic> payload) async {
+      String action, Map<String, dynamic> payload) async {
     try {
-      final String meetingId = payload['meetingId'] ?? '';
-      final String channel = payload['channelName'] ?? '';
-      final String token = payload['token'] ?? '';
-      final bool isVideo = payload['type'] == 'video';
+      switch (action) {
+        case 'reply':
+          final chatRoomId = payload['chatRoomId'];
+          final senderId = payload['senderId'];
+          final replyText = payload['replyText'];
 
-      if (actionId == 'ACCEPT') {
-        await stopCallNotificationEffects();
+          if (chatRoomId != null && senderId != null && replyText != null) {
+            // Get or create ChatController instance
+            ChatController? chatController;
+            try {
+              if (!Get.isRegistered<ChatController>()) {
+                Get.put(ChatController());
+              }
+              chatController = Get.find<ChatController>();
+            } catch (e) {
+              print('Error getting ChatController: $e');
+              return;
+            }
 
-        if (isVideo) {
-          Get.to(() => VideoCallScreen(
-                meetingId: meetingId,
-                channel: channel,
-                token: token,
-                initialTimer: 30, //change thsi as well initialTimer
-              ));
-        } else {
-          Get.to(() => VoiceCallScreen(
-                meetingId: meetingId,
-                channel: channel,
-                token: token,
-              ));
-        }
+            // Send reply message
+            await chatController.sendMessage(senderId, chatRoomId, replyText);
 
-        await _flutterLocalNotificationsPlugin.cancel(_callNotificationId);
-      } else if (actionId == 'DECLINE') {
-        await stopCallNotificationEffects();
+            // Show confirmation
+            Get.snackbar(
+              'Reply Sent',
+              'Your reply has been sent successfully',
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+            );
+          }
+          break;
 
-        await _flutterLocalNotificationsPlugin.cancel(_callNotificationId);
+        case 'mark_as_read':
+          final chatRoomId = payload['chatRoomId'];
+          if (chatRoomId != null) {
+            // Get or create ChatController instance
+            ChatController? chatController;
+            try {
+              if (!Get.isRegistered<ChatController>()) {
+                Get.put(ChatController());
+              }
+              chatController = Get.find<ChatController>();
+            } catch (e) {
+              print('Error getting ChatController: $e');
+              return;
+            }
+
+            // Fetch messages to update read status
+            await chatController.fetchMessages();
+          }
+          break;
+
+        case 'ACCEPT':
+          // ... existing code ...
+          break;
+
+        case 'DECLINE':
+          // ... existing code ...
+          break;
       }
     } catch (e) {
-      debugPrint('Error handling notification action: $e');
+      print('Error handling notification action: $e');
     }
   }
 
@@ -665,12 +697,28 @@ class NotificationHelper {
     FlutterLocalNotificationsPlugin fln,
   ) async {
     try {
-      // Create unique notification ID for chat messages
       final int notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+      // Create reply action for Android
+      final AndroidNotificationAction replyAction = AndroidNotificationAction(
+        'reply',
+        'Reply',
+        icon: DrawableResourceAndroidBitmap('reply_icon'),
+        showsUserInterface: true,
+        allowGeneratedReplies: true,
+      );
+
+      // Create mark as read action
+      final AndroidNotificationAction markAsReadAction =
+          AndroidNotificationAction(
+        'mark_as_read',
+        'Mark as Read',
+        icon: DrawableResourceAndroidBitmap('read_icon'),
+      );
 
       final AndroidNotificationDetails androidPlatformChannelSpecifics =
           AndroidNotificationDetails(
-        'chat_channel_id', // unique channel ID for chat notifications
+        'chat_channel_id',
         'Chat Notifications',
         channelDescription: 'Notifications for chat messages',
         importance: Importance.high,
@@ -678,18 +726,49 @@ class NotificationHelper {
         showWhen: true,
         enableVibration: true,
         playSound: true,
-        icon: 'notification_icon', // Add this line
+        icon: 'notification_icon',
         visibility: NotificationVisibility.public,
         category: AndroidNotificationCategory.message,
         autoCancel: true,
+        actions: [replyAction, markAsReadAction],
+        styleInformation: BigTextStyleInformation(
+          message,
+          htmlFormatBigText: true,
+          contentTitle: title,
+          htmlFormatContentTitle: true,
+        ),
       );
 
-      const DarwinNotificationDetails iOSPlatformChannelSpecifics =
+      // For iOS, create a notification category with reply action
+      final DarwinNotificationCategory chatCategory =
+          DarwinNotificationCategory(
+        'chat_category',
+        actions: [
+          DarwinNotificationAction.text(
+            'reply',
+            'Reply',
+            buttonTitle: 'Send',
+            options: {
+              DarwinNotificationActionOption.foreground,
+              DarwinNotificationActionOption.authenticationRequired,
+            },
+          ),
+          DarwinNotificationAction.plain(
+            'mark_as_read',
+            'Mark as Read',
+            options: {DarwinNotificationActionOption.foreground},
+          ),
+        ],
+      );
+
+      final DarwinNotificationDetails iOSPlatformChannelSpecifics =
           DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
         sound: 'default',
+        categoryIdentifier: 'chat_category',
+        interruptionLevel: InterruptionLevel.active,
       );
 
       final NotificationDetails platformChannelSpecifics = NotificationDetails(
@@ -707,14 +786,7 @@ class NotificationHelper {
     } catch (e, stackTrace) {
       print('Error showing chat notification: $e');
       print('Stack trace: $stackTrace');
-
-      // Fallback to simpler notification if complex one fails
-      await _showSimpleChatNotification(
-        title,
-        message,
-        payload,
-        fln,
-      );
+      await _showSimpleChatNotification(title, message, payload, fln);
     }
   }
 

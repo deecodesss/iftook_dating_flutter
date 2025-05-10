@@ -6,6 +6,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
+import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
+import 'package:iftook/features/calls/presentation/screens/voice_call_screen.dart';
+import 'package:iftook/features/calls/services/chat_call_service.dart';
 import 'package:iftook/features/friends/data/message.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
@@ -15,6 +18,7 @@ import 'package:intl/intl.dart';
 import 'package:iftook/features/home/data/enums/meeting_type.dart';
 import 'package:iftook/features/home/presentation/screens/schedule_meeting_screen.dart';
 import 'package:iftook/features/friends/data/chatroom.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../../core/services/api_service.dart';
 import '../../controllers/chat_controller.dart';
@@ -792,6 +796,102 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     );
   }
 
+  void _handleChatVideoCall() async {
+    try {
+      Get.dialog(
+        const Center(child: CircularProgressIndicator()),
+        barrierDismissible: false,
+      );
+
+      final callData = await ChatCallService.initiateChatCall(
+        widget.profile.sId!,
+        'video',
+      );
+
+      Get.back(); // Close loading dialog
+
+      if (callData != null) {
+        print('Video call initialized with data: $callData');
+
+        await Get.to(() => VideoCallLoadingScreen(
+              participant: widget.profile,
+              type: "video",
+              scheduleTime: DateTime.now(),
+              meetingId: callData['meetingId'],
+              token: callData['token'],
+              channel: callData['channelName'],
+              isTrial: widget.isTrial,
+              isInstaTalk: widget.isInstaTalk,
+            ));
+      }
+    } catch (e) {
+      Get.back(); // Close loading dialog
+      if (e.toString().contains('already in progress')) {
+        Get.snackbar(
+          'Please Wait',
+          'A call request is already being processed',
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+        );
+      } else {
+        Get.snackbar(
+          'Error',
+          'Could not start video call: ${e.toString()}',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    }
+  }
+
+  void _handleChatVoiceCall() async {
+    try {
+      Get.dialog(
+        const Center(child: CircularProgressIndicator()),
+        barrierDismissible: false,
+      );
+
+      final callData = await ChatCallService.initiateChatCall(
+        widget.profile.sId!,
+        'voice',
+      );
+
+      Get.back(); // Close loading dialog
+
+      if (callData != null) {
+        print('Voice call initialized with data: $callData');
+
+        await Get.to(() => VoiceCallLoadingScreen(
+              participant: widget.profile,
+              type: "voice",
+              scheduleTime: DateTime.now(),
+              meetingId: callData['meetingId'],
+              token: callData['token'],
+              channel: callData['channelName'],
+              isTrial: widget.isTrial,
+              isInstaTalk: widget.isInstaTalk,
+            ));
+      }
+    } catch (e) {
+      Get.back(); // Close loading dialog
+      if (e.toString().contains('already in progress')) {
+        Get.snackbar(
+          'Please Wait',
+          'A call request is already being processed',
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+        );
+      } else {
+        Get.snackbar(
+          'Error',
+          'Could not start voice call: ${e.toString()}',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -878,25 +978,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               if (!widget.isInstaTalk) ...[
                 _buildActionButton(
                   icon: Icons.videocam,
-                  onPressed: () {
-                    Get.to(() => VideoCallLoadingScreen(
-                          participant: widget.profile,
-                          scheduleTime: DateTime.now(),
-                          type: "video",
-                        ));
-                  },
+                  onPressed: _handleChatVideoCall, // Use new handler
                   label: 'Video Call',
                   color: AppColors.primaryColor,
                 ),
                 _buildActionButton(
                   icon: Icons.call,
-                  onPressed: () {
-                    Get.to(() => VoiceCallLoadingScreen(
-                          participant: widget.profile,
-                          scheduleTime: DateTime.now(),
-                          type: "voice",
-                        ));
-                  },
+                  onPressed: _handleChatVoiceCall, // Use new handler
                   label: 'Voice Call',
                   color: AppColors.greenColor,
                 ),
@@ -977,7 +1065,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 Expanded(
                   child: Obx(() {
                     if (_chatController.isLoading.value) {
-                      return const Center(child: CircularProgressIndicator());
+                      return _buildSkeletonLoading();
+                    } else if (_chatController.messages.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          'Start a conversation!',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      );
                     } else {
                       return ListView.builder(
                         controller: _chatController.scrollController,
@@ -1362,5 +1457,97 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         ),
       );
     }
+  }
+
+  Widget _buildSkeletonLoading() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      itemCount: 8, // Reduced count for better UX
+      itemBuilder: (context, index) {
+        final isMe = index % 2 == 0;
+        final messageWidth =
+            isMe ? 0.7 : 0.6; // Different widths for sent/received messages
+
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 4,
+            bottom: 4,
+          ),
+          child: Row(
+            mainAxisAlignment:
+                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isMe) ...[
+                // Avatar skeleton
+                Shimmer.fromColors(
+                  baseColor: Colors.grey[800]!,
+                  highlightColor: Colors.grey[700]!,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              // Message skeleton
+              Flexible(
+                child: Shimmer.fromColors(
+                  baseColor: Colors.grey[800]!,
+                  highlightColor: Colors.grey[700]!,
+                  child: Container(
+                    width: MediaQuery.of(context).size.width * messageWidth,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isMe ? 16 : 4),
+                        bottomRight: Radius.circular(isMe ? 4 : 16),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Message text skeleton
+                        Container(
+                          height: 16,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        // Time skeleton
+                        Container(
+                          height: 12,
+                          width: 60,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (isMe) ...[
+                const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        );
+      },
+    );
   }
 }

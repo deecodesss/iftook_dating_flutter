@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:async';
 
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:get/get.dart';
 import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -20,6 +21,13 @@ class CallController extends GetxController {
   RxString channel = ''.obs;
   RxBool isJoining = false.obs;
   RxString callStatus = ''.obs;
+  late RtcEngine _engine;
+
+  // Add these observable values
+  final _remoteUid = 0.obs;
+  final isCallConnected = false.obs;
+  final hasRemoteUserJoined = false.obs;
+  final isCallActive = false.obs;
 
   Future<void> handleCameraAndMic(Permission permisison) async {
     final status = await permisison.request();
@@ -112,17 +120,43 @@ class CallController extends GetxController {
   var sessionTimeRemaining = 0.obs;
   Function? onSessionEnd;
 
-  void startSessionTimer(int durationInMinutes, {Function? onEnd}) {
+  // Update timer start logic to check friendship
+  Future<void> startCallTimerIfNeeded({
+    required String userId1,
+    required String userId2,
+    required int durationInMinutes,
+    required bool isTrial,
+    required bool isInstaTalk,
+    Function? onEnd,
+  }) async {
+    // Don't start timer for trial calls
+    if (isTrial) {
+      return;
+    }
+
+    // Check if users are friends
+    final areFriends = await ApiService.checkIsFriend(userId2);
+    if (areFriends) {
+      print('Users are friends - no timer needed');
+      return;
+    }
+
+    // Start timer for non-friends
     sessionTimeRemaining.value = durationInMinutes * 60;
     onSessionEnd = onEnd;
+    _startSessionTimer();
+  }
 
+  void _startSessionTimer() {
     _sessionTimer?.cancel();
     _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (sessionTimeRemaining.value > 0) {
         sessionTimeRemaining.value--;
       } else {
-        timer.cancel();
-        onSessionEnd?.call();
+        _sessionTimer?.cancel();
+        if (onSessionEnd != null) {
+          onSessionEnd!();
+        }
       }
     });
   }
@@ -147,7 +181,7 @@ class CallController extends GetxController {
       }
 
       // Start new timer for purchased minutes
-      startSessionTimer(minutes);
+      // startSessionTimer(minutes);
 
       return true;
     } catch (e) {
@@ -204,97 +238,78 @@ class CallController extends GetxController {
     }
   }
 
-  // Initiate a meeting call
-  // Future<Map<String, dynamic>?> initiateMeetingCall(
-  //   String recipientId,
-  //   String callType,
-  //   DateTime scheduleTime,
-  // ) async {
-  //   try {
-  //     final userId = await SharedPrefs.getUserIdSharedPreference();
-  //     if (userId == null) {
-  //       throw Exception("User not logged in");
-  //     }
+  void initializeEventHandlers() {
+    _engine?.registerEventHandler(
+      RtcEngineEventHandler(
+        onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
+          print('Local user joined channel: ${connection.channelId}');
+          isCallActive.value = true;
+          isCallConnected.value = true;
+        },
+        onUserJoined: (RtcConnection connection, int uid, int elapsed) {
+          print('Remote user joined: $uid');
+          _remoteUid.value = uid;
+          hasRemoteUserJoined.value = true;
 
-  //     final response = await _apiService.post('/calls/initiate-meeting', {
-  //       'callerId': userId,
-  //       'recipientId': recipientId,
-  //       'callType': callType,
-  //       'scheduleTime': scheduleTime.toIso8601String(),
-  //     });
+          // If we're in loading screen, navigate to main call screen
+          if (Get.currentRoute.contains('loading')) {
+            Get.off(() => VideoCallScreen(
+                  meetingId: meetingId.value,
+                  channel: channel.value,
+                  token: token.value,
+                  initialTimer: 30,
+                ));
+          }
+        },
+        onUserOffline:
+            (RtcConnection connection, int uid, UserOfflineReasonType reason) {
+          print('Remote user left: $uid');
+          _remoteUid.value = 0;
+          hasRemoteUserJoined.value = false;
+          // Auto end call and go back when remote user leaves
+          endCall();
+          Get.back();
+        },
+        onConnectionStateChanged: (RtcConnection connection,
+            ConnectionStateType state, ConnectionChangedReasonType reason) {
+          print('Connection state changed: $state reason: $reason');
+          isCallConnected.value =
+              (state == ConnectionStateType.connectionStateConnected);
+        },
+      ),
+    );
+  }
 
-  //     if (response.statusCode == 200) {
-  //       return response.data;
-  //     }
-  //     return null;
-  //   } catch (e) {
-  //     print("Error initiating meeting call: $e");
-  //     return null;
-  //   }
-  // }
+  Future<void> joinChannel(String channelName, String token) async {
+    if (_engine == null) throw Exception('Engine not initialized');
 
-  // Initiate an InstaTalk call
-  // Future<Map<String, dynamic>?> initiateInstaTalkCall(
-  //   String recipientId,
-  //   String callType,
-  // ) async {
-  //   try {
-  //     final userId = await SharedPrefs.getUserIdSharedPreference();
-  //     if (userId == null) {
-  //       throw Exception("User not logged in");
-  //     }
+    try {
+      await _engine!.joinChannel(
+        token: token,
+        channelId: channelName,
+        uid: 0,
+        options: const ChannelMediaOptions(
+          clientRoleType: ClientRoleType.clientRoleBroadcaster,
+          channelProfile: ChannelProfileType.channelProfileCommunication,
+        ),
+      );
+    } catch (e) {
+      print('Error joining channel: $e');
+      throw Exception('Failed to join call: $e');
+    }
+  }
 
-  //     final response = await _apiService.post('/calls/initiate-instatalk', {
-  //       'callerId': userId,
-  //       'recipientId': recipientId,
-  //       'callType': callType,
-  //     });
-
-  //     if (response.statusCode == 200) {
-  //       return response.data;
-  //     }
-  //     return null;
-  //   } catch (e) {
-  //     print("Error initiating InstaTalk call: $e");
-  //     return null;
-  //   }
-  // }
-
-  // End an ongoing call
-  // Future<bool> endCall(String callId) async {
-  //   try {
-  //     final userId = await SharedPrefs.getUserIdSharedPreference();
-  //     if (userId == null) {
-  //       throw Exception("User not logged in");
-  //     }
-
-  //     final response = await _apiService.post('/calls/end', {
-  //       'callId': callId,
-  //       'userId': userId,
-  //     });
-
-  //     return response.statusCode == 200;
-  //   } catch (e) {
-  //     print("Error ending call: $e");
-  //     return false;
-  //   }
-  // }
-
-  // Fetch user's current wallet balance
-  // Future<void> fetchUserWalletBalance() async {
-  //   try {
-  //     final userId = await SharedPrefs.getUserIdSharedPreference();
-  //     if (userId == null) return;
-
-  //     final response = await _apiService.get('/wallet/$userId');
-  //     if (response.statusCode == 200 && response.data != null) {
-  //       userWalletBalance.value =
-  //           double.tryParse(response.data['balance'].toString()) ?? 0.0;
-  //     }
-  //   } catch (e) {
-  //     print("Error fetching wallet balance: $e");
-  //   }
-  // }
+  void endCall() {
+    try {
+      _engine?.leaveChannel();
+      _remoteUid.value = 0;
+      isCallActive.value = false;
+      hasRemoteUserJoined.value = false;
+      isCallConnected.value = false;
+    } catch (e) {
+      print('Error ending call: $e');
+    }
+  }
 
   @override
   void onInit() {

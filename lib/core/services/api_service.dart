@@ -454,15 +454,16 @@ class ApiService {
       String participantId, String type, DateTime scheduleTime) async {
     final token = await SharedPrefs.getAccessToken();
     final userId = await SharedPrefs.getUserIdSharedPreference();
+
     Map<String, dynamic> data = {
       "userId": userId,
       "participantId": participantId,
       "type": type,
       "scheduledTime": scheduleTime.toIso8601String(),
+      "duration": 30, // Default duration
     };
 
     print('Creating meeting with data: $data');
-    print('Token: $token');
 
     return authenticatedRequest(() => http.post(
           Uri.parse('$baseUrl/meeting/create-meeting'),
@@ -472,6 +473,19 @@ class ApiService {
             'Authorization': 'Bearer $token',
           },
           body: jsonEncode(data),
+        ));
+  }
+
+  static Future<http.Response> updateMeetingStatus(
+      String meetingId, String status) async {
+    final token = await SharedPrefs.getAccessToken();
+    return authenticatedRequest(() => http.put(
+          Uri.parse('$baseUrl/meeting/$meetingId'),
+          headers: {
+            "Content-Type": "application/json",
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'status': status}),
         ));
   }
 
@@ -942,6 +956,16 @@ class ApiService {
             'Authorization': 'Bearer $token',
           },
           body: jsonEncode({'orderId': orderId}),
+        ));
+  }
+
+  static Future<http.Response> getMeetingStatus(String meetingId) async {
+    final token = await SharedPrefs.getAccessToken();
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/meeting/status/$meetingId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
         ));
   }
 }
