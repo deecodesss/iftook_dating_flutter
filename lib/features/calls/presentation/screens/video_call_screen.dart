@@ -65,6 +65,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   bool _timerStarted = false;
   bool _hasRenewedSession = false;
   bool _isRenewing = false;
+  bool _callEnded = false; // To track if call has been ended by remote user
 
   // Payment variables
   static const int AUTO_PAYMENT_INTERVAL = 60; // Seconds between auto payments
@@ -597,7 +598,12 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
           print("Remote user $remoteUid left channel");
           setState(() {
             _remoteUid = null;
-            connectionStatus('User disconnected');
+            connectionStatus('Call Ended');
+            _callEnded = true;
+
+            // Cancel timers when remote user disconnects
+            _sessionTimer?.cancel();
+            _autoPaymentTimer?.cancel();
           });
         },
         onError: (ErrorCodeType err, String msg) {
@@ -710,75 +716,78 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Remote video
-          Center(
-            child: _remoteUid != null
-                ? AgoraVideoView(
-                    controller: VideoViewController.remote(
-                      rtcEngine: _engine,
-                      canvas: VideoCanvas(uid: _remoteUid),
-                      connection: RtcConnection(channelId: widget.channel),
-                    ),
-                  )
-                : Container(
-                    color: Colors.black,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Caller photo
-                          CircleAvatar(
-                            radius: 70,
-                            backgroundImage:
-                                widget.participant?.photos?.isNotEmpty == true
-                                    ? NetworkImage(
-                                        widget.participant!.photos!.first)
-                                    : null,
-                            child: widget.participant?.photos?.isEmpty ?? true
-                                ? const Icon(Icons.person,
-                                    size: 70, color: Colors.white54)
-                                : null,
-                          ),
-                          const SizedBox(height: 20),
-                          // Caller name
-                          Text(
-                            widget.participant?.name ?? 'Unknown User',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+          // Show call ended UI when the remote user disconnects
+          if (_callEnded)
+            _buildCallEndedUI()
+          else
+            Center(
+              child: _remoteUid != null
+                  ? AgoraVideoView(
+                      controller: VideoViewController.remote(
+                        rtcEngine: _engine,
+                        canvas: VideoCanvas(uid: _remoteUid),
+                        connection: RtcConnection(channelId: widget.channel),
+                      ),
+                    )
+                  : Container(
+                      color: Colors.black,
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Caller photo
+                            CircleAvatar(
+                              radius: 70,
+                              backgroundImage:
+                                  widget.participant?.photos?.isNotEmpty == true
+                                      ? NetworkImage(
+                                          widget.participant!.photos!.first)
+                                      : null,
+                              child: widget.participant?.photos?.isEmpty ?? true
+                                  ? const Icon(Icons.person,
+                                      size: 70, color: Colors.white54)
+                                  : null,
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          // Call type
-                          Text(
-                            widget.isInstaTalk
-                                ? 'InstaTalk Video Call'
-                                : 'Video Call',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey[400],
+                            const SizedBox(height: 20),
+                            // Caller name
+                            Text(
+                              widget.participant?.name ?? 'Unknown User',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          // Connection status
-                          Obx(() => Text(
-                                connectionStatus.value,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: isConnecting.value
-                                      ? Colors.amber
-                                      : Colors.green,
-                                ),
-                              )),
-                        ],
+                            const SizedBox(height: 8),
+                            // Call type
+                            Text(
+                              widget.isInstaTalk
+                                  ? 'InstaTalk Video Call'
+                                  : 'Video Call',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Connection status
+                            Obx(() => Text(
+                                  connectionStatus.value,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: isConnecting.value
+                                        ? Colors.amber
+                                        : Colors.green,
+                                  ),
+                                )),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-          ),
+            ),
 
-          // Local video (only shown if video is enabled)
-          if (_isVideoEnabled)
+          // Local video (only shown if video is enabled and call is active)
+          if (_isVideoEnabled && !_callEnded)
             Container(
               margin: const EdgeInsets.only(top: 40, left: 24),
               child: Align(
@@ -801,8 +810,8 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
               ),
             ),
 
-          // Timer display at the top
-          if (_timerStarted)
+          // Timer display at the top (only shown when call is active)
+          if (_timerStarted && !_callEnded)
             Positioned(
               top: 0,
               left: 0,
@@ -818,49 +827,52 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
               ),
             ),
 
-          // Call controls
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Mute button
-                  _buildCallButton(
-                    icon: _isMuted ? Icons.mic_off : Icons.mic,
-                    color: Colors.white,
-                    backgroundColor: _isMuted ? Colors.red : Colors.blue,
-                    onPressed: _toggleMute,
-                  ),
-                  const SizedBox(width: 20),
-                  // Video toggle button
-                  _buildCallButton(
-                    icon: _isVideoEnabled ? Icons.videocam : Icons.videocam_off,
-                    color: Colors.white,
-                    backgroundColor: _isVideoEnabled ? Colors.blue : Colors.red,
-                    onPressed: _toggleVideo,
-                  ),
-                  const SizedBox(width: 20),
-                  // Switch camera button
-                  _buildCallButton(
-                    icon: Icons.cameraswitch,
-                    color: Colors.white,
-                    backgroundColor: Colors.blue,
-                    onPressed: _switchCamera,
-                  ),
-                  const SizedBox(width: 20),
-                  // End call button
-                  _buildCallButton(
-                    icon: Icons.call_end,
-                    color: Colors.white,
-                    backgroundColor: Colors.red,
-                    onPressed: _endCall,
-                  ),
-                ],
+          // Call controls (only shown when call is active)
+          if (!_callEnded)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Mute button
+                    _buildCallButton(
+                      icon: _isMuted ? Icons.mic_off : Icons.mic,
+                      color: Colors.white,
+                      backgroundColor: _isMuted ? Colors.red : Colors.blue,
+                      onPressed: _toggleMute,
+                    ),
+                    const SizedBox(width: 20),
+                    // Video toggle button
+                    _buildCallButton(
+                      icon:
+                          _isVideoEnabled ? Icons.videocam : Icons.videocam_off,
+                      color: Colors.white,
+                      backgroundColor:
+                          _isVideoEnabled ? Colors.blue : Colors.red,
+                      onPressed: _toggleVideo,
+                    ),
+                    const SizedBox(width: 20),
+                    // Switch camera button
+                    _buildCallButton(
+                      icon: Icons.cameraswitch,
+                      color: Colors.white,
+                      backgroundColor: Colors.blue,
+                      onPressed: _switchCamera,
+                    ),
+                    const SizedBox(width: 20),
+                    // End call button
+                    _buildCallButton(
+                      icon: Icons.call_end,
+                      color: Colors.white,
+                      backgroundColor: Colors.red,
+                      onPressed: _endCall,
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
 
           // Renewal loading overlay
           if (_isRenewing)
@@ -1032,6 +1044,85 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
           ],
         ),
         child: Icon(icon, color: color, size: size * 0.5),
+      ),
+    );
+  }
+
+  // New method to build UI when call has ended
+  Widget _buildCallEndedUI() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Profile image with "call ended" icon overlay
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              CircleAvatar(
+                radius: 80,
+                backgroundImage: widget.participant?.photos?.isNotEmpty == true
+                    ? NetworkImage(widget.participant!.photos!.first)
+                    : null,
+                child: widget.participant?.photos?.isEmpty ?? true
+                    ? const Icon(Icons.person, size: 70, color: Colors.white54)
+                    : null,
+              ),
+              Container(
+                width: 170,
+                height: 170,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withOpacity(0.5),
+                ),
+              ),
+              const Icon(
+                Icons.videocam_off,
+                color: Colors.red,
+                size: 50,
+              ),
+            ],
+          ),
+          const SizedBox(height: 30),
+
+          // Call ended text
+          const Text(
+            'Call Ended',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // User disconnected message
+          Text(
+            '${widget.participant?.name ?? 'User'} has disconnected',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[400],
+            ),
+          ),
+
+          const SizedBox(height: 50),
+
+          // Return to home button
+          ElevatedButton(
+            onPressed: () => Get.back(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
+            ),
+            child: const Text(
+              'Return to Home',
+              style: TextStyle(fontSize: 16),
+            ),
+          ),
+        ],
       ),
     );
   }

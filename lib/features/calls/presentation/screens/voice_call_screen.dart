@@ -64,6 +64,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   bool _timerStarted = false;
   bool _hasRenewedSession = false;
   bool _isRenewing = false;
+  bool _callEnded = false; // To track if call has been ended by remote user
 
   // Payment variables
   static const int AUTO_PAYMENT_INTERVAL = 60; // Seconds between auto payments
@@ -642,7 +643,12 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
           print("Remote user $remoteUid left channel");
           setState(() {
             _remoteUid = null;
-            connectionStatus('User disconnected');
+            connectionStatus('Call Ended');
+            _callEnded = true;
+
+            // Cancel timers when remote user disconnects
+            _sessionTimer?.cancel();
+            _autoPaymentTimer?.cancel();
           });
         },
         onError: (ErrorCodeType err, String msg) {
@@ -704,95 +710,99 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
         Scaffold(
           backgroundColor: const Color(0xFF1A1A1A),
           body: SafeArea(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // Timer display
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                  child: _buildTimerDisplay(),
-                ),
+            child: _callEnded
+                ? _buildCallEndedUI()
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Timer display
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 16),
+                        child: _buildTimerDisplay(),
+                      ),
 
-                // Caller details section
-                Column(
-                  children: [
-                    // Profile photo
-                    CircleAvatar(
-                      radius: 70,
-                      backgroundImage:
-                          widget.participant?.photos?.isNotEmpty == true
-                              ? NetworkImage(widget.participant!.photos!.first)
-                              : null,
-                      child: widget.participant?.photos?.isEmpty ?? true
-                          ? const Icon(Icons.person,
-                              size: 70, color: Colors.white54)
-                          : null,
-                    ),
-                    const SizedBox(height: 20),
-                    // Caller name
-                    Text(
-                      widget.participant?.name ?? 'Unknown User',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Call type and status
-                    Text(
-                      widget.isInstaTalk
-                          ? 'InstaTalk Voice Call'
-                          : 'Voice Call',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[400],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Connection status
-                    Obx(() => Text(
-                          connectionStatus.value,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: isConnecting.value
-                                ? Colors.amber
-                                : Colors.green,
+                      // Caller details section
+                      Column(
+                        children: [
+                          // Profile photo
+                          CircleAvatar(
+                            radius: 70,
+                            backgroundImage:
+                                widget.participant?.photos?.isNotEmpty == true
+                                    ? NetworkImage(
+                                        widget.participant!.photos!.first)
+                                    : null,
+                            child: widget.participant?.photos?.isEmpty ?? true
+                                ? const Icon(Icons.person,
+                                    size: 70, color: Colors.white54)
+                                : null,
                           ),
-                        )),
-                  ],
-                ),
+                          const SizedBox(height: 20),
+                          // Caller name
+                          Text(
+                            widget.participant?.name ?? 'Unknown User',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Call type and status
+                          Text(
+                            widget.isInstaTalk
+                                ? 'InstaTalk Voice Call'
+                                : 'Voice Call',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Connection status
+                          Obx(() => Text(
+                                connectionStatus.value,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: isConnecting.value
+                                      ? Colors.amber
+                                      : Colors.green,
+                                ),
+                              )),
+                        ],
+                      ),
 
-                // Call controls
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildCallButton(
-                      icon: _isMuted ? Icons.mic_off : Icons.mic,
-                      color: Colors.white,
-                      backgroundColor:
-                          _isMuted ? Colors.red : Colors.grey[800]!,
-                      onTap: _toggleMute,
-                    ),
-                    _buildCallButton(
-                      icon: Icons.call_end,
-                      color: Colors.white,
-                      backgroundColor: Colors.red,
-                      onTap: _endCall,
-                      size: 65,
-                    ),
-                    _buildCallButton(
-                      icon: Icons.volume_up,
-                      color: Colors.white,
-                      backgroundColor: Colors.grey[800]!,
-                      onTap: () {}, // Speaker toggle could be implemented here
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 40),
-              ],
-            ),
+                      // Call controls
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildCallButton(
+                            icon: _isMuted ? Icons.mic_off : Icons.mic,
+                            color: Colors.white,
+                            backgroundColor:
+                                _isMuted ? Colors.red : Colors.grey[800]!,
+                            onTap: _toggleMute,
+                          ),
+                          _buildCallButton(
+                            icon: Icons.call_end,
+                            color: Colors.white,
+                            backgroundColor: Colors.red,
+                            onTap: _endCall,
+                            size: 65,
+                          ),
+                          _buildCallButton(
+                            icon: Icons.volume_up,
+                            color: Colors.white,
+                            backgroundColor: Colors.grey[800]!,
+                            onTap:
+                                () {}, // Speaker toggle could be implemented here
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
           ),
         ),
         if (_isRenewing)
@@ -803,6 +813,85 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  // New method to build UI when call has ended
+  Widget _buildCallEndedUI() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Profile image with "call ended" icon overlay
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              CircleAvatar(
+                radius: 80,
+                backgroundImage: widget.participant?.photos?.isNotEmpty == true
+                    ? NetworkImage(widget.participant!.photos!.first)
+                    : null,
+                child: widget.participant?.photos?.isEmpty ?? true
+                    ? const Icon(Icons.person, size: 70, color: Colors.white54)
+                    : null,
+              ),
+              Container(
+                width: 170,
+                height: 170,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withOpacity(0.5),
+                ),
+              ),
+              const Icon(
+                Icons.call_end,
+                color: Colors.red,
+                size: 50,
+              ),
+            ],
+          ),
+          const SizedBox(height: 30),
+
+          // Call ended text
+          const Text(
+            'Call Ended',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // User disconnected message
+          Text(
+            '${widget.participant?.name ?? 'User'} has disconnected',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[400],
+            ),
+          ),
+
+          const SizedBox(height: 50),
+
+          // Return to home button
+          ElevatedButton(
+            onPressed: () => Get.back(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
+            ),
+            child: const Text(
+              'Return to Home',
+              style: TextStyle(fontSize: 16),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
