@@ -6,6 +6,7 @@ import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:get/get.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/socket_service.dart';
+import 'package:iftook/features/calls/controllers/call_status_controller.dart';
 import 'package:iftook/features/calls/services/chat_call_service.dart';
 import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
 import 'package:iftook/helpers/notification_helper.dart';
@@ -37,6 +38,11 @@ class CallController extends GetxController {
   // For call rejection handling
   Timer? _callRejectionCheckTimer;
   final SocketService _socketService = SocketService();
+  // Controller for call status tracking
+  late final CallStatusController _callStatusController;
+
+  // Get current call type
+  RxString callType = ''.obs;
 
   Future<void> handleCameraAndMic(Permission permisison) async {
     final status = await permisison.request();
@@ -107,6 +113,8 @@ class CallController extends GetxController {
     try {
       isJoining(true);
       callStatus('Initializing call...');
+      // Set call type
+      callType.value = type;
 
       final response =
           await ApiService.initiateCall(participantId, type, scheduleTime);
@@ -167,15 +175,9 @@ class CallController extends GetxController {
         throw Exception('Call initiation failed: ${response.statusCode}');
       }
     } catch (e) {
-      log("Error initiating call: $e");
-      Get.snackbar(
-        'Error',
-        'Failed to start call. Please try again.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    } finally {
       isJoining(false);
+      callStatus('Error: ${e.toString()}');
+      rethrow;
     }
   }
 
@@ -276,6 +278,7 @@ class CallController extends GetxController {
       String participantId, String type, DateTime scheduleTime) async {
     try {
       callStatus('Starting scheduled call...');
+      callType.value = type;
       print('Initiating meeting call for existing meeting');
       print('Participant: $participantId');
       print('Type: $type');
@@ -321,6 +324,9 @@ class CallController extends GetxController {
           print('Local user joined channel: ${connection.channelId}');
           isCallActive.value = true;
           isCallConnected.value = true;
+
+          // Notify call status system that user has joined a call
+          _notifyUserJoinedCall();
         },
         onUserJoined: (RtcConnection connection, int uid, int elapsed) {
           print('Remote user joined: $uid');
@@ -369,9 +375,57 @@ class CallController extends GetxController {
           channelProfile: ChannelProfileType.channelProfileCommunication,
         ),
       );
+
+      // Notify call status system that user has joined a call
+      _notifyUserJoinedCall();
     } catch (e) {
       print('Error joining channel: $e');
       throw Exception('Failed to join call: $e');
+    }
+  }
+
+  // Notify that user has joined a call
+  Future<void> _notifyUserJoinedCall() async {
+    try {
+      final userId = await SharedPrefs.getUserIdSharedPreference();
+      if (userId != null && meetingId.value.isNotEmpty) {
+        // Check if CallStatusController is initialized
+        if (!Get.isRegistered<CallStatusController>()) {
+          Get.put(CallStatusController());
+        }
+
+        // Get the controller and notify about joining call
+        final controller = Get.find<CallStatusController>();
+        controller.notifyUserJoinedCall(
+            userId, callType.value, meetingId.value);
+
+        print(
+            '🔔 Notified system that user $userId joined ${callType.value} call ${meetingId.value}');
+      }
+    } catch (e) {
+      print('❌ Error notifying user joined call: $e');
+    }
+  }
+
+  // Notify that user has left a call
+  Future<void> _notifyUserLeftCall() async {
+    try {
+      final userId = await SharedPrefs.getUserIdSharedPreference();
+      if (userId != null && meetingId.value.isNotEmpty) {
+        // Check if CallStatusController is initialized
+        if (!Get.isRegistered<CallStatusController>()) {
+          Get.put(CallStatusController());
+        }
+
+        // Get the controller and notify about leaving call
+        final controller = Get.find<CallStatusController>();
+        controller.notifyUserLeftCall(userId, meetingId.value);
+
+        print(
+            '🔔 Notified system that user $userId left call ${meetingId.value}');
+      }
+    } catch (e) {
+      print('❌ Error notifying user left call: $e');
     }
   }
 
@@ -382,6 +436,9 @@ class CallController extends GetxController {
       isCallActive.value = false;
       hasRemoteUserJoined.value = false;
       isCallConnected.value = false;
+
+      // Notify call status system that user has left a call
+      _notifyUserLeftCall();
     } catch (e) {
       print('Error ending call: $e');
     }
@@ -390,7 +447,11 @@ class CallController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // fetchUserWalletBalance();
+    // Initialize call status controller
+    if (!Get.isRegistered<CallStatusController>()) {
+      Get.put(CallStatusController());
+    }
+    _callStatusController = Get.find<CallStatusController>();
   }
 
   @override

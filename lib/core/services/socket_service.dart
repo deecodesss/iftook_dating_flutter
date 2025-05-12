@@ -11,9 +11,13 @@ class SocketService {
   bool _isConnected = false;
   Timer? _heartbeatTimer;
   final Map<String, bool> _userStatusCache = {}; // Cache of user online status
+  final Map<String, Map<String, dynamic>> _userCallStatusCache =
+      {}; // Cache of user call status
   final StreamController<Map<String, dynamic>> _onlineStatusController =
       StreamController<Map<String, dynamic>>.broadcast();
   final StreamController<Map<String, dynamic>> _callRejectionController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final StreamController<Map<String, dynamic>> _callStatusController =
       StreamController<Map<String, dynamic>>.broadcast();
 
   // Stream to listen for user status changes
@@ -23,6 +27,10 @@ class SocketService {
   // Stream to listen for call rejections
   Stream<Map<String, dynamic>> get callRejectionStream =>
       _callRejectionController.stream;
+
+  // Stream to listen for call status changes
+  Stream<Map<String, dynamic>> get callStatusStream =>
+      _callStatusController.stream;
 
   SocketService._internal();
 
@@ -117,6 +125,37 @@ class SocketService {
 
           // Notify listeners about the batch update
           _onlineStatusController.add({'batchUpdate': true});
+        }
+      });
+
+      // Handle call status updates from server
+      socket.on('userCallStatusChanged', (data) {
+        print("📞 User call status changed: $data");
+        if (data != null && data['userId'] != null) {
+          final userId = data['userId'];
+          final inCall = data['inCall'] ?? false;
+          final callType = data['callType'];
+
+          // Update cache
+          if (inCall) {
+            _userCallStatusCache[userId] = {
+              'inCall': true,
+              'callType': callType,
+              'updatedAt': DateTime.now().toIso8601String(),
+            };
+          } else {
+            _userCallStatusCache[userId] = {
+              'inCall': false,
+              'updatedAt': DateTime.now().toIso8601String(),
+            };
+          }
+
+          // Broadcast to listeners
+          _callStatusController.add({
+            'userId': userId,
+            'inCall': inCall,
+            'callType': callType,
+          });
         }
       });
 
@@ -217,6 +256,185 @@ class SocketService {
     }
   }
 
+  // Check if a user is in a call (first from cache, then ask server)
+  Future<Map<String, dynamic>> checkUserInCall(String userId) async {
+    // First check the cache
+    if (_userCallStatusCache.containsKey(userId)) {
+      final callStatus = _userCallStatusCache[userId]!;
+
+      // Check if cache is too old (more than 30 seconds)
+      final updatedAt = DateTime.parse(
+          callStatus['updatedAt'] ?? DateTime.now().toIso8601String());
+      final isRecent = DateTime.now().difference(updatedAt).inSeconds < 30;
+
+      if (isRecent) {
+        print(
+            '📋 Cache call status for user $userId: ${callStatus['inCall'] ? "In Call" : "Not in Call"}');
+        return callStatus;
+      }
+    }
+
+    // Otherwise ask server
+    if (!_isConnected) {
+      print('❌ Socket not connected, cannot check call status');
+      return {'inCall': false};
+    }
+
+    try {
+      print('📋 Checking call status for user $userId via socket');
+
+      // Create a completer to wait for the response
+      Completer<Map<String, dynamic>> completer =
+          Completer<Map<String, dynamic>>();
+
+      // Request status from server with timeout
+      socket.emitWithAck('checkUserInCall', {'userId': userId},
+          ack: (response) {
+        Map<String, dynamic> callStatus = {'inCall': false};
+
+        print('📋 Received call status response for user $userId: $response');
+
+        if (response != null && response is Map) {
+          final inCall = response['inCall'] ?? false;
+          final callInfo = response['callInfo'];
+
+          callStatus = {
+            'inCall': inCall,
+            'callType': callInfo != null ? callInfo['callType'] : null,
+            'meetingId': callInfo != null ? callInfo['meetingId'] : null,
+            'updatedAt': DateTime.now().toIso8601String(),
+          };
+
+          _userCallStatusCache[userId] = callStatus; // Update cache
+          print(
+              '📋 Updated cache with call status for user $userId: ${inCall ? "In Call" : "Not in Call"}');
+        }
+
+        if (!completer.isCompleted) {
+          completer.complete(callStatus);
+        }
+      });
+
+      // Add a timeout
+      Timer(const Duration(seconds: 3), () {
+        if (!completer.isCompleted) {
+          print('⏱️ Timeout waiting for call status of user $userId');
+          completer.complete({'inCall': false});
+        }
+      });
+
+      final result = await completer.future;
+      print(
+          '📋 Final call status result for user $userId: ${result['inCall'] ? "In Call" : "Not in Call"}');
+      return result;
+    } catch (e) {
+      print('❌ Error checking call status: $e');
+      return {'inCall': false};
+    }
+  }
+
+  // Check multiple users' call status
+  Future<Map<String, Map<String, dynamic>>> checkMultipleUsersCallStatus(
+      List<String> userIds) async {
+    if (!_isConnected) {
+      print('❌ Socket not connected, cannot check multiple call statuses');
+      return {};
+    }
+
+    try {
+      print('📋 Checking call status for multiple users: $userIds');
+
+      // Create a completer to wait for the response
+      Completer<Map<String, Map<String, dynamic>>> completer =
+          Completer<Map<String, Map<String, dynamic>>>();
+
+      // Request statuses from server with timeout
+      socket.emitWithAck('checkMultipleUsersCallStatus', {'userIds': userIds},
+          ack: (response) {
+        Map<String, Map<String, dynamic>> statuses = {};
+
+        print('📋 Received multiple call status response: $response');
+
+        if (response != null && response is Map) {
+          // Convert response to our format and update cache
+          response.forEach((userId, status) {
+            final inCall = status['inCall'] ?? false;
+            final callInfo = status['callInfo'];
+
+            final userStatus = {
+              'inCall': inCall,
+              'callType': callInfo != null ? callInfo['callType'] : null,
+              'meetingId': callInfo != null ? callInfo['meetingId'] : null,
+              'updatedAt': DateTime.now().toIso8601String(),
+            };
+
+            statuses[userId] = userStatus;
+            _userCallStatusCache[userId] = userStatus; // Update cache
+          });
+        }
+
+        if (!completer.isCompleted) {
+          completer.complete(statuses);
+        }
+      });
+
+      // Add a timeout
+      Timer(const Duration(seconds: 5), () {
+        if (!completer.isCompleted) {
+          print('⏱️ Timeout waiting for multiple call statuses');
+          completer.complete({});
+        }
+      });
+
+      final result = await completer.future;
+      print('📋 Retrieved call status for ${result.length} users');
+      return result;
+    } catch (e) {
+      print('❌ Error checking multiple call statuses: $e');
+      return {};
+    }
+  }
+
+  // Method to emit user joined call event
+  void emitUserJoinedCall(String userId, String callType, String meetingId) {
+    if (!_isConnected) {
+      print('⚠️ Socket not connected, cannot emit user joined call');
+      return;
+    }
+
+    try {
+      socket.emit('userJoinedCall', {
+        'userId': userId,
+        'callType': callType,
+        'meetingId': meetingId,
+      });
+
+      print(
+          '📤 Emitted userJoinedCall for user $userId in $callType call: $meetingId');
+    } catch (e) {
+      print('❌ Error emitting user joined call: $e');
+    }
+  }
+
+  // Method to emit user left call event
+  void emitUserLeftCall(String userId, String meetingId) {
+    if (!_isConnected) {
+      print('⚠️ Socket not connected, cannot emit user left call');
+      return;
+    }
+
+    try {
+      socket.emit('userLeftCall', {
+        'userId': userId,
+        'meetingId': meetingId,
+      });
+
+      print('📤 Emitted userLeftCall for user $userId from call: $meetingId');
+    } catch (e) {
+      print('❌ Error emitting user left call: $e');
+    }
+  }
+
   // Method to emit call rejection event
   void emitCallRejected(String meetingId, String callerId) {
     if (!_isConnected) {
@@ -261,6 +479,7 @@ class SocketService {
     _heartbeatTimer?.cancel();
     _onlineStatusController.close();
     _callRejectionController.close();
+    _callStatusController.close();
 
     try {
       socket.disconnect();

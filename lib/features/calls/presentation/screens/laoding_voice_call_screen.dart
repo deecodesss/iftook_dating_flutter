@@ -414,30 +414,30 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Connecting...',
+                    'Calling...',
                     style: TextStyle(
                       fontSize: 18,
                       color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    '00:00',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
-                    ),
-                  ),
+                  // const Text(
+                  //   '00:00',
+                  //   style: TextStyle(
+                  //     fontSize: 16,
+                  //     color: Colors.grey,
+                  //   ),
+                  // ),
                 ],
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildCallButton(
-                    icon: Icons.mic_off,
-                    color: Colors.white,
-                    backgroundColor: Colors.grey[800]!,
-                  ),
+                  // _buildCallButton(
+                  //   icon: Icons.mic_off,
+                  //   color: Colors.white,
+                  //   backgroundColor: Colors.grey[800]!,
+                  // ),
                   _buildCallButton(
                     icon: Icons.call_end,
                     color: Colors.white,
@@ -445,11 +445,11 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
                     size: 65,
                     onTap: _endCall,
                   ),
-                  _buildCallButton(
-                    icon: Icons.volume_up,
-                    color: Colors.white,
-                    backgroundColor: Colors.grey[800]!,
-                  ),
+                  // _buildCallButton(
+                  //   icon: Icons.volume_up,
+                  //   color: Colors.white,
+                  //   backgroundColor: Colors.grey[800]!,
+                  // ),
                 ],
               ),
               const SizedBox(height: 40),

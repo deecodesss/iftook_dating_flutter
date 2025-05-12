@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +10,7 @@ import 'package:iftook/features/home/controllers/home_controller.dart'; // Add H
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
 import 'package:iftook/features/instatalk/presentation/instatalk_schedule.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
+import 'package:iftook/features/shared/controllers/user_online_controller.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
 import '../../../calls/presentation/screens/laoding_voice_call_screen.dart';
@@ -33,6 +35,9 @@ class _FriendsListScreenState extends State<FriendsListScreen>
       Get.find<HomeController>(); // Add HomeController
   final InstaTalkController _instaTalkController =
       Get.find<InstaTalkController>(); // Add _instaTalkController
+  late final UserOnlineController _userOnlineController;
+  Timer? _statusRefreshTimer;
+  final RxMap<String, bool> _cachedOnlineStatus = <String, bool>{}.obs;
 
   @override
   void initState() {
@@ -40,12 +45,79 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     _tabController = TabController(length: 2, vsync: this);
     _friendController.fetchFriends();
     _homeController.fetchWishlist(); // Fetch wishlist users
+
+    // Initialize the UserOnlineController
+    _userOnlineController = Get.find<UserOnlineController>();
+
+    // Start periodic refresh for online status
+    _setupStatusRefreshTimer();
+
+    // Refresh status when tab changes
+    _tabController.addListener(_refreshOnlineStatus);
   }
 
   @override
   void dispose() {
+    _statusRefreshTimer?.cancel();
+    _tabController.removeListener(_refreshOnlineStatus);
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _setupStatusRefreshTimer() {
+    // Refresh online status every 30 seconds
+    _statusRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _refreshOnlineStatus();
+    });
+  }
+
+  void _refreshOnlineStatus() {
+    // Get IDs of all displayed users (both friends and wishlist)
+    List<String> allUserIds = [];
+
+    // Add friend IDs
+    for (final friend in _friendController.friends) {
+      if (friend.sId != null && friend.sId!.isNotEmpty) {
+        allUserIds.add(friend.sId!);
+      }
+    }
+
+    // Add wishlist user IDs
+    for (final wishlistUser in _homeController.wishlistUsers) {
+      if (wishlistUser.sId != null && wishlistUser.sId!.isNotEmpty) {
+        allUserIds.add(wishlistUser.sId!);
+      }
+    }
+
+    // If we have users, fetch their online status in batch
+    if (allUserIds.isNotEmpty) {
+      _fetchBatchOnlineStatus(allUserIds);
+    }
+  }
+
+  Future<void> _fetchBatchOnlineStatus(List<String> userIds) async {
+    try {
+      // Use the UserOnlineController to fetch multiple statuses at once
+      final statusMap =
+          await _userOnlineController.getMultipleUsersStatus(userIds);
+
+      // Update our cache
+      _cachedOnlineStatus.addAll(statusMap);
+    } catch (e) {
+      print('Error fetching batch online status: $e');
+    }
+  }
+
+  bool _isUserOnline(String? userId) {
+    if (userId == null || userId.isEmpty) return false;
+
+    // Check our cached status first
+    if (_cachedOnlineStatus.containsKey(userId)) {
+      return _cachedOnlineStatus[userId] ?? false;
+    }
+
+    // Otherwise use the initial profile.isOnline value
+    return false;
   }
 
   void _showChatBottomSheet(BuildContext context, User profile,
@@ -511,14 +583,10 @@ class _FriendsListScreenState extends State<FriendsListScreen>
     // Check if essential properties exist
     if (profile.sId == null) {
       print('Warning: Profile has null ID');
+      return SizedBox.shrink(); // Skip invalid profiles
     }
 
-    if (profile.name == null || profile.name!.isEmpty) {
-      print('Warning: Profile has null or empty name');
-    }
-
-    print('Building profile card for: ${profile.name} (DOB: ${profile.dob})');
-    print('Location data: ${profile.location}');
+    final String userId = profile.sId!;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -538,8 +606,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                   Stack(
                     children: [
                       InkWell(
-                        onTap: () => _navigateToProfile(
-                            profile), // Use the safe navigation method
+                        onTap: () => _navigateToProfile(profile),
                         child: ClipOval(
                           child: profile.photos != null &&
                                   profile.photos!.isNotEmpty
@@ -557,21 +624,51 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                                 ),
                         ),
                       ),
-                      if (profile.isOnline == true)
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 15,
-                            height: 15,
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              border: Border.all(
-                                  color: AppColors.primaryBackground, width: 2),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
+                      // Use StreamBuilder for real-time updates with fallback to cached status
+                      StreamBuilder<bool>(
+                          stream:
+                              _userOnlineController.getUserStatusStream(userId),
+                          initialData: _isUserOnline(userId),
+                          builder: (context, snapshot) {
+                            final bool isOnline = snapshot.data ?? false;
+
+                            // Update our cache with the latest value
+                            if (snapshot.hasData) {
+                              _cachedOnlineStatus[userId] = isOnline;
+                            }
+
+                            return isOnline
+                                ? Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                      width: 15,
+                                      height: 15,
+                                      decoration: BoxDecoration(
+                                        color: Colors.green,
+                                        border: Border.all(
+                                            color: AppColors.primaryBackground,
+                                            width: 2),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  )
+                                : Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                      width: 15,
+                                      height: 15,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey,
+                                        border: Border.all(
+                                            color: AppColors.primaryBackground,
+                                            width: 2),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  );
+                          }),
                     ],
                   ),
                   const SizedBox(width: 16),
@@ -593,6 +690,42 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                                   ),
                                 ),
                                 const SizedBox(width: 8),
+                                // Add online status text indicator with StreamBuilder
+                                StreamBuilder<bool>(
+                                    stream: _userOnlineController
+                                        .getUserStatusStream(userId),
+                                    initialData: _isUserOnline(userId),
+                                    builder: (context, snapshot) {
+                                      final bool isOnline =
+                                          snapshot.data ?? false;
+
+                                      // Update our cache with the latest value
+                                      if (snapshot.hasData) {
+                                        _cachedOnlineStatus[userId] = isOnline;
+                                      }
+
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: isOnline
+                                              ? Colors.green.withOpacity(0.2)
+                                              : Colors.grey.withOpacity(0.2),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          isOnline ? 'Online' : 'Offline',
+                                          style: TextStyle(
+                                            color: isOnline
+                                                ? Colors.green
+                                                : Colors.grey,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      );
+                                    }),
                               ],
                             ),
                             if (isWishlist)
@@ -721,12 +854,25 @@ class _FriendsListScreenState extends State<FriendsListScreen>
           Obx(() {
             return _homeController.wishlistUsers.isEmpty
                 ? EmptyWishlistView()
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: _homeController.wishlistUsers.length,
-                    itemBuilder: (context, index) => _buildProfileCard(
-                      _homeController.wishlistUsers[index],
-                      true, // isWishlist = true
+                : RefreshIndicator(
+                    onRefresh: () async {
+                      // Clear status cache and fetch fresh data
+                      _userOnlineController.clearAllStatusCache();
+                      _cachedOnlineStatus.clear();
+
+                      // Refresh users list
+                      await _homeController.fetchWishlist();
+
+                      // Refresh online status
+                      _refreshOnlineStatus();
+                    },
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: _homeController.wishlistUsers.length,
+                      itemBuilder: (context, index) => _buildProfileCard(
+                        _homeController.wishlistUsers[index],
+                        true, // isWishlist = true
+                      ),
                     ),
                   );
           }),
@@ -734,12 +880,25 @@ class _FriendsListScreenState extends State<FriendsListScreen>
           Obx(() {
             return _friendController.friends.length < 1
                 ? EmptyFriendsView()
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: _friendController.friends.length,
-                    itemBuilder: (context, index) => _buildProfileCard(
-                      _friendController.friends[index],
-                      false,
+                : RefreshIndicator(
+                    onRefresh: () async {
+                      // Clear status cache and fetch fresh data
+                      _userOnlineController.clearAllStatusCache();
+                      _cachedOnlineStatus.clear();
+
+                      // Refresh friends list
+                      await _friendController.fetchFriends();
+
+                      // Refresh online status
+                      _refreshOnlineStatus();
+                    },
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: _friendController.friends.length,
+                      itemBuilder: (context, index) => _buildProfileCard(
+                        _friendController.friends[index],
+                        false,
+                      ),
                     ),
                   );
           }),

@@ -1018,4 +1018,113 @@ class ApiService {
       return false;
     }
   }
+
+  // Method to check if a user is in a call via API
+  static Future<Map<String, dynamic>> isUserInCall(String userId) async {
+    try {
+      final token = await SharedPrefs.getAccessToken();
+
+      final response = await authenticatedRequest(() => http.get(
+            Uri.parse('$baseUrl/api/call-status/$userId'),
+            headers: {
+              'Authorization': 'Bearer $token',
+            },
+          ));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'inCall': data['inCall'] ?? false,
+          'callType': data['callInfo']?['callType'],
+          'meetingId': data['callInfo']?['meetingId'],
+        };
+      }
+
+      return {'inCall': false};
+    } catch (e) {
+      print('Error checking call status: $e');
+      return {'inCall': false};
+    }
+  }
+
+  // Method to check multiple users' call status via API
+  static Future<Map<String, Map<String, dynamic>>> checkBatchCallStatus(
+      List<String> userIds) async {
+    try {
+      final token = await SharedPrefs.getAccessToken();
+
+      final response = await authenticatedRequest(() => http.post(
+            Uri.parse('$baseUrl/api/call-status/batch'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'userIds': userIds}),
+          ));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        final Map<String, Map<String, dynamic>> result = {};
+
+        if (data.containsKey('statuses')) {
+          final statuses = data['statuses'] as Map<String, dynamic>;
+
+          statuses.forEach((userId, status) {
+            result[userId] = {
+              'inCall': status['inCall'] ?? false,
+              'callType': status['callInfo']?['callType'],
+              'meetingId': status['callInfo']?['meetingId'],
+            };
+          });
+        }
+
+        return result;
+      }
+
+      return {};
+    } catch (e) {
+      print('Error checking batch call status: $e');
+      return {};
+    }
+  }
+
+  // Get all users currently in calls
+  static Future<List<Map<String, dynamic>>> getAllUsersInCalls() async {
+    try {
+      final token = await SharedPrefs.getAccessToken();
+
+      final response = await authenticatedRequest(() => http.get(
+            Uri.parse('$baseUrl/api/users-in-call'),
+            headers: {
+              'Authorization': 'Bearer $token',
+            },
+          ));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<Map<String, dynamic>> usersInCall = [];
+
+        if (data.containsKey('usersInCall')) {
+          final Map<String, dynamic> callData = data['usersInCall'];
+
+          callData.forEach((userId, callInfo) {
+            usersInCall.add({
+              'userId': userId,
+              'inCall': true,
+              'callType': callInfo['callType'],
+              'meetingId': callInfo['meetingId'],
+              'joinedAt': callInfo['joinedAt'],
+            });
+          });
+        }
+
+        return usersInCall;
+      }
+
+      return [];
+    } catch (e) {
+      print('Error getting all users in calls: $e');
+      return [];
+    }
+  }
 }
