@@ -135,16 +135,28 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
           print('Channel: ${widget.channel}');
           print('Token: ${widget.token}');
 
-          // Navigate directly to call screen
-          Get.to(() => VoiceCallScreen(
-                meetingId: widget.meetingId!,
-                channel: widget.channel!,
-                token: widget.token!,
-                initialTimer: widget.instaTalkDuration,
-                isTrial: widget.isTrial,
-                isInstaTalk: widget.isInstaTalk,
-                participant: widget.participant,
-              ));
+          // Start call rejection listener for outgoing calls
+          _callController.startCallRejectionListener(widget.meetingId!);
+
+          // Navigate directly to call screen after a short delay
+          // to give the rejection listener time to initialize
+          Future.delayed(Duration(milliseconds: 500), () {
+            // Don't navigate if component is unmounted or call was rejected
+            if (!mounted || _callController.wasCallRejected.value) return;
+
+            // Navigate to call screen only if call hasn't been rejected
+            Get.to(
+                () => VoiceCallScreen(
+                      meetingId: widget.meetingId!,
+                      channel: widget.channel!,
+                      token: widget.token!,
+                      initialTimer: widget.instaTalkDuration,
+                      isTrial: widget.isTrial,
+                      isInstaTalk: widget.isInstaTalk,
+                      participant: widget.participant,
+                    ),
+                arguments: {'participant': widget.participant});
+          });
           return;
         }
 
@@ -282,11 +294,19 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
   }
 
   void _endCall() {
+    // Cancel timers
+    _instaTimer?.cancel();
+    _startupDelayTimer?.cancel();
+
     try {
-      // _callController.endCall();
+      // Explicitly reject the call when user cancels
+      if (widget.meetingId != null) {
+        _callController.rejectCall();
+      }
     } catch (e) {
       print('Error ending call: $e');
     }
+
     Get.back();
   }
 
@@ -294,6 +314,9 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
   void dispose() {
     _instaTimer?.cancel();
     _startupDelayTimer?.cancel();
+    if (widget.meetingId != null) {
+      _callController.stopCallRejectionListener();
+    }
     super.dispose();
   }
 
@@ -302,128 +325,187 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
       body: SafeArea(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            if (_timerStarted && !_instaTalkExpired)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                color: widget.isInstaTalk
-                    ? Colors.amber.withOpacity(0.2)
-                    : Colors.blue.withOpacity(0.2),
-                child: Row(
-                  children: [
-                    Icon(Icons.timer,
-                        color: widget.isInstaTalk ? Colors.amber : Colors.blue),
-                    const SizedBox(width: 8),
-                    Text(
-                      widget.isInstaTalk
-                          ? 'Free trial: ${_formatTimer(_remainingSeconds)}'
-                          : _formatTimer(_remainingSeconds),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+        child: Obx(() {
+          // Show rejection UI if call has been rejected
+          if (_callController.wasCallRejected.value) {
+            return _buildRejectionUI();
+          }
+
+          // Otherwise show regular loading UI
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              if (_timerStarted && !_instaTalkExpired)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  color: widget.isInstaTalk
+                      ? Colors.amber.withOpacity(0.2)
+                      : Colors.blue.withOpacity(0.2),
+                  child: Row(
+                    children: [
+                      Icon(Icons.timer,
+                          color:
+                              widget.isInstaTalk ? Colors.amber : Colors.blue),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.isInstaTalk
+                            ? 'Free trial: ${_formatTimer(_remainingSeconds)}'
+                            : _formatTimer(_remainingSeconds),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                    LinearProgressIndicator(
-                      value: _remainingSeconds / widget.instaTalkDuration,
-                      backgroundColor: Colors.grey[800],
-                      color: widget.isInstaTalk ? Colors.amber : Colors.blue,
-                      minHeight: 5,
-                    ),
-                  ],
+                      const Spacer(),
+                      LinearProgressIndicator(
+                        value: _remainingSeconds / widget.instaTalkDuration,
+                        backgroundColor: Colors.grey[800],
+                        color: widget.isInstaTalk ? Colors.amber : Colors.blue,
+                        minHeight: 5,
+                      ),
+                    ],
+                  ),
                 ),
+              if (widget.isInstaTalk && _instaTalkExpired)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  color: Colors.redAccent.withOpacity(0.2),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber, color: Colors.redAccent),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Free trial ended. Purchase to continue.',
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryColor,
+                        ),
+                        onPressed: () => _showContinueCallPrompt(),
+                        child: const Text('Continue'),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 40),
+              CircleAvatar(
+                radius: 70,
+                backgroundImage: widget.participant.photos?.isNotEmpty == true
+                    ? NetworkImage(widget.participant.photos!.first)
+                    : null,
+                child: widget.participant.photos?.isEmpty ?? true
+                    ? const Icon(Icons.person, size: 70, color: Colors.white54)
+                    : null,
               ),
-            if (widget.isInstaTalk && _instaTalkExpired)
-              Container(
-                padding: const EdgeInsets.all(16),
-                color: Colors.redAccent.withOpacity(0.2),
-                child: Row(
-                  children: [
-                    const Icon(Icons.warning_amber, color: Colors.redAccent),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Free trial ended. Purchase to continue.',
-                        style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
+              Column(
+                children: [
+                  Text(
+                    widget.participant.name ?? 'User',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryColor,
-                      ),
-                      onPressed: () => _showContinueCallPrompt(),
-                      child: const Text('Continue'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Connecting...',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.white,
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '00:00',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
               ),
-            const SizedBox(height: 40),
-            CircleAvatar(
-              radius: 70,
-              backgroundImage: widget.participant.photos?.isNotEmpty == true
-                  ? NetworkImage(widget.participant.photos!.first)
-                  : null,
-              child: widget.participant.photos?.isEmpty ?? true
-                  ? const Icon(Icons.person, size: 70, color: Colors.white54)
-                  : null,
-            ),
-            Column(
-              children: [
-                Text(
-                  widget.participant.name ?? 'User',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildCallButton(
+                    icon: Icons.mic_off,
                     color: Colors.white,
+                    backgroundColor: Colors.grey[800]!,
                   ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Connecting...',
-                  style: TextStyle(
-                    fontSize: 18,
+                  _buildCallButton(
+                    icon: Icons.call_end,
                     color: Colors.white,
+                    backgroundColor: Colors.red,
+                    size: 65,
+                    onTap: _endCall,
                   ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '00:00',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
+                  _buildCallButton(
+                    icon: Icons.volume_up,
+                    color: Colors.white,
+                    backgroundColor: Colors.grey[800]!,
                   ),
-                ),
-              ],
+                ],
+              ),
+              const SizedBox(height: 40),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  // New method to build UI when call is rejected
+  Widget _buildRejectionUI() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircleAvatar(
+            radius: 50,
+            backgroundImage: widget.participant.photos?.isNotEmpty == true
+                ? NetworkImage(widget.participant.photos!.first)
+                : null,
+            child: widget.participant.photos?.isEmpty ?? true
+                ? const Icon(Icons.person, size: 50, color: Colors.white54)
+                : null,
+          ),
+          const SizedBox(height: 30),
+          const Icon(
+            Icons.call_end,
+            color: Colors.red,
+            size: 50,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            "${widget.participant.name} declined the call",
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildCallButton(
-                  icon: Icons.mic_off,
-                  color: Colors.white,
-                  backgroundColor: Colors.grey[800]!,
-                ),
-                _buildCallButton(
-                  icon: Icons.call_end,
-                  color: Colors.white,
-                  backgroundColor: Colors.red,
-                  size: 65,
-                  onTap: _endCall,
-                ),
-                _buildCallButton(
-                  icon: Icons.volume_up,
-                  color: Colors.white,
-                  backgroundColor: Colors.grey[800]!,
-                ),
-              ],
+          ),
+          const SizedBox(height: 40),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              minimumSize: const Size(200, 50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(25),
+              ),
             ),
-            const SizedBox(height: 40),
-          ],
-        ),
+            onPressed: () => Get.back(),
+            child: const Text(
+              "Go Back",
+              style: TextStyle(fontSize: 18),
+            ),
+          ),
+        ],
       ),
     );
   }

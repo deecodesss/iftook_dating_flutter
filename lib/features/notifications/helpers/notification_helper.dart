@@ -22,6 +22,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../friends/controllers/chat_controller.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../calls/presentation/screens/video_call_screen.dart';
 import '../../calls/presentation/screens/voice_call_screen.dart';
@@ -38,6 +39,11 @@ class NotificationHelper {
   static const String MESSAGE_CHANNEL_NAME = "Message Notifications";
   static const String MESSAGE_CHANNEL_DESC = "Notifications for messages";
   static int _callNotificationId = 1000; // Unique ID for call notifications
+
+  // Public method to show call notification that can be called from outside classes
+  static Future<void> showCallNotification(RemoteMessage message) async {
+    await _showCallNotification(message);
+  }
 
   static Future<void> initialize(
       FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin) async {
@@ -186,14 +192,14 @@ class NotificationHelper {
 
           if (notificationBody.type == 'voice' ||
               notificationBody.type == 'video') {
-            Get.to(() => IncomingCallScreen(
-                  callerName: message.notification?.title ?? "Unknown Caller",
-                  callerImage: message.data['callerImage'] ?? "",
-                  isVideo: notificationBody.type == 'video',
-                  meetingId: message.data['meetingId'] ?? "",
-                  channelName: message.data['channelName'] ?? "",
-                  token: message.data['token'] ?? "",
-                ));
+            showCallSnackBar(
+              callerName: message.notification?.title ?? "Unknown Caller",
+              callerImage: message.data['callerImage'] ?? "",
+              isVideo: notificationBody.type == 'video',
+              meetingId: message.data['meetingId'] ?? "",
+              channelName: message.data['channelName'] ?? "",
+              token: message.data['token'] ?? "",
+            );
           } else if (message.data['type'] == 'instaTalk') {
             handleInstaTalkNotification(message.data);
           }
@@ -262,14 +268,14 @@ class NotificationHelper {
     final String callerName = payloadData['callerName'] ?? 'Unknown Caller';
     final String callerImage = payloadData['callerImage'] ?? '';
 
-    Get.to(() => IncomingCallScreen(
-          callerName: callerName,
-          callerImage: callerImage,
-          isVideo: isVideo,
-          meetingId: meetingId,
-          channelName: channel,
-          token: token,
-        ));
+    showCallSnackBar(
+      callerName: callerName,
+      callerImage: callerImage,
+      isVideo: isVideo,
+      meetingId: meetingId,
+      channelName: channel,
+      token: token,
+    );
   }
 
   static Future<void> _showCallNotification(RemoteMessage message) async {
@@ -287,24 +293,22 @@ class NotificationHelper {
     String payload = json.encode(payloadData);
 
     try {
-      // Immediately launch the incoming call screen for a more direct experience
-      Get.to(
-          () => IncomingCallScreen(
-                callerName: callerName,
-                callerImage: message.data['callerImage'] ?? "",
-                isVideo: isVideo,
-                meetingId: message.data['meetingId'] ?? "",
-                channelName: message.data['channelName'] ?? "",
-                token: message.data['token'] ?? "",
-              ),
-          fullscreenDialog: true,
-          transition: Transition.fadeIn,
-          duration: const Duration(milliseconds: 300));
+      // Use our snackbar notification for in-app experience
+      showCallSnackBar(
+        callerName: callerName,
+        callerImage: message.data['callerImage'] ?? "",
+        isVideo: isVideo,
+        meetingId: message.data['meetingId'] ?? "",
+        channelName: message.data['channelName'] ?? "",
+        token: message.data['token'] ?? "",
+        callerId: message.data['callerId'] ?? "",
+        callDuration: message.data['callDuration'] ?? "30",
+      );
 
-      // Start ringtone
+      // Play ringtone
       _playCallRingtone();
 
-      // Also show a notification for persistent access and in case direct launch fails
+      // Also show a system notification with action buttons
       final androidStyle = await _createCallNotificationStyle(
         callerName: callerName,
         callInfo: callerInfo,
@@ -325,7 +329,8 @@ class NotificationHelper {
         ongoing: true,
         autoCancel: false,
         visibility: NotificationVisibility.public,
-        playSound: true,
+        playSound:
+            false, // Don't play sound from notification since we're using the ringtone player
         styleInformation: androidStyle,
         actions: <AndroidNotificationAction>[
           AndroidNotificationAction(
@@ -333,12 +338,14 @@ class NotificationHelper {
             'Accept',
             icon: DrawableResourceAndroidBitmap('call_accept'),
             showsUserInterface: true,
+            contextual: true,
           ),
           AndroidNotificationAction(
             'DECLINE',
             'Decline',
             icon: DrawableResourceAndroidBitmap('call_decline'),
             showsUserInterface: true,
+            contextual: true,
           ),
         ],
       );
@@ -360,14 +367,14 @@ class NotificationHelper {
       // Show notification
       await _flutterLocalNotificationsPlugin.show(
         _callNotificationId,
-        callerName,
-        isVideo ? 'Video Call' : 'Voice Call',
+        "${isVideo ? 'Video' : 'Voice'} Call from $callerName",
+        "Tap to respond", // Simple instruction
         details,
         payload: payload,
       );
     } catch (e) {
       debugPrint('Error showing call notification: $e');
-      // Fallback to standard notification if direct launch fails
+      // Fallback to standard notification if there's an error
       _showFallbackCallNotification(callerName, isVideo, message, payload);
     }
   }
@@ -493,8 +500,42 @@ class NotificationHelper {
 
   static Future<bool> rejectCall(String meetingId) async {
     try {
+      // Cancel the notification
       await _flutterLocalNotificationsPlugin.cancel(_callNotificationId);
+
+      // Stop audio effects
       await stopCallNotificationEffects();
+
+      // Send call rejection notification to backend
+      try {
+        // Prepare rejection data
+        Map<String, dynamic> rejectionData = {
+          'meetingId': meetingId,
+          'status': 'rejected',
+          'timestamp': DateTime.now().toIso8601String(),
+        };
+
+        // Send rejection to API
+        final response = await ApiService.rejectCall(meetingId, rejectionData);
+
+        if (response.statusCode == 200) {
+          debugPrint('Call rejection successfully sent to server');
+        } else {
+          debugPrint('Error sending call rejection: ${response.statusCode}');
+        }
+      } catch (e) {
+        debugPrint('Exception during call rejection API call: $e');
+      }
+
+      // Show confirmation snackbar
+      Get.snackbar(
+        'Call Declined',
+        'You declined the incoming call',
+        backgroundColor: Colors.grey[800],
+        colorText: Colors.white,
+        duration: const Duration(seconds: 2),
+      );
+
       return true;
     } catch (e) {
       debugPrint('Error rejecting call: $e');
@@ -640,11 +681,55 @@ class NotificationHelper {
           break;
 
         case 'ACCEPT':
-          // ... existing code ...
+          // Handle accepting a call
+          final isVideo = payload['type'] == 'video';
+          final meetingId = payload['meetingId'] ?? '';
+          final channelName = payload['channelName'] ?? '';
+          final token = payload['token'] ?? '';
+          final callerName = payload['callerName'] ?? 'Unknown Caller';
+          final callerImage = payload['callerImage'] ?? '';
+
+          // Stop any ringtone playing
+          await stopCallNotificationEffects();
+
+          // Cancel the notification
+          await _flutterLocalNotificationsPlugin.cancel(_callNotificationId);
+
+          // Navigate to the appropriate call screen
+          if (isVideo) {
+            await Get.to(() => VideoCallScreen(
+                  meetingId: meetingId,
+                  channel: channelName,
+                  token: token,
+                  initialTimer: int.parse(payload['callDuration'] ?? '30'),
+                ));
+          } else {
+            await Get.to(() => VoiceCallScreen(
+                  meetingId: meetingId,
+                  channel: channelName,
+                  token: token,
+                  initialTimer: int.parse(payload['callDuration'] ?? '30'),
+                ));
+          }
           break;
 
         case 'DECLINE':
-          // ... existing code ...
+          // Handle declining a call
+          final meetingId = payload['meetingId'] ?? '';
+
+          // Reject the call through the API
+          final rejected = await rejectCall(meetingId);
+
+          // Show feedback to user
+          if (rejected) {
+            Get.snackbar(
+              'Call Declined',
+              'You declined the incoming call',
+              backgroundColor: Colors.grey[800],
+              colorText: Colors.white,
+              duration: const Duration(seconds: 2),
+            );
+          }
           break;
       }
     } catch (e) {
@@ -1108,6 +1193,176 @@ class NotificationHelper {
     } catch (e) {
       print('Error handling foreground message: $e');
     }
+  }
+
+  // New method to show call notification as a snackbar
+  static void showCallSnackBar({
+    required String callerName,
+    required String callerImage,
+    required bool isVideo,
+    required String meetingId,
+    required String channelName,
+    required String token,
+    String callerRating = "0",
+    String callRate = "0",
+    String callDuration = "30",
+    String callerId = "",
+  }) {
+    // Play ringtone at low volume
+    try {
+      FlutterRingtonePlayer().play(
+        android: AndroidSounds.ringtone,
+        ios: IosSounds.glass,
+        looping: true,
+        volume: 0.3,
+      );
+    } catch (e) {
+      debugPrint('Error playing ringtone: $e');
+    }
+
+    // Show a persistent snackbar
+    Get.snackbar(
+      '', // No title
+      '', // No message
+      isDismissible: false,
+      duration: const Duration(seconds: 30), // Auto-dismiss after 30 seconds
+      backgroundColor: Colors.black.withOpacity(0.8),
+      margin: const EdgeInsets.all(8),
+      borderRadius: 12,
+      snackPosition: SnackPosition.TOP,
+      padding: EdgeInsets.zero,
+      snackStyle: SnackStyle.FLOATING,
+      titleText: Container(),
+      messageText: GestureDetector(
+        onTap: () {
+          // Stop ringtone
+          FlutterRingtonePlayer().stop();
+
+          // Close the snackbar
+          Get.closeCurrentSnackbar();
+
+          // Navigate to incoming call screen
+          Get.to(() => IncomingCallScreen(
+                callerName: callerName,
+                callerImage: callerImage,
+                isVideo: isVideo,
+                meetingId: meetingId,
+                channelName: channelName,
+                token: token,
+                callerRating: callerRating,
+                callRate: callRate,
+                callDuration: callDuration,
+                callerId: callerId,
+              ));
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          child: Row(
+            children: [
+              // Caller image
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.grey.shade800,
+                ),
+                child: callerImage.isNotEmpty
+                    ? ClipOval(
+                        child: CachedNetworkImage(
+                          imageUrl: callerImage,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                          ),
+                        ),
+                      )
+                    : const Icon(Icons.person, color: Colors.white),
+              ),
+              const SizedBox(width: 16),
+              // Call info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${isVideo ? 'Video' : 'Voice'} Call',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      callerName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Call button
+              Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.green,
+                ),
+                child: Icon(
+                  isVideo ? Icons.videocam : Icons.call,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Decline button
+              GestureDetector(
+                onTap: () async {
+                  // Stop ringtone
+                  FlutterRingtonePlayer().stop();
+
+                  // Reject the call via the API
+                  await rejectCall(meetingId);
+
+                  // Close the snackbar
+                  Get.closeCurrentSnackbar();
+                },
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.red,
+                  ),
+                  child: const Icon(
+                    Icons.call_end,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -4,11 +4,14 @@ import 'dart:async';
 
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:get/get.dart';
+import 'package:iftook/core/services/api_service.dart';
+import 'package:iftook/core/services/socket_service.dart';
+import 'package:iftook/features/calls/services/chat_call_service.dart';
 import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
+import 'package:iftook/helpers/notification_helper.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 
-import '../../../core/services/api_service.dart';
 import '../presentation/screens/voice_call_screen.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 
@@ -28,10 +31,72 @@ class CallController extends GetxController {
   final isCallConnected = false.obs;
   final hasRemoteUserJoined = false.obs;
   final isCallActive = false.obs;
+  final wasCallRejected = false.obs;
+  final rejectedBy = ''.obs;
+
+  // For call rejection handling
+  Timer? _callRejectionCheckTimer;
+  final SocketService _socketService = SocketService();
 
   Future<void> handleCameraAndMic(Permission permisison) async {
     final status = await permisison.request();
     log(status.toString());
+  }
+
+  // Method to listen for call rejection with both socket and API polling
+  void startCallRejectionListener(String callMeetingId) {
+    // Update meetingId and reset rejection state
+    meetingId.value = callMeetingId;
+    wasCallRejected.value = false;
+    isCallActive.value = true;
+
+    // Listen for call rejection via stream instead of direct socket event
+    _socketService.callRejectionStream.listen((data) {
+      print('📱 Call rejection event received from stream: $data');
+      if (data != null && data['meetingId'] == meetingId.value) {
+        final rejectorId = data['rejectedBy'] ?? '';
+        _handleCallRejection(rejectorId);
+      }
+    });
+
+    // Also poll the API every few seconds as a fallback
+    _callRejectionCheckTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (timer) => _checkCallStatus(callMeetingId),
+    );
+  }
+
+  // Method to check call status via API
+  Future<void> _checkCallStatus(String callMeetingId) async {
+    if (wasCallRejected.value) return;
+
+    try {
+      final statusData = await ChatCallService.getCallStatus(callMeetingId);
+      if (statusData != null && statusData['status'] == 'rejected') {
+        final rejectorId = statusData['rejectedBy'] ?? '';
+        _handleCallRejection(rejectorId);
+      }
+    } catch (e) {
+      print('Error checking call status: $e');
+    }
+  }
+
+  // Unified method to handle call rejection
+  void _handleCallRejection(String rejectorId) {
+    wasCallRejected.value = true;
+    rejectedBy.value = rejectorId;
+    callStatus.value = "Call declined";
+    isCallActive.value = false;
+    _callRejectionCheckTimer?.cancel();
+
+    // We'll handle the UI directly in the loading screens
+    // by observing the wasCallRejected value
+  }
+
+  // Clean up call rejection listeners
+  void stopCallRejectionListener() {
+    _callRejectionCheckTimer?.cancel();
+    isCallActive.value = false;
   }
 
   Future<void> initiateCall(
@@ -69,6 +134,9 @@ class CallController extends GetxController {
         }
 
         callStatus('Joining call...');
+
+        // Start listening for call rejection
+        startCallRejectionListener(meetingId.value);
 
         // Add delay to ensure other user has time to initialize
         await Future.delayed(const Duration(seconds: 2));
@@ -109,6 +177,14 @@ class CallController extends GetxController {
     } finally {
       isJoining(false);
     }
+  }
+
+  // Call this when user explicitly ends/cancels a call
+  Future<void> rejectCall() async {
+    if (meetingId.value.isNotEmpty) {
+      await ChatCallService.rejectCall(meetingId.value);
+    }
+    stopCallRejectionListener();
   }
 
   bool isFreeCall(double? callRate) {
@@ -320,6 +396,7 @@ class CallController extends GetxController {
   @override
   void onClose() {
     stopSessionTimer();
+    stopCallRejectionListener();
     super.onClose();
   }
 }

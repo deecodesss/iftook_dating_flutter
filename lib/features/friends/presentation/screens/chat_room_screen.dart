@@ -475,24 +475,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     super.dispose();
   }
 
-  void _showRatingDialog() {
-    Future.delayed(const Duration(milliseconds: 300), () {
-      Get.dialog(
-        Dialog(
-          backgroundColor: AppColors.secondaryBackground,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: RatingAndReviewWidget(
-            userId: widget.profile.sId ?? "",
-            interactionType: "chat",
-          ),
-        ),
-        barrierDismissible: false,
-      );
-    });
-  }
-
   Future<void> _showSendMoneyDialog() async {
     _amountController.clear();
     return showDialog(
@@ -744,7 +726,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              if (!widget.isTrial)
+              if (widget.isFriend)
                 ListTile(
                   leading: const Icon(Icons.person_remove,
                       color: AppColors.redColor),
@@ -975,7 +957,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ],
             ),
             actions: [
-              if (!widget.isInstaTalk) ...[
+              if (widget.isFriend) ...[
                 _buildActionButton(
                   icon: Icons.videocam,
                   onPressed: _handleChatVideoCall, // Use new handler

@@ -207,11 +207,11 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
     return Obx(() {
       final isInWishlist =
           _homeController.isUserInWishlist(widget.profile.sId ?? '');
-      final Sock = SocketService().isUserOnline(widget.profile.sId ?? '');
+      // final Sock = SocketService().isUserOnline(widget.profile.sId ?? '');
 
       // Enhanced logging to track wishlist state
       print('📋 WISHLIST STATE CHECK:');
-      print('📋 ONLINE STATUS CHECK: $Sock');
+      // print('📋 ONLINE STATUS CHECK: $Sock');
       print('📋 Profile: ${widget.profile.name} (ID: ${widget.profile.sId})');
       print('📋 Is in wishlist: $isInWishlist');
       print('📋 Wishlist count: ${_homeController.wishlistUsers.length}');

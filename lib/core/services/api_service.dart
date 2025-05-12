@@ -968,4 +968,54 @@ class ApiService {
           },
         ));
   }
+
+  static Future<http.Response> rejectCall(
+      String meetingId, Map<String, dynamic> rejectionData) async {
+    final token = await SharedPrefs.getAccessToken();
+
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/meeting/reject/$meetingId'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(rejectionData),
+        ));
+  }
+
+  static Future<http.Response> getCallStatus(String meetingId) async {
+    final token = await SharedPrefs.getAccessToken();
+
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/meeting/status/$meetingId'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        ));
+  }
+
+  // Method to check if a user is online via API
+  static Future<bool> isUserOnline(String userId) async {
+    try {
+      final token = await SharedPrefs.getAccessToken();
+
+      final response = await authenticatedRequest(() => http.get(
+            Uri.parse('$baseUrl/users/online-status/$userId'),
+            headers: {
+              'Authorization': 'Bearer $token',
+            },
+          ));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['isOnline'] ?? false;
+      }
+
+      return false;
+    } catch (e) {
+      print('Error checking online status: $e');
+      return false;
+    }
+  }
 }

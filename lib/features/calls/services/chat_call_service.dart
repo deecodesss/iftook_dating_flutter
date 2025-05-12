@@ -1,69 +1,117 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
+import 'package:iftook/core/services/socket_service.dart';
 import 'package:http/http.dart' as http;
 
 class ChatCallService {
   static Timer? _debounceTimer;
   static bool _isRequestInProgress = false;
 
-  static Future<Map<String, dynamic>> initiateChatCall(
+  static Future<Map<String, dynamic>?> initiateChatCall(
     String participantId,
     String type,
   ) async {
-    // Debounce check
     if (_isRequestInProgress) {
-      throw Exception('Call request already in progress');
+      throw Exception('A call request is already in progress');
     }
-
-    // Cancel any existing timer
-    _debounceTimer?.cancel();
 
     try {
       _isRequestInProgress = true;
-
-      print('Initiating $type call with participant: $participantId');
-
       final response = await ApiService.createMeeting(
         participantId,
         type,
         DateTime.now(),
       );
 
-      if (response.statusCode != 201) {
-        print('Error response: ${response.statusCode} - ${response.body}');
-        throw Exception('Failed to create meeting: ${response.statusCode}');
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        final meetingData = data['data']['meeting'];
+        final token = data['data']['token'];
+        final channelName = data['data']['channelName'];
+
+        return {
+          'meetingId': meetingData['_id'],
+          'token': token,
+          'channelName': channelName,
+        };
+      } else {
+        throw Exception('Failed to initiate call');
       }
-
-      final data = jsonDecode(response.body);
-
-      if (!data['success']) {
-        throw Exception('Server returned error: ${data['message']}');
-      }
-
-      final meetingData = data['data'];
-      final result = {
-        'meetingId': meetingData['meeting']['_id'],
-        'token': meetingData['token'],
-        'channelName': meetingData['channelName'],
-        'type': type,
-      };
-
-      print('Call initialized successfully:');
-      print('Meeting ID: ${result['meetingId']}');
-      print('Channel: ${result['channelName']}');
-
-      return result;
     } catch (e) {
-      print('Error in ChatCallService.initiateChatCall: $e');
+      if (kDebugMode) {
+        print('Error initiating chat call: $e');
+      }
       rethrow;
     } finally {
-      // Reset request flag after 2 seconds
-      _debounceTimer = Timer(const Duration(seconds: 2), () {
+      // Reset after a short delay to prevent accidental double-taps
+      Future.delayed(const Duration(seconds: 2), () {
         _isRequestInProgress = false;
       });
+    }
+  }
+
+  static Future<bool> rejectCall(String meetingId) async {
+    try {
+      final userId = await SharedPrefs.getUserIdSharedPreference();
+      if (userId == null) throw Exception('User ID not found');
+
+      // Notify via Socket.io for real-time feedback
+      SocketService().emitCallRejected(meetingId, userId);
+
+      // Call the API to update the call status in the database
+      final response = await ApiService.rejectCall(
+        meetingId,
+        {
+          'status': 'rejected',
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
+
+      if (response.statusCode == 200) {
+        if (kDebugMode) {
+          print('Call rejected successfully');
+        }
+        return true;
+      } else {
+        if (kDebugMode) {
+          print('Failed to reject call: ${response.body}');
+        }
+        return false;
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error rejecting call: $e');
+      }
+      return false;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getCallStatus(String meetingId) async {
+    try {
+      final response = await ApiService.getCallStatus(meetingId);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'status': data['status'],
+          'rejectedAt': data['rejectedAt'],
+          'rejectedBy': data['rejectedBy'],
+        };
+      } else {
+        if (kDebugMode) {
+          print('Failed to get call status: ${response.body}');
+        }
+        return null;
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error getting call status: $e');
+      }
+      return null;
     }
   }
 

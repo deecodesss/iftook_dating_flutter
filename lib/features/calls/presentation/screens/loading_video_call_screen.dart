@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:iftook/features/calls/controllers/call_controller.dart';
 import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
+import 'package:iftook/helpers/app_colors.dart';
 
 class VideoCallLoadingScreen extends StatefulWidget {
   final User participant;
@@ -60,16 +61,28 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
           print('Channel: ${widget.channel}');
           print('Token: ${widget.token}');
 
-          // Navigate directly to call screen
-          Get.to(() => VideoCallScreen(
-                meetingId: widget.meetingId!,
-                channel: widget.channel!,
-                token: widget.token!,
-                initialTimer: widget.instaTalkDuration,
-                isTrial: widget.isTrial,
-                isInstaTalk: widget.isInstaTalk,
-                participant: widget.participant,
-              ));
+          // Start call rejection listener for outgoing calls
+          _callController.startCallRejectionListener(widget.meetingId!);
+
+          // Navigate directly to call screen after a short delay
+          // to give the rejection listener time to initialize
+          Future.delayed(Duration(milliseconds: 500), () {
+            // Don't navigate if component is unmounted or call was rejected
+            if (!mounted || _callController.wasCallRejected.value) return;
+
+            // Navigate to call screen only if call hasn't been rejected
+            Get.to(
+                () => VideoCallScreen(
+                      meetingId: widget.meetingId!,
+                      channel: widget.channel!,
+                      token: widget.token!,
+                      initialTimer: widget.instaTalkDuration,
+                      isTrial: widget.isTrial,
+                      isInstaTalk: widget.isInstaTalk,
+                      participant: widget.participant,
+                    ),
+                arguments: {'participant': widget.participant});
+          });
           return;
         }
 
@@ -114,9 +127,21 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    _startupDelayTimer?.cancel();
+    if (widget.meetingId != null) {
+      _callController.stopCallRejectionListener();
+    }
+    super.dispose();
+  }
+
   void _endCall() {
     try {
-      // _callController.endCall();
+      // Explicitly reject the call when user cancels
+      if (widget.meetingId != null) {
+        _callController.rejectCall();
+      }
     } catch (e) {
       print('Error ending call: $e');
     }
@@ -128,74 +153,132 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
       body: SafeArea(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            const SizedBox(height: 40),
-            CircleAvatar(
-              radius: 70,
-              backgroundImage: widget.participant.photos?.isNotEmpty == true
-                  ? NetworkImage(widget.participant.photos!.first)
-                  : null,
-              child: widget.participant.photos?.isEmpty ?? true
-                  ? const Icon(Icons.person, size: 70, color: Colors.white54)
-                  : null,
-            ),
-            Column(
-              children: [
-                Text(
-                  widget.participant.name ?? 'User',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+        child: Obx(() {
+          // Show rejection UI if call has been rejected
+          if (_callController.wasCallRejected.value) {
+            return _buildRejectionUI();
+          }
+
+          // Otherwise show regular loading UI
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              const SizedBox(height: 40),
+              CircleAvatar(
+                radius: 70,
+                backgroundImage: widget.participant.photos?.isNotEmpty == true
+                    ? NetworkImage(widget.participant.photos!.first)
+                    : null,
+                child: widget.participant.photos?.isEmpty ?? true
+                    ? const Icon(Icons.person, size: 70, color: Colors.white54)
+                    : null,
+              ),
+              Column(
+                children: [
+                  Text(
+                    widget.participant.name ?? 'User',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Connecting...',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.white,
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Connecting...',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildCallButton(
+                    icon: Icons.mic_off,
+                    color: Colors.white,
+                    backgroundColor: Colors.grey[800]!,
+                  ),
+                  _buildCallButton(
+                    icon: Icons.videocam_off,
+                    color: Colors.white,
+                    backgroundColor: Colors.grey[800]!,
+                  ),
+                  _buildCallButton(
+                    icon: Icons.call_end,
+                    color: Colors.white,
+                    backgroundColor: Colors.red,
+                    size: 65,
+                    onTap: _endCall,
+                  ),
+                  _buildCallButton(
+                    icon: Icons.switch_camera,
+                    color: Colors.white,
+                    backgroundColor: Colors.grey[800]!,
+                  ),
+                  _buildCallButton(
+                    icon: Icons.volume_up,
+                    color: Colors.white,
+                    backgroundColor: Colors.grey[800]!,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 40),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  // New method to build UI when call is rejected
+  Widget _buildRejectionUI() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircleAvatar(
+            radius: 50,
+            backgroundImage: widget.participant.photos?.isNotEmpty == true
+                ? NetworkImage(widget.participant.photos!.first)
+                : null,
+            child: widget.participant.photos?.isEmpty ?? true
+                ? const Icon(Icons.person, size: 50, color: Colors.white54)
+                : null,
+          ),
+          const SizedBox(height: 30),
+          const Icon(
+            Icons.videocam_off,
+            color: Colors.red,
+            size: 50,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            "${widget.participant.name} declined the call",
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildCallButton(
-                  icon: Icons.mic_off,
-                  color: Colors.white,
-                  backgroundColor: Colors.grey[800]!,
-                ),
-                _buildCallButton(
-                  icon: Icons.videocam_off,
-                  color: Colors.white,
-                  backgroundColor: Colors.grey[800]!,
-                ),
-                _buildCallButton(
-                  icon: Icons.call_end,
-                  color: Colors.white,
-                  backgroundColor: Colors.red,
-                  size: 65,
-                  onTap: _endCall,
-                ),
-                _buildCallButton(
-                  icon: Icons.switch_camera,
-                  color: Colors.white,
-                  backgroundColor: Colors.grey[800]!,
-                ),
-                _buildCallButton(
-                  icon: Icons.volume_up,
-                  color: Colors.white,
-                  backgroundColor: Colors.grey[800]!,
-                ),
-              ],
+          ),
+          const SizedBox(height: 40),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              minimumSize: const Size(200, 50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(25),
+              ),
             ),
-            const SizedBox(height: 40),
-          ],
-        ),
+            onPressed: () => Get.back(),
+            child: const Text(
+              "Go Back",
+              style: TextStyle(fontSize: 18),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -19,6 +19,32 @@ import 'core/services/api_service.dart';
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 String? fcmToken;
+
+// Setup notification action listeners
+Future<void> setupNotificationActionListeners() async {
+  // For Android
+  final androidImplementation = FlutterLocalNotificationsPlugin()
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+
+  if (androidImplementation != null) {
+    await androidImplementation.requestNotificationsPermission();
+
+    // Setup action handlers
+    await androidImplementation.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'call_channel_id',
+        'Call Notifications',
+        description: 'Notifications for incoming calls',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        enableLights: true,
+      ),
+    );
+  }
+}
+
 Future<void> updateFCMToken() async {
   FirebaseMessaging.instance.getToken().then((token) {
     fcmToken = token;
@@ -135,6 +161,18 @@ Future<void> myBackgroundMessageHandler(RemoteMessage message) async {
   print("Notification Message: ${message.notification?.title}");
   print("Data Message: ${message.data}");
 
+  // Handle call notifications in the background
+  if (message.data['type'] == 'voice' || message.data['type'] == 'video') {
+    // Initialize notification plugin first
+    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+        FlutterLocalNotificationsPlugin();
+    await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
+
+    // Show the call notification with action buttons
+    await NotificationHelper.showCallNotification(message);
+    return;
+  }
+
   // Handle InstaTalk notification specially in the background
   if (message.data['type'] == 'instaTalk') {
     // Show a special notification for InstaTalk that the user can tap on
@@ -144,6 +182,12 @@ Future<void> myBackgroundMessageHandler(RemoteMessage message) async {
 
   // Original handling for other notification types
   print("Handling other background notifications.");
+
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
+  await NotificationHelper.showNotification(
+      message, flutterLocalNotificationsPlugin, true);
 }
 
 Future<void> main() async {
@@ -161,6 +205,7 @@ Future<void> main() async {
     // Removed permission request code
     await handleInitialNotification(); // Handle notification if app opened from terminated state
     await setupNotificationClickHandlers(); // Setup handlers for background/foreground states
+    await setupNotificationActionListeners(); // Setup notification action listeners
 
     await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
     FirebaseMessaging.onBackgroundMessage(myBackgroundMessageHandler);
