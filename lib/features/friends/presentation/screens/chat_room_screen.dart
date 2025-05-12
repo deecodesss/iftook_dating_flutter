@@ -12,6 +12,8 @@ import 'package:iftook/features/calls/services/chat_call_service.dart';
 import 'package:iftook/features/friends/data/message.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
+import 'package:iftook/features/shared/controllers/user_online_controller.dart';
+import 'package:iftook/features/shared/widgets/user_online_indicator.dart';
 import 'package:iftook/features/shared/widgets/rating_review_widget.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
@@ -910,23 +912,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                               radius: 25,
                             ),
                     ),
-                    if (widget.profile.isOnline == true)
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            border: Border.all(
-                              color: AppColors.primaryBackground,
-                              width: 2,
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                      ),
+                    _buildOnlineIndicator(),
                   ],
                 ),
                 const SizedBox(width: 12),
@@ -942,15 +928,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      Text(
-                        widget.profile.isOnline == true ? 'Online' : 'Offline',
-                        style: GoogleFonts.manrope(
-                          color: widget.profile.isOnline == true
-                              ? Colors.green
-                              : Colors.white.withOpacity(0.6),
-                          fontSize: 12,
-                        ),
-                      ),
+                      _buildOnlineStatusText(),
                     ],
                   ),
                 ),
@@ -1527,6 +1505,64 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 const SizedBox(width: 8),
               ],
             ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOnlineIndicator() {
+    final userOnlineController = Get.find<UserOnlineController>();
+
+    return Positioned(
+      right: 0,
+      bottom: 0,
+      child: StreamBuilder<bool>(
+        stream:
+            userOnlineController.getUserStatusStream(widget.profile.sId ?? ''),
+        builder: (context, snapshot) {
+          final bool isOnline = snapshot.data ?? false;
+
+          return Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: isOnline ? Colors.green : Colors.grey,
+              border: Border.all(
+                color: AppColors.primaryBackground,
+                width: 2,
+              ),
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: isOnline
+                  ? [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.4),
+                        blurRadius: 4,
+                        spreadRadius: 1,
+                      )
+                    ]
+                  : null,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildOnlineStatusText() {
+    final userOnlineController = Get.find<UserOnlineController>();
+
+    return StreamBuilder<bool>(
+      stream:
+          userOnlineController.getUserStatusStream(widget.profile.sId ?? ''),
+      builder: (context, snapshot) {
+        final bool isOnline = snapshot.data ?? false;
+
+        return Text(
+          isOnline ? 'Online' : 'Offline',
+          style: GoogleFonts.manrope(
+            color: isOnline ? Colors.green : Colors.white.withOpacity(0.6),
+            fontSize: 12,
           ),
         );
       },

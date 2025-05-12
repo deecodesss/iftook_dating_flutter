@@ -8,6 +8,8 @@ import 'package:iftook/core/services/socket_service.dart';
 import 'package:iftook/features/home/controllers/home_controller.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
+import 'package:iftook/features/shared/widgets/user_online_indicator.dart';
+import 'package:iftook/features/shared/controllers/user_online_controller.dart';
 
 class TinderStyleProfileCard extends StatefulWidget {
   final User profile;
@@ -157,27 +159,7 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.circle, color: Colors.green, size: 10),
-                SizedBox(width: 6),
-                Text(
-                  'Online',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildUserOnlineStatus(),
           Row(
             children: [
               // Add wishlist/favorite button
@@ -200,6 +182,56 @@ class _TinderStyleProfileCardState extends State<TinderStyleProfileCard> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildUserOnlineStatus() {
+    final userOnlineController = Get.find<UserOnlineController>();
+
+    return StreamBuilder<bool>(
+      stream:
+          userOnlineController.getUserStatusStream(widget.profile.sId ?? ''),
+      builder: (context, snapshot) {
+        final bool isOnline = snapshot.data ?? false;
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isOnline ? Colors.green : Colors.grey,
+                  boxShadow: [
+                    BoxShadow(
+                      color: isOnline
+                          ? Colors.green.withOpacity(0.4)
+                          : Colors.transparent,
+                      blurRadius: 4,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                isOnline ? 'Online' : 'Offline',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
+import 'package:iftook/features/shared/controllers/user_online_controller.dart';
 import 'package:iftook/features/splash/splash_screen.dart';
 import 'package:iftook/theme/app_theme.dart';
 
@@ -14,6 +16,7 @@ import 'features/profile/data/models/user.dart';
 import 'features/friends/presentation/screens/chat_room_screen.dart';
 import 'firebase_options.dart';
 import 'core/services/api_service.dart';
+import 'core/services/socket_service.dart';
 
 // Global key to access the scaffold messenger
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
@@ -190,6 +193,72 @@ Future<void> myBackgroundMessageHandler(RemoteMessage message) async {
       message, flutterLocalNotificationsPlugin, true);
 }
 
+// Initialize socket and online status services
+Future<void> initializeOnlineStatusService() async {
+  try {
+    print('📱 Starting online status service initialization...');
+
+    // Initialize socket service
+    final socketService = SocketService();
+    await socketService.initSocket();
+
+    // Add a check to ensure connection was successful
+    if (!socketService.isConnected) {
+      print(
+          '⚠️ Socket not connected after initialization, waiting 3 seconds and retrying...');
+      // Wait and retry once
+      await Future.delayed(const Duration(seconds: 3));
+      await socketService.reconnect();
+
+      // Check again after retry
+      if (!socketService.isConnected) {
+        print('⚠️ Socket still not connected after retry');
+      } else {
+        print('✅ Socket connected successfully after retry');
+      }
+    }
+
+    // Get the socket ID if available
+    final socketId = socketService.socketId;
+    print('🔌 Socket ID: $socketId');
+
+    // Initialize and register the user online controller
+    final controller = Get.put(UserOnlineController(), permanent: true);
+
+    // Add periodic check to ensure socket stays connected
+    Timer.periodic(const Duration(minutes: 5), (timer) async {
+      if (!socketService.isConnected) {
+        print(
+            '🔄 Periodic check: Socket disconnected, attempting to reconnect...');
+        await socketService.reconnect();
+      } else {
+        print('✅ Periodic check: Socket connection is healthy');
+      }
+    });
+
+    print('✅ Online status service initialized successfully');
+  } catch (e) {
+    print('❌ Error initializing online status service: $e');
+    print('⚠️ Retrying initialization in 5 seconds...');
+
+    // Retry after a delay
+    await Future.delayed(const Duration(seconds: 5));
+    try {
+      // Initialize socket service again
+      final socketService = SocketService();
+      await socketService.initSocket();
+
+      // Initialize and register the user online controller
+      Get.put(UserOnlineController(), permanent: true);
+
+      print('✅ Online status service initialized successfully on retry');
+    } catch (retryError) {
+      print('❌ Error on retry: $retryError');
+      print('⚠️ Online status features may not work correctly');
+    }
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -210,6 +279,9 @@ Future<void> main() async {
     await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
     FirebaseMessaging.onBackgroundMessage(myBackgroundMessageHandler);
     await updateFCMToken();
+
+    // Initialize online status service
+    await initializeOnlineStatusService();
   } catch (e) {
     debugPrint("Error during initialization: ${e.toString()}");
   }

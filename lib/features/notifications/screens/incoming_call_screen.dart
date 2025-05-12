@@ -180,6 +180,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
             channel: widget.channelName,
             token: widget.token,
             initialTimer: int.parse(widget.callDuration),
+            // isInstaTalk: widget.isInstaTalk,
           ),
           transition: Transition.rightToLeftWithFade,
         );
@@ -206,32 +207,12 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     }
   }
 
-  void _stopRingtoneSafely() {
-    try {
-      FlutterRingtonePlayer().stop();
-      if (Platform.isAndroid) {
-        const platform = MethodChannel('com.application.iftook/audio');
-        platform.invokeMethod('stopRingtone').catchError((e) {
-          print('Error stopping ringtone via platform channel: $e');
-        });
-      }
-    } catch (e) {
-      print('Error stopping ringtone: $e');
-    }
-  }
-
   void _declineCall() {
-    // Stop ringtone
     _stopRingtone();
 
-    // Cancel timer
     _callTimer?.cancel();
 
-    // Allow screen to turn off again
     WakelockPlus.disable();
-
-    // TODO: Send a notification to caller that call was rejected
-    // Use an API call to inform caller about rejection
     _sendCallRejectedNotification();
 
     // Return to previous screen
@@ -239,8 +220,6 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
   }
 
   void _sendCallRejectedNotification() {
-    // Implement API call to notify caller the call was rejected
-    // This is a placeholder for the implementation
     try {
       // Example API call (to be implemented)
       // ApiService.rejectCall(widget.meetingId);
