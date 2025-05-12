@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:iftook/features/shared/controllers/user_online_controller.dart';
 import 'package:iftook/features/splash/splash_screen.dart';
 import 'package:iftook/theme/app_theme.dart';
+import 'package:iftook/helpers/permissions_handler.dart';
 
 import 'features/notifications/controllers/notification_controller.dart';
 import 'features/notifications/helpers/notification_body.dart';
@@ -17,6 +18,7 @@ import 'features/friends/presentation/screens/chat_room_screen.dart';
 import 'firebase_options.dart';
 import 'core/services/api_service.dart';
 import 'core/services/socket_service.dart';
+import 'package:iftook/helpers/permissions_controller.dart';
 
 // Global key to access the scaffold messenger
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
@@ -283,6 +285,12 @@ Future<void> main() async {
 
     // Initialize online status service
     await initializeOnlineStatusService();
+
+    // Reset permissions explanation state on app launch
+    PermissionsHandler().resetPermissionsState();
+
+    // Initialize permissions controller
+    Get.put(PermissionsController(), permanent: true);
   } catch (e) {
     debugPrint("Error during initialization: ${e.toString()}");
   }

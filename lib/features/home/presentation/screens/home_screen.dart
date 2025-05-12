@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:iftook/features/friend_requests/presentation/screens/friend_requests_screen.dart';
 import 'package:iftook/features/friends/presentation/screens/friends_list_screen.dart';
 import 'package:iftook/features/home/presentation/screens/main_home_screen.dart';
 import 'package:iftook/features/profile/presentation/screens/profile_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
+import 'package:iftook/helpers/permissions_controller.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  late PermissionsController _permissionsController;
 
   final List<Widget> _pages = [
     MainHomeScreen(),
@@ -29,6 +32,26 @@ class _HomeScreenState extends State<HomeScreen> {
     NavigationItem(icon: HugeIcons.strokeRoundedUserAdd02, label: 'Requests'),
     NavigationItem(icon: HugeIcons.strokeRoundedUser, label: 'Profile'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initPermissionsController();
+  }
+
+  void _initPermissionsController() {
+    try {
+      // Try to find existing controller
+      _permissionsController = Get.find<PermissionsController>();
+      print('Found existing PermissionsController');
+    } catch (e) {
+      // Create a new one if not found
+      print('Creating new PermissionsController');
+      _permissionsController = Get.put(PermissionsController());
+    }
+
+    // The permissions check is now handled in MainHomeScreen
+  }
 
   void _onItemTapped(int index) {
     setState(() {

@@ -602,6 +602,16 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       final scheduledTime = DateTime.parse(meeting['scheduledTime']);
       final meetingId = meeting['_id'];
 
+      // Get token and channel data from the meeting
+      final String channelName = meeting['channelName'] ?? '';
+      final String token = meeting['token'] ?? '';
+
+      // Debug log for the Agora credentials
+      print('Meeting Agora credentials:');
+      print('Channel Name: $channelName');
+      print('Token: $token');
+      print('Meeting ID: $meetingId');
+
       // Determine if we need to swap user and participant
       final String participantId = participantData['_id'];
       final String userId = userData['_id'];
@@ -650,35 +660,84 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             'WARNING: Had to swap participant and user due to incorrect IDs!');
       }
 
-      switch (type) {
-        case 'voice':
-          await Get.to(() => VoiceCallLoadingScreen(
-                participant: participant,
-                scheduleTime: scheduledTime,
-                type: "voice",
-                isInstaTalk: false,
-              ));
-          break;
+      // Check if token and channel are available in the meeting data
+      if (channelName.isNotEmpty && token.isNotEmpty) {
+        print('Using existing Agora credentials from meeting data');
 
-        case 'video':
-          await Get.to(() => VideoCallLoadingScreen(
-                participant: participant,
-                scheduleTime: scheduledTime,
-                type: "video",
-                isInstaTalk: false,
-              ));
-          break;
+        switch (type) {
+          case 'voice':
+            await Get.to(() => VoiceCallLoadingScreen(
+                  participant: participant,
+                  scheduleTime: scheduledTime,
+                  type: "voice",
+                  isInstaTalk: false,
+                  meetingId: meetingId,
+                  token: token,
+                  channel: channelName,
+                  instaTalkDuration: meeting['duration'] ?? 30,
+                ));
+            break;
 
-        case 'chat':
-          await Get.to(() => ChatRoomScreen(
-                profile: participant,
-                isInstaTalk: false,
-                duration: meeting['duration'],
-                isFriend: false,
-                isInstaTalkSender: controller.isInstaTalkSender(meeting),
-                scheduledTime: DateTime.parse(meeting['scheduledTime']),
-              ));
-          break;
+          case 'video':
+            await Get.to(() => VideoCallLoadingScreen(
+                  participant: participant,
+                  scheduleTime: scheduledTime,
+                  type: "video",
+                  isInstaTalk: false,
+                  meetingId: meetingId,
+                  token: token,
+                  channel: channelName,
+                  instaTalkDuration: meeting['duration'] ?? 30,
+                ));
+            break;
+
+          case 'chat':
+            await Get.to(() => ChatRoomScreen(
+                  profile: participant,
+                  isInstaTalk: false,
+                  duration: meeting['duration'],
+                  isFriend: false,
+                  isInstaTalkSender: controller.isInstaTalkSender(meeting),
+                  scheduledTime: DateTime.parse(meeting['scheduledTime']),
+                ));
+            break;
+        }
+      } else {
+        print(
+            'WARNING: No Agora credentials found in meeting data. Initiating new call.');
+
+        // If token and channel aren't available, we'll need to initiate a new call
+        // This will generate new credentials through the API
+        switch (type) {
+          case 'voice':
+            await Get.to(() => VoiceCallLoadingScreen(
+                  participant: participant,
+                  scheduleTime: scheduledTime,
+                  type: "voice",
+                  isInstaTalk: false,
+                ));
+            break;
+
+          case 'video':
+            await Get.to(() => VideoCallLoadingScreen(
+                  participant: participant,
+                  scheduleTime: scheduledTime,
+                  type: "video",
+                  isInstaTalk: false,
+                ));
+            break;
+
+          case 'chat':
+            await Get.to(() => ChatRoomScreen(
+                  profile: participant,
+                  isInstaTalk: false,
+                  duration: meeting['duration'],
+                  isFriend: false,
+                  isInstaTalkSender: controller.isInstaTalkSender(meeting),
+                  scheduledTime: DateTime.parse(meeting['scheduledTime']),
+                ));
+            break;
+        }
       }
     } catch (e) {
       print('Regular meeting join error: $e');
@@ -941,6 +1000,13 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         final canJoin = minutesDifference >= -30 && minutesDifference <= 30;
         final currentStatus = _getMeetingStatus(scheduledTime, status);
 
+        // Check if this is a voice or video call
+        final isCallMeeting = type == 'voice' || type == 'video';
+
+        // Determine if we should show join button
+        // For voice/video calls, only show join if the current user is the creator
+        final bool shouldShowJoin = !isCallMeeting || isCreator;
+
         // Use StreamBuilder for call status
         return StreamBuilder<Map<String, dynamic>>(
             stream: Get.find<CallStatusController>()
@@ -950,7 +1016,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
               final bool isUserInCall = callSnapshot.data?['inCall'] ?? false;
               final String? callType = callSnapshot.data?['callType'];
 
-              final bool canActuallyJoin = canJoin && !isUserInCall;
+              final bool canActuallyJoin =
+                  canJoin && !isUserInCall && shouldShowJoin;
 
               return Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1218,73 +1285,127 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                       ),
                     ),
                     if (canJoin) ...[
-                      if (isUserInCall)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                              top: 0, left: 16, right: 16, bottom: 8),
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                  color: Colors.red.withOpacity(0.3)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.call_end,
-                                  color: Colors.red,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'This person is currently in a call and cannot be joined',
-                                    style: TextStyle(
-                                      color: Colors.red,
-                                      fontSize: 12,
+                      // When user should be able to join (creator for calls or chat for anyone)
+                      if (shouldShowJoin) ...[
+                        if (isUserInCall)
+                          Padding(
+                            padding: const EdgeInsets.only(
+                                top: 0, left: 16, right: 16, bottom: 8),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Colors.red.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.call_end,
+                                    color: Colors.red,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'This person is currently in a call and cannot be joined',
+                                      style: TextStyle(
+                                        color: Colors.red,
+                                        fontSize: 12,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.only(
-                            top: 8, left: 24, right: 24, bottom: 16),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: canActuallyJoin
-                                ? () => _handleJoinMeeting(meeting)
-                                : null,
-                            icon: Icon(
-                              type == 'video'
-                                  ? Icons.videocam
-                                  : type == 'voice'
-                                      ? Icons.call
-                                      : Icons.chat,
-                              color: Colors.white,
-                            ),
-                            label: Text(isUserInCall
-                                ? 'User is in a Call'
-                                : 'Join Now'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isUserInCall
-                                  ? Colors.red.shade400
-                                  : Colors.green,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                        Padding(
+                          padding: const EdgeInsets.only(
+                              top: 8, left: 24, right: 24, bottom: 16),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: canActuallyJoin
+                                  ? () => _handleJoinMeeting(meeting)
+                                  : null,
+                              icon: Icon(
+                                type == 'video'
+                                    ? Icons.videocam
+                                    : type == 'voice'
+                                        ? Icons.call
+                                        : Icons.chat,
+                                color: Colors.white,
+                              ),
+                              label: Text(isUserInCall
+                                  ? 'User is in a Call'
+                                  : 'Join Now'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isUserInCall
+                                    ? Colors.red.shade400
+                                    : Colors.green,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
+
+                      // If this is an incoming call request, show informational message
+                      if (isCallMeeting && !isCreator) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(
+                              top: 0, left: 16, right: 16, bottom: 16),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: Colors.amber.withOpacity(0.3)),
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.info_outline,
+                                      color: Colors.amber,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Waiting for $displayName to initiate this call',
+                                        style: TextStyle(
+                                          color: Colors.amber,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                // Text(
+                                //   'For voice and video calls, only the person who created the meeting can initiate the call',
+                                //   style: TextStyle(
+                                //     color: Colors.amber.shade700,
+                                //     fontSize: 11,
+                                //   ),
+                                // ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ],
                 ),
@@ -2261,36 +2382,83 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                           padding: const EdgeInsets.only(top: 16),
                           child: SizedBox(
                             width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: hasUsedTime ||
-                                      !isOtherUserOnline ||
-                                      isUserInCall
-                                  ? null
-                                  : () => _joinInstaTalk(instaTalk),
-                              icon: _getTypeIcon(type),
-                              label: Text(hasUsedTime
-                                  ? 'Already Joined'
-                                  : isUserInCall
-                                      ? 'User is in a Call'
-                                      : !isOtherUserOnline
-                                          ? 'Waiting for User to be Online'
-                                          : 'Join InstaTalk'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: hasUsedTime
-                                    ? Colors.grey
-                                    : isUserInCall
-                                        ? Colors.red.shade400
-                                        : !isOtherUserOnline
-                                            ? Colors.amber
-                                            : Colors.green,
-                                foregroundColor: Colors.white,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
+                            // Only show join button for voice/video if user is creator, or for chat type
+                            child: (type == 'voice' || type == 'video') &&
+                                    !isSender
+                                ? Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                          color: Colors.amber.withOpacity(0.3)),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.info_outline,
+                                              color: Colors.amber,
+                                              size: 18,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                'You will be notified when $displayName joins the call',
+                                                style: TextStyle(
+                                                  color: Colors.amber,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        // Text(
+                                        //   'For voice and video calls, only the person who created the InstaTalk can initiate the call',
+                                        //   style: TextStyle(
+                                        //     color: Colors.amber.shade700,
+                                        //     fontSize: 11,
+                                        //   ),
+                                        // ),
+                                      ],
+                                    ),
+                                  )
+                                : ElevatedButton.icon(
+                                    onPressed: (hasUsedTime ||
+                                            !isOtherUserOnline ||
+                                            isUserInCall ||
+                                            ((type == 'voice' ||
+                                                    type == 'video') &&
+                                                !isSender))
+                                        ? null
+                                        : () => _joinInstaTalk(instaTalk),
+                                    icon: _getTypeIcon(type),
+                                    label: Text(hasUsedTime
+                                        ? 'Already Joined'
+                                        : isUserInCall
+                                            ? 'User is in a Call'
+                                            : !isOtherUserOnline
+                                                ? 'Waiting for User to be Online'
+                                                : 'Join InstaTalk'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: hasUsedTime
+                                          ? Colors.grey
+                                          : isUserInCall
+                                              ? Colors.red.shade400
+                                              : !isOtherUserOnline
+                                                  ? Colors.amber
+                                                  : Colors.green,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
                           ),
                         ),
                     ],
