@@ -179,7 +179,7 @@ Future<void> myBackgroundMessageHandler(RemoteMessage message) async {
 
   // Handle InstaTalk notification specially in the background
   if (message.data['type'] == 'instaTalk') {
-    // Show a special notification for InstaTalk that the user can tap on
+    // Show a simple notification for InstaTalk that the user can tap on
     await NotificationHelper.showInstaTalkNotification(message);
     return;
   }

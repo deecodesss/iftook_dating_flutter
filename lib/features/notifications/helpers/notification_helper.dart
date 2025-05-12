@@ -272,7 +272,13 @@ class NotificationHelper {
     final String channel = payloadData['channelName'] ?? '';
     final String token = payloadData['token'] ?? '';
     final String callerName = payloadData['callerName'] ?? 'Unknown Caller';
-    final String callerImage = payloadData['callerImage'] ?? '';
+    final String callerImage =
+        payloadData['callerImage'] ?? payloadData['callerProfilePicture'] ?? '';
+    final bool isInstaTalk = payloadData['isInstaTalk'] == 'true';
+    final String meetingType = payloadData['meetingType'] ?? 'regularMeeting';
+    final String callDuration =
+        payloadData['duration'] ?? payloadData['callDuration'] ?? '30';
+    final String callerId = payloadData['callerId'] ?? '';
 
     showCallSnackBar(
       callerName: callerName,
@@ -281,6 +287,10 @@ class NotificationHelper {
       meetingId: meetingId,
       channelName: channel,
       token: token,
+      isInstaTalk: isInstaTalk,
+      meetingType: meetingType,
+      callDuration: callDuration,
+      callerId: callerId,
     );
   }
 
@@ -288,14 +298,16 @@ class NotificationHelper {
     // First check if this is a renewal notification rather than an actual call
     if (message.data['action'] == 'renewal') {
       // For renewals, don't show call UI, just a normal notification
-      final String renewerName =
-          message.notification?.title?.split(' ')[0] ?? "Someone";
+      final String callerName = message.data['callerName'] ??
+          message.notification?.title?.split(' ')[0] ??
+          "Someone";
       final String typeText =
           message.data['type'] == 'video' ? 'Video' : 'Voice';
+      final String meetingType = message.data['meetingType'] ?? 'Call';
 
-      final String title = "InstaTalk Renewed";
+      final String title = "${meetingType.capitalize} Renewed";
       final String body = message.notification?.body ??
-          "$renewerName has renewed your $typeText InstaTalk session.";
+          "$callerName has renewed your $typeText ${message.data['isInstaTalk'] == 'true' ? 'InstaTalk' : 'Call'} session.";
 
       // Use a regular notification instead of a call notification
       final AndroidNotificationDetails androidDetails =
@@ -330,16 +342,31 @@ class NotificationHelper {
     }
 
     // Original call notification logic for actual calls
-    // Extract call data
-    final String callerName = message.notification?.title ?? "Unknown Caller";
+    // Extract call data with fallbacks to ensure we always have values
+    final String callerName = message.data['callerName'] ??
+        message.notification?.title ??
+        "Unknown Caller";
     final String callerInfo = message.notification?.body ?? "Incoming Call";
     final String callType = message.data['type'] ?? 'voice';
     final bool isVideo = callType == 'video';
+    final String meetingType = message.data['meetingType'] ?? 'regularMeeting';
+    final bool isInstaTalk = message.data['isInstaTalk'] == 'true';
+    final String callDuration =
+        message.data['duration'] ?? message.data['callDuration'] ?? "30";
+    final String callerImage = message.data['callerImage'] ??
+        message.data['callerProfilePicture'] ??
+        "";
+    final String callerId = message.data['callerId'] ?? "";
 
     Map<String, dynamic> payloadData = {
       ...message.data,
       'callerName': callerName,
+      'callerImage': callerImage,
       'callAction': 'RECEIVED',
+      'isInstaTalk': isInstaTalk,
+      'meetingType': meetingType,
+      'callerId': callerId,
+      'callDuration': callDuration,
     };
     String payload = json.encode(payloadData);
 
@@ -347,13 +374,17 @@ class NotificationHelper {
       // Use our snackbar notification for in-app experience
       showCallSnackBar(
         callerName: callerName,
-        callerImage: message.data['callerImage'] ?? "",
+        callerImage: callerImage,
         isVideo: isVideo,
         meetingId: message.data['meetingId'] ?? "",
         channelName: message.data['channelName'] ?? "",
         token: message.data['token'] ?? "",
-        callerId: message.data['callerId'] ?? "",
-        callDuration: message.data['callDuration'] ?? "30",
+        callerId: callerId,
+        callDuration: callDuration,
+        callRate: message.data['callRate'] ?? "0",
+        callerRating: message.data['callerRating'] ?? "0",
+        isInstaTalk: isInstaTalk,
+        meetingType: meetingType,
       );
 
       // Play ringtone
@@ -988,181 +1019,26 @@ class NotificationHelper {
       final String? meetingId = data['meetingId'];
       final String? type = data['requestType'];
       final String? senderId = data['senderId'];
+      final String? callerName = data['callerName'] ?? "Someone";
+      final String? callType = data['type'] == 'video' ? 'Video' : 'Voice';
 
+      // For InstaTalk requests, show a simple dismissable snackbar instead of a dialog
       if (meetingId != null && type != null) {
-        // For now, show a dialog to accept/reject the request
-        if (Get.context != null) {
-          // App is in foreground
-          _showInstaTalkRequestDialog(meetingId, type, senderId);
-        }
+        // Show a simple snackbar
+        Get.snackbar(
+          'InstaTalk Request',
+          '$callerName wants to have a quick ${type.toLowerCase()} chat with you',
+          backgroundColor: AppColors.primaryColor.withOpacity(0.9),
+          colorText: Colors.white,
+          duration: const Duration(seconds: 5),
+          isDismissible: true,
+          snackPosition: SnackPosition.TOP,
+          margin: const EdgeInsets.all(8),
+          borderRadius: 8,
+        );
       }
     } catch (e) {
       print('Error handling InstaTalk notification: $e');
-    }
-  }
-
-  static void _showInstaTalkRequestDialog(
-      String meetingId, String type, String? senderId) {
-    // Get username if available
-    String username = 'Someone';
-    if (senderId != null) {
-      // Try to get user info (don't await to keep dialog showing quickly)
-      ApiService.getUserById(senderId).then((response) {
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          username = data['data']['name'] ?? 'Someone';
-
-          // Update dialog title if it's still showing
-          if (Get.isDialogOpen == true) {
-            Get.back();
-            _showInstaTalkAcceptDialog(meetingId, type, username);
-          }
-        }
-      }).catchError((e) {
-        print('Error fetching user details: $e');
-      });
-    }
-
-    // Show dialog immediately with default name, will update later
-    _showInstaTalkAcceptDialog(meetingId, type, username);
-  }
-
-  static void _showInstaTalkAcceptDialog(
-      String meetingId, String type, String username) {
-    // Format the type for display
-    String typeDisplay = type.capitalize ?? type;
-
-    Get.dialog(
-      AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: Text(
-          'InstaTalk $typeDisplay Request',
-          style:
-              const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '$username wants to have a quick $type conversation with you!',
-              style: const TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'This InstaTalk will last for 30 seconds.',
-              style: TextStyle(color: Colors.grey[400], fontSize: 13),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Get.back();
-            },
-            child: const Text('Decline', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryColor,
-            ),
-            onPressed: () {
-              Get.back();
-              _acceptInstaTalkRequest(meetingId);
-            },
-            child: const Text('Accept'),
-          ),
-        ],
-      ),
-      barrierDismissible: false,
-    );
-  }
-
-  static Future<void> _acceptInstaTalkRequest(String meetingId) async {
-    try {
-      final _instaTalkController = Get.find<InstaTalkController>();
-      final userId = await SharedPrefs.getUserIdSharedPreference();
-
-      Get.dialog(
-        const Center(child: CircularProgressIndicator()),
-        barrierDismissible: false,
-      );
-
-      final result = await _instaTalkController.acceptInstaTalk(meetingId);
-      print('InstaTalk accept result: $result'); // Added for debugging
-
-      Get.back(); // Close loading dialog
-
-      if (result != null &&
-          result.containsKey('meeting') &&
-          result.containsKey('participant')) {
-        // Navigate to appropriate screen based on meeting type
-        final meetingType = result['meeting']['type'];
-
-        try {
-          // Convert participant data to User object
-          final Map<String, dynamic> participantData =
-              Map<String, dynamic>.from(result['participant']);
-          final User participant = User.fromJson(participantData);
-
-          // Get the duration value, default to 30 seconds if not found
-          final int duration = result['meeting']['duration'] ?? 30;
-
-          // Get token and channel name
-          final String token = result['token'] as String;
-          final String channelName = result['channelName'] as String;
-
-          print('Navigating to $meetingType screen with duration: $duration');
-          print('Token: $token, Channel: $channelName');
-
-          switch (meetingType) {
-            case 'chat':
-              Get.to(() => ChatRoomScreen(
-                    profile: participant,
-                    isInstaTalk: true,
-                    duration: duration,
-                  ));
-              break;
-            case 'voice':
-              Get.to(() => VoiceCallLoadingScreen(
-                    participant: participant,
-                    scheduleTime: DateTime.now(),
-                    type: "voice",
-                    isInstaTalk: true,
-                    instaTalkDuration: duration,
-                    // token: token,
-                    // channel: channelName,
-                    // meetingId: meetingId,
-                  ));
-              break;
-            case 'video':
-              Get.to(() => VideoCallLoadingScreen(
-                    participant: participant,
-                    scheduleTime: DateTime.now(),
-                    type: "video",
-                    isInstaTalk: true,
-                    instaTalkDuration: duration,
-                    // token: token,
-                    // channel: channelName,
-                    // meetingId: meetingId,
-                  ));
-              break;
-          }
-        } catch (e) {
-          print('Error processing participant data: $e');
-          throw Exception('Error processing meeting data: $e');
-        }
-      } else {
-        throw Exception('No data returned from AcceptInstaTalk call');
-      }
-    } catch (e) {
-      print('Error accepting InstaTalk request: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to accept InstaTalk request',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 4),
-      );
     }
   }
 
@@ -1206,14 +1082,54 @@ class NotificationHelper {
     String title = message.notification?.title ?? 'InstaTalk Request';
     String body =
         message.notification?.body ?? 'You have a new InstaTalk request';
+    String callerName = message.data['callerName'] ?? 'Someone';
+    String type = message.data['requestType'] ?? 'chat';
 
-    await NotificationHelper.showBigTextNotification(
+    // If app is in foreground, show a snackbar
+    if (Get.context != null) {
+      Get.snackbar(
         title,
-        body,
-        json.encode(message.data),
-        flutterLocalNotificationsPlugin,
-        true // is InstaTalk notification
-        );
+        '$callerName wants to have a quick ${type.toLowerCase()} chat with you',
+        backgroundColor: AppColors.primaryColor.withOpacity(0.9),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+        isDismissible: true,
+        snackPosition: SnackPosition.TOP,
+        margin: const EdgeInsets.all(8),
+        borderRadius: 8,
+      );
+      return;
+    }
+
+    // Otherwise, show a normal notification
+    final AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+      'insta_talk_channel',
+      'InstaTalk Notifications',
+      channelDescription: 'Notifications for InstaTalk requests',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: 'notification_icon',
+      color: AppColors.primaryColor,
+      category: AndroidNotificationCategory.message,
+    );
+
+    final NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
+
+    await flutterLocalNotificationsPlugin.show(
+      DateTime.now().millisecond,
+      title,
+      body,
+      notificationDetails,
+      payload: json.encode(message.data),
+    );
   }
 
   static Future<void> onMessage(RemoteMessage message) async {
@@ -1223,8 +1139,24 @@ class NotificationHelper {
     try {
       // Check if this is an InstaTalk notification
       if (message.data['type'] == 'instaTalk') {
-        // Handle InstaTalk notification
-        await handleInstaTalkNotification(message.data);
+        // Use the simplified snackbar approach for InstaTalk
+        String callerName = message.data['callerName'] ??
+            message.notification?.title?.split(' ')[0] ??
+            "Someone";
+        String type = message.data['requestType'] ?? 'chat';
+
+        // Show simple snackbar
+        Get.snackbar(
+          'InstaTalk Request',
+          '$callerName wants to have a quick ${type.toLowerCase()} chat with you',
+          backgroundColor: AppColors.primaryColor.withOpacity(0.9),
+          colorText: Colors.white,
+          duration: const Duration(seconds: 5),
+          isDismissible: true,
+          snackPosition: SnackPosition.TOP,
+          margin: const EdgeInsets.all(8),
+          borderRadius: 8,
+        );
         return;
       }
       // Handle call notifications (only if not a renewal)
@@ -1259,6 +1191,8 @@ class NotificationHelper {
     String callRate = "0",
     String callDuration = "30",
     String callerId = "",
+    bool isInstaTalk = false,
+    String meetingType = "regularMeeting",
   }) {
     // Play ringtone at low volume
     try {
@@ -1305,6 +1239,8 @@ class NotificationHelper {
                 callRate: callRate,
                 callDuration: callDuration,
                 callerId: callerId,
+                isInstaTalk: isInstaTalk,
+                meetingType: meetingType,
               ));
         },
         child: Container(
@@ -1350,7 +1286,7 @@ class NotificationHelper {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '${isVideo ? 'Video' : 'Voice'} Call',
+                      '${isVideo ? 'Video' : 'Voice'} ${isInstaTalk ? 'InstaTalk' : 'Call'}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -1428,7 +1364,7 @@ Future<dynamic> myBackgroundMessageHandler(RemoteMessage message) async {
     if (message.data['type'] == 'voice' || message.data['type'] == 'video') {
       await NotificationHelper._showCallNotification(message);
     } else if (message.data['type'] == 'instaTalk') {
-      await NotificationHelper.handleInstaTalkNotification(message.data);
+      await NotificationHelper.showInstaTalkNotification(message);
     } else {
       final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
           FlutterLocalNotificationsPlugin();
