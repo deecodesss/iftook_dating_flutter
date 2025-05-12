@@ -238,38 +238,56 @@ class ChatController extends GetxController {
   }
 
   // Modify purchaseChatSession method
-  Future<bool> purchaseChatSession(String participantId, double baseAmount,
-      {int minutes = 1}) async {
+  Future<bool> purchaseChatSession(
+    String participantId,
+    double amount, {
+    int minutes = 1,
+    bool silent = false,
+  }) async {
     try {
-      final perMinuteRate = calculatePerMinuteRate(baseAmount);
-      final finalAmount = perMinuteRate * minutes;
-
-      // Check balance
-      await fetchWalletBalance();
-
-      if (userWalletBalance.value < finalAmount) {
-        return false;
-      }
+      isTransferring(true);
 
       // Deduct money from wallet
-      final deductResponse = await ApiService.deductMoneyToWallet(finalAmount);
-      if (deductResponse.statusCode != 200) {
-        return false;
+      final response = await ApiService.deductMoneyToWallet(amount);
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to deduct money from wallet: ${response.body}');
       }
 
-      // Refresh wallet balance
+      // Update wallet balance
       await fetchWalletBalance();
 
-      // Set session as renewed
-      isSessionRenewed.value = true;
-
-      // Start new timer for purchased minutes
-      startSessionTimer(minutes);
+      if (!silent) {
+        Get.snackbar(
+          'Success',
+          'Payment successful! Chat session extended by $minutes minute${minutes > 1 ? 's' : ''}.',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+        );
+      }
 
       return true;
     } catch (e) {
-      print('Error purchasing chat session: $e');
+      print('Error in purchaseChatSession: $e');
+
+      if (!silent) {
+        Get.snackbar(
+          'Payment Failed',
+          'Could not process payment: ${e.toString()}',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+          mainButton: TextButton(
+            onPressed: () => Get.toNamed('/wallet/topup'),
+            child: const Text('Top Up', style: TextStyle(color: Colors.white)),
+          ),
+        );
+      }
+
       return false;
+    } finally {
+      isTransferring(false);
     }
   }
 

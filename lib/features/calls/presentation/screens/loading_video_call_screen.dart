@@ -42,8 +42,6 @@ class VideoCallLoadingScreen extends StatefulWidget {
 class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
   late final CallController _callController;
 
-  Timer? _startupDelayTimer;
-
   @override
   void initState() {
     super.initState();
@@ -60,6 +58,9 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
           print('Meeting ID: ${widget.meetingId}');
           print('Channel: ${widget.channel}');
           print('Token: ${widget.token}');
+          print('Is InstaTalk: ${widget.isInstaTalk}');
+          print('Is Trial: ${widget.isTrial}');
+          print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
           // Start call rejection listener for outgoing calls
           _callController.startCallRejectionListener(widget.meetingId!);
@@ -69,6 +70,11 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
           Future.delayed(Duration(milliseconds: 500), () {
             // Don't navigate if component is unmounted or call was rejected
             if (!mounted || _callController.wasCallRejected.value) return;
+
+            print('Navigating to VideoCallScreen with:');
+            print('Is InstaTalk: ${widget.isInstaTalk}');
+            print('Is Trial: ${widget.isTrial}');
+            print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
             // Navigate to call screen only if call hasn't been rejected
             Get.to(
@@ -80,6 +86,7 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
                       isTrial: widget.isTrial,
                       isInstaTalk: widget.isInstaTalk,
                       participant: widget.participant,
+                      onSessionEnd: widget.onSessionEnd,
                     ),
                 arguments: {'participant': widget.participant});
           });
@@ -90,11 +97,15 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
         print('Participant ID: ${widget.participant.sId}');
         print('Call Type: ${widget.type}');
         print('Schedule Time: ${widget.scheduleTime}');
+        print('Is InstaTalk: ${widget.isInstaTalk}');
+        print('Is Trial: ${widget.isTrial}');
+        print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
         if (widget.isInstaTalk) {
           _callController.initiateInstaTalkCall(
             widget.participant.sId.toString(),
             widget.type,
+            isTrial: widget.isTrial,
           );
         } else {
           _callController.initiateMeetingCall(
@@ -113,23 +124,10 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
         );
       }
     });
-
-    // Add timer initialization if needed
-    if (widget.isInstaTalk) {
-      final callRate = widget.participant.earnings?.videoRate ?? 0;
-      if (!_callController.isFreeCall(callRate)) {
-        _startupDelayTimer = Timer(Duration(seconds: 5), () {
-          if (mounted) {
-            // _startTimer();
-          }
-        });
-      }
-    }
   }
 
   @override
   void dispose() {
-    _startupDelayTimer?.cancel();
     if (widget.meetingId != null) {
       _callController.stopCallRejectionListener();
     }

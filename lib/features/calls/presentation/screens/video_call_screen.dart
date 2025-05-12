@@ -9,6 +9,7 @@ import 'package:iftook/features/calls/controllers/call_controller.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/calls/services/call_duration_service.dart';
+import 'package:iftook/features/friends/controllers/chat_controller.dart';
 
 class VideoCallScreen extends StatefulWidget {
   final String meetingId;
@@ -21,6 +22,7 @@ class VideoCallScreen extends StatefulWidget {
   final int instaTalkDuration;
   final int initialTimer;
   final bool fromChat;
+  final bool isIncomingCall;
 
   const VideoCallScreen({
     Key? key,
@@ -34,6 +36,7 @@ class VideoCallScreen extends StatefulWidget {
     this.isTrial = false,
     this.instaTalkDuration = 30,
     this.fromChat = false,
+    this.isIncomingCall = false,
   }) : super(key: key);
 
   @override
@@ -50,11 +53,30 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   final _noScreenshot = NoScreenshot.instance;
   RxBool isConnecting = true.obs;
   RxString connectionStatus = 'Initializing...'.obs;
-  Timer? _timer;
+
+  // Timer variables
+  Timer? _sessionTimer;
+  Timer? _autoPaymentTimer;
   int _remainingSeconds = 0;
+  int _elapsedSeconds = 0; // For growing timer in InstaTalk
   bool _isCallConnected = false;
+  bool _sessionExpired = false;
+  bool _showingPaymentPrompt = false;
+  bool _timerStarted = false;
+  bool _hasRenewedSession = false;
+  bool _isRenewing = false;
+
+  // Payment variables
+  static const int AUTO_PAYMENT_INTERVAL = 60; // Seconds between auto payments
+  double _ratePerMinute = 0;
+  bool _autoPaymentEnabled = false;
+
   late final CallController _callController;
   late final CallDurationService _durationService;
+
+  // Add ChatController for wallet balance
+  late final ChatController _chatController;
+  Timer? _walletRefreshTimer; // Timer for refreshing wallet balance
 
   // Get Agora app ID from environment or config
   final String appId = "5da40b914dcf4a089e8bbee75a926178";
@@ -65,17 +87,29 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     // Get or create CallController instance
     _callController = Get.put(CallController());
     _durationService = Get.put(CallDurationService());
+    _chatController = Get.put(ChatController());
     _initializeDurationService();
+
+    // Fetch initial wallet balance
+    _chatController.fetchWalletBalance();
+
+    // Setup wallet refresh timer (every 30 seconds)
+    _walletRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) {
+        _chatController.fetchWalletBalance();
+      }
+    });
 
     _preventScreenshots();
     _setupScreenshotDetection();
     print(
         "Initializing with token: ${widget.token}, channel: ${widget.channel}");
-    _remainingSeconds = _durationService.getInitialTimerDuration(
-      widget.isInstaTalk,
-      widget.initialTimer,
-    );
-    _initializeTimer();
+
+    // Initialize call variables
+    if (widget.participant != null) {
+      _ratePerMinute = widget.participant!.earnings?.videoRate ?? 0;
+    }
+
     _initializeCall();
   }
 
@@ -85,41 +119,358 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     }
   }
 
-  void _initializeTimer() async {
-    if (!_durationService.shouldTimeCall(widget.isTrial)) {
-      return; // Don't start timer for friends or trial calls
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Don't start timers for incoming calls
+    if (widget.isIncomingCall) {
+      return;
     }
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_remainingSeconds > 0) {
-        setState(() {
-          _remainingSeconds--;
-        });
-      } else {
-        _timer?.cancel();
-        _endCall();
-      }
-    });
-
-    // Start call timer if needed
-    if (widget.isInstaTalk && widget.participant != null && !widget.isTrial) {
-      final currentUserId = await SharedPrefs.getUserIdSharedPreference();
-      if (currentUserId != null) {
-        _callController.startCallTimerIfNeeded(
-          userId1: currentUserId,
-          userId2: widget.participant!.sId!,
-          durationInMinutes: widget.instaTalkDuration,
-          isTrial: widget.isTrial,
-          isInstaTalk: widget.isInstaTalk,
-        );
-      }
+    // Start appropriate timer once we're connected
+    if (!_timerStarted && _localUserJoined && _remoteUid != null) {
+      print("Video Call: Both users connected, starting timers");
+      print("Local user joined: $_localUserJoined");
+      print("Remote user ID: $_remoteUid");
+      _startTimers();
+    } else if (!_timerStarted) {
+      print("Video Call: Not starting timers yet");
+      print("Timer started: $_timerStarted");
+      print("Local user joined: $_localUserJoined");
+      print("Remote user ID: $_remoteUid");
     }
   }
 
-  String _formatTimer(int seconds) {
+  // Initialize the timers based on call type
+  void _startTimers() {
+    print("Starting video call timers:");
+    print("Is InstaTalk: ${widget.isInstaTalk}");
+    print("Is Trial: ${widget.isTrial}");
+    print("Initial Timer: ${widget.initialTimer}");
+
+    setState(() {
+      _timerStarted = true;
+    });
+
+    if (widget.isInstaTalk) {
+      if (widget.isTrial) {
+        // Trial InstaTalk - 30 seconds countdown
+        print("Starting TRIAL countdown timer (30 seconds)");
+        _startTrialCountdownTimer();
+      } else {
+        // Paid InstaTalk - growing timer with auto-payment
+        print("Starting PAID InstaTalk growing timer with auto-payment");
+        _startGrowingTimer();
+        _startAutoPaymentTimer();
+      }
+    } else {
+      // Regular meeting - standard timer based on session duration
+      print(
+          "Starting REGULAR meeting countdown timer (${widget.initialTimer} minutes)");
+      _startRegularTimer();
+    }
+  }
+
+  // Trial countdown timer (30 seconds)
+  void _startTrialCountdownTimer() {
+    setState(() {
+      _remainingSeconds = 30; // 30 seconds for trial
+    });
+
+    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          _sessionTimer?.cancel();
+          if (!_showingPaymentPrompt) {
+            _sessionExpired = true;
+            _showContinueCallPrompt();
+          }
+        }
+      });
+    });
+  }
+
+  // Growing timer for paid InstaTalk
+  void _startGrowingTimer() {
+    setState(() {
+      _elapsedSeconds = 0;
+    });
+
+    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _elapsedSeconds++;
+      });
+    });
+  }
+
+  // Auto-payment timer for paid InstaTalk
+  void _startAutoPaymentTimer() {
+    if (_ratePerMinute <= 0) return;
+
+    _autoPaymentEnabled = true;
+    const paymentIntervalSeconds = AUTO_PAYMENT_INTERVAL;
+
+    _autoPaymentTimer = Timer.periodic(
+        Duration(seconds: paymentIntervalSeconds), (timer) async {
+      if (!_autoPaymentEnabled) return;
+
+      try {
+        // Calculate cost for the interval
+        final minutesFraction = paymentIntervalSeconds / 60;
+        final cost = _ratePerMinute * minutesFraction;
+
+        // Get chat controller to process payment
+        final chatController = Get.find<ChatController>();
+
+        // Check if user has enough balance
+        await chatController.fetchWalletBalance();
+        if (chatController.userWalletBalance.value < cost) {
+          // Stop timer and show insufficient balance message
+          _autoPaymentTimer?.cancel();
+          _showInsufficientBalanceDialog();
+          return;
+        }
+
+        // Silently process payment
+        final success = await chatController.purchaseChatSession(
+            widget.participant!.sId!, cost,
+            minutes: 1, silent: true);
+
+        if (!success) {
+          throw Exception('Payment failed');
+        }
+      } catch (e) {
+        print('Auto-payment error: $e');
+        _autoPaymentTimer?.cancel();
+        _showPaymentErrorDialog();
+      }
+    });
+  }
+
+  // Regular countdown timer for scheduled meetings
+  void _startRegularTimer() {
+    setState(() {
+      _remainingSeconds =
+          widget.initialTimer * 60; // Convert minutes to seconds
+    });
+
+    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          _sessionTimer?.cancel();
+          if (!_showingPaymentPrompt) {
+            _sessionExpired = true;
+            _showContinueCallPrompt();
+          }
+        }
+      });
+    });
+  }
+
+  // Format time for display
+  String _formatTime(int seconds) {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
-    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')} remaining';
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
+  void _showInsufficientBalanceDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Insufficient Balance',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Your wallet balance is too low to continue this call. Please add funds to your wallet.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _endCall();
+            },
+            child:
+                const Text('End Call', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              Get.toNamed('/wallet/topup');
+              _endCall();
+            },
+            child: const Text('Top Up Wallet'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPaymentErrorDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Payment Error',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'There was an error processing your payment. The call will end now.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              _endCall();
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showContinueCallPrompt() {
+    _showingPaymentPrompt = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Session Ended',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.isInstaTalk && widget.isTrial
+                  ? 'Your 30-second free video call has ended.'
+                  : 'Your video call session has ended.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Would you like to continue this call?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            if (widget.participant != null) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Rate: ₹${widget.participant!.earnings?.videoRate ?? 500} per minute',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _endCall();
+            },
+            child:
+                const Text('End Call', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              _purchaseCall();
+            },
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _purchaseCall() async {
+    if (widget.participant == null) return;
+
+    setState(() => _isRenewing = true);
+
+    try {
+      final callRate = widget.participant!.earnings?.videoRate ?? 500.0;
+      final success = await _callController.purchaseCallSession(
+        widget.participant!.sId!,
+        callRate,
+        'video',
+        minutes: 30,
+      );
+
+      if (success) {
+        setState(() {
+          _sessionExpired = false;
+          _hasRenewedSession = true;
+          _isRenewing = false;
+          _showingPaymentPrompt = false;
+
+          // Reset session for continuing call
+          if (widget.isInstaTalk && !widget.isTrial) {
+            // For paid InstaTalk, continue growing timer
+            // Don't reset _elapsedSeconds, just continue
+            if (_sessionTimer == null || !_sessionTimer!.isActive) {
+              _startGrowingTimer();
+            }
+            if (_autoPaymentTimer == null || !_autoPaymentTimer!.isActive) {
+              _startAutoPaymentTimer();
+            }
+          } else {
+            // For regular call or trial that got converted to paid
+            _remainingSeconds = 30 * 60; // 30 minutes
+            if (_sessionTimer == null || !_sessionTimer!.isActive) {
+              _startRegularTimer();
+            }
+          }
+        });
+
+        Get.snackbar(
+          'Success',
+          'Video call session purchased',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } else {
+        throw Exception('Failed to purchase session');
+      }
+    } catch (e) {
+      setState(() => _isRenewing = false);
+      Get.snackbar(
+        'Error',
+        'Failed to purchase call session',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 
   // Prevent screenshots using the no_screenshot package
@@ -157,6 +508,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     try {
       if (widget.fromChat) {
         // Use direct initialization for chat calls
+        _engine = createAgoraRtcEngine();
         await _engine.initialize(RtcEngineContext(
           appId: appId,
           channelProfile: ChannelProfileType.channelProfileCommunication,
@@ -233,6 +585,11 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
             _remoteUid = remoteUid;
             isConnecting.value = false;
             connectionStatus('Connected');
+
+            // Start timers when remote user joins
+            if (!_timerStarted) {
+              _startTimers();
+            }
           });
         },
         onUserOffline: (RtcConnection connection, int remoteUid,
@@ -324,10 +681,14 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   void _endCall() {
     _leaveChannel();
     _allowScreenshots();
+    _sessionTimer?.cancel();
+    _autoPaymentTimer?.cancel();
+    _walletRefreshTimer?.cancel();
+    _autoPaymentEnabled = false;
+
     if (widget.onSessionEnd != null) {
       widget.onSessionEnd!();
     }
-    _timer?.cancel();
     Navigator.pop(context);
   }
 
@@ -335,7 +696,10 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   void dispose() {
     _leaveChannel();
     _allowScreenshots();
-    _timer?.cancel();
+    _sessionTimer?.cancel();
+    _autoPaymentTimer?.cancel();
+    _walletRefreshTimer?.cancel();
+    _autoPaymentEnabled = false;
     _durationService.reset();
     super.dispose();
   }
@@ -437,8 +801,8 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
               ),
             ),
 
-          // Main timer display at the top - only show if not friends and not trial
-          if (_durationService.shouldTimeCall(widget.isTrial))
+          // Timer display at the top
+          if (_timerStarted)
             Positioned(
               top: 0,
               left: 0,
@@ -446,24 +810,10 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
               child: Container(
                 padding:
                     const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withOpacity(0.7),
                 child: SafeArea(
                   bottom: false,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.timer, color: Colors.white),
-                      const SizedBox(width: 8),
-                      Text(
-                        _formatTimer(_remainingSeconds),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: _buildTimerDisplay(),
                 ),
               ),
             ),
@@ -509,6 +859,148 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+
+          // Renewal loading overlay
+          if (_isRenewing)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimerDisplay() {
+    // If it's an incoming call, don't show any timer
+    if (widget.isIncomingCall) {
+      return const SizedBox.shrink();
+    }
+
+    // For paid InstaTalk, show growing timer with payment info and wallet balance
+    if (widget.isInstaTalk && !widget.isTrial) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.primaryColor.withOpacity(0.8),
+              Colors.black.withOpacity(0.6),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.timer, color: Colors.white, size: 20),
+                      const SizedBox(width: 6),
+                      Text(
+                        _formatTime(_elapsedSeconds),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.attach_money,
+                        color: Colors.white, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      '₹${_ratePerMinute.toStringAsFixed(2)}/min',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                Obx(() => Row(
+                      children: [
+                        const Icon(Icons.account_balance_wallet,
+                            color: Colors.white, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Balance: ₹${_chatController.userWalletBalance.value.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    )),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // For countdown timers (trial InstaTalk or regular meetings)
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      decoration: BoxDecoration(
+        color: widget.isInstaTalk
+            ? Colors.amber.withOpacity(0.3)
+            : Colors.blueGrey.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.timer, color: Colors.white),
+          const SizedBox(width: 8),
+          Text(
+            _formatTime(_remainingSeconds),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'remaining',
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 12,
             ),
           ),
         ],

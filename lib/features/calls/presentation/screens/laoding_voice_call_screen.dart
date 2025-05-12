@@ -41,88 +41,11 @@ class VoiceCallLoadingScreen extends StatefulWidget {
 class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
   late final CallController _callController;
 
-  Timer? _instaTimer;
-  Timer? _startupDelayTimer;
-  int _remainingSeconds = 0;
-  bool _instaTalkExpired = false;
-  bool _showingPaymentPrompt = false;
-  bool _timerStarted = false;
-
-  void _startTimer() {
-    if (widget.isInstaTalk) {
-      _startInstaTimer();
-    } else {
-      _startRegularTimer();
-    }
-  }
-
-  void _startRegularTimer() {
-    setState(() {
-      _remainingSeconds = 1800; // 30 minutes in seconds
-      _timerStarted = true;
-    });
-
-    _instaTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (_remainingSeconds > 0) {
-          _remainingSeconds--;
-        } else {
-          _instaTimer?.cancel();
-          if (!_showingPaymentPrompt) {
-            _showContinueCallPrompt();
-          }
-        }
-      });
-    });
-  }
-
-  void _startInstaTimer() {
-    setState(() {
-      _remainingSeconds = 30; // 30 seconds
-      _timerStarted = true;
-    });
-
-    _instaTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (_remainingSeconds > 0) {
-          _remainingSeconds--;
-        } else {
-          _instaTimer?.cancel();
-          if (!_showingPaymentPrompt && !_instaTalkExpired) {
-            _instaTalkExpired = true;
-            _showContinueCallPrompt();
-          }
-        }
-      });
-    });
-  }
-
-  String _formatTimer(int seconds) {
-    if (widget.isInstaTalk) {
-      return '$seconds seconds remaining';
-    } else {
-      final minutes = seconds ~/ 60;
-      final remainingSeconds = seconds % 60;
-      return '$minutes:${remainingSeconds.toString().padLeft(2, '0')} remaining';
-    }
-  }
-
   @override
   void initState() {
     super.initState();
     // Initialize CallController if not already initialized
     _callController = Get.put(CallController());
-
-    if (widget.isInstaTalk) {
-      final callRate = widget.participant.earnings?.voiceRate ?? 0;
-      if (!_callController.isFreeCall(callRate)) {
-        _startupDelayTimer = Timer(Duration(seconds: 5), () {
-          if (mounted) {
-            _startTimer();
-          }
-        });
-      }
-    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
@@ -134,6 +57,9 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
           print('Meeting ID: ${widget.meetingId}');
           print('Channel: ${widget.channel}');
           print('Token: ${widget.token}');
+          print('Is InstaTalk: ${widget.isInstaTalk}');
+          print('Is Trial: ${widget.isTrial}');
+          print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
           // Start call rejection listener for outgoing calls
           _callController.startCallRejectionListener(widget.meetingId!);
@@ -143,6 +69,11 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
           Future.delayed(Duration(milliseconds: 500), () {
             // Don't navigate if component is unmounted or call was rejected
             if (!mounted || _callController.wasCallRejected.value) return;
+
+            print('Navigating to VoiceCallScreen with:');
+            print('Is InstaTalk: ${widget.isInstaTalk}');
+            print('Is Trial: ${widget.isTrial}');
+            print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
             // Navigate to call screen only if call hasn't been rejected
             Get.to(
@@ -154,6 +85,7 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
                       isTrial: widget.isTrial,
                       isInstaTalk: widget.isInstaTalk,
                       participant: widget.participant,
+                      onSessionEnd: widget.onSessionEnd,
                     ),
                 arguments: {'participant': widget.participant});
           });
@@ -165,11 +97,15 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
         print('Participant ID: ${widget.participant.sId}');
         print('Call Type: ${widget.type}');
         print('Schedule Time: ${widget.scheduleTime}');
+        print('Is InstaTalk: ${widget.isInstaTalk}');
+        print('Is Trial: ${widget.isTrial}');
+        print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
         if (widget.isInstaTalk) {
           _callController.initiateInstaTalkCall(
             widget.participant.sId.toString(),
             widget.type,
+            isTrial: widget.isTrial,
           );
         } else {
           _callController.initiateMeetingCall(
@@ -190,114 +126,7 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
     });
   }
 
-  void _showContinueCallPrompt() {
-    _showingPaymentPrompt = true;
-
-    if (widget.onSessionEnd != null) {
-      widget.onSessionEnd!();
-      return;
-    }
-
-    final prompt = widget.isInstaTalk
-        ? '30-second free voice call'
-        : '30-minute voice call session';
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text(
-          'Free Trial Ended',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Your $prompt with ${widget.participant.name ?? "User"} has ended.',
-              style: const TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Would you like to continue this call?',
-              style: TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Rate: ₹${widget.participant.earnings?.voiceRate ?? 300} for 30 minutes',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _endCall();
-            },
-            child:
-                const Text('End Call', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              _purchaseCall();
-            },
-            child: const Text('Continue'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _purchaseCall() async {
-    try {
-      final callRate = widget.participant.earnings?.voiceRate ?? 300.0;
-      final success = await _callController.purchaseCallSession(
-        widget.participant.sId!,
-        callRate,
-        'voice',
-        minutes: 30,
-      );
-
-      if (success) {
-        setState(() {
-          _instaTalkExpired = false;
-          _timerStarted = false;
-        });
-
-        Get.snackbar(
-          'Success',
-          'Voice call session purchased',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-      } else {
-        throw Exception('Failed to purchase session');
-      }
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to purchase call session',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
-  }
-
   void _endCall() {
-    // Cancel timers
-    _instaTimer?.cancel();
-    _startupDelayTimer?.cancel();
-
     try {
       // Explicitly reject the call when user cancels
       if (widget.meetingId != null) {
@@ -312,8 +141,6 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
 
   @override
   void dispose() {
-    _instaTimer?.cancel();
-    _startupDelayTimer?.cancel();
     if (widget.meetingId != null) {
       _callController.stopCallRejectionListener();
     }
@@ -335,63 +162,6 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
           return Column(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              if (_timerStarted && !_instaTalkExpired)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                  color: widget.isInstaTalk
-                      ? Colors.amber.withOpacity(0.2)
-                      : Colors.blue.withOpacity(0.2),
-                  child: Row(
-                    children: [
-                      Icon(Icons.timer,
-                          color:
-                              widget.isInstaTalk ? Colors.amber : Colors.blue),
-                      const SizedBox(width: 8),
-                      Text(
-                        widget.isInstaTalk
-                            ? 'Free trial: ${_formatTimer(_remainingSeconds)}'
-                            : _formatTimer(_remainingSeconds),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      LinearProgressIndicator(
-                        value: _remainingSeconds / widget.instaTalkDuration,
-                        backgroundColor: Colors.grey[800],
-                        color: widget.isInstaTalk ? Colors.amber : Colors.blue,
-                        minHeight: 5,
-                      ),
-                    ],
-                  ),
-                ),
-              if (widget.isInstaTalk && _instaTalkExpired)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  color: Colors.redAccent.withOpacity(0.2),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.warning_amber, color: Colors.redAccent),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Free trial ended. Purchase to continue.',
-                          style: TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryColor,
-                        ),
-                        onPressed: () => _showContinueCallPrompt(),
-                        child: const Text('Continue'),
-                      ),
-                    ],
-                  ),
-                ),
               const SizedBox(height: 40),
               CircleAvatar(
                 radius: 70,

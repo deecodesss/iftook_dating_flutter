@@ -180,6 +180,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
             channel: widget.channelName,
             token: widget.token,
             initialTimer: int.parse(widget.callDuration),
+            isIncomingCall: true,
             // isInstaTalk: widget.isInstaTalk,
           ),
           transition: Transition.rightToLeftWithFade,
@@ -191,6 +192,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
             channel: widget.channelName,
             token: widget.token,
             initialTimer: int.parse(widget.callDuration),
+            isIncomingCall: true,
           ),
           transition: Transition.rightToLeftWithFade,
         );

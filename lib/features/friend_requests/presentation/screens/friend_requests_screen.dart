@@ -437,23 +437,75 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
 
   void _handleInstaTalkJoin(Map<String, dynamic> meeting) async {
     try {
+      // Get current user ID first to ensure we have the right participant
+      final currentUserId = await SharedPrefs.getUserIdSharedPreference();
+      if (currentUserId == null) {
+        throw Exception('Unable to identify current user');
+      }
+
+      final userData = meeting['user'];
       final participantData = meeting['participant'];
       final type = meeting['type'];
       final amount = (meeting['amount'] ?? 0).toDouble();
       final meetingId = meeting['_id'];
       final isSender = controller.isInstaTalkSender(meeting);
+      final int renewalCount = meeting['renewalCount'] ?? 0;
+      final bool isTrial = renewalCount == 0;
+
+      print('InstaTalk Join - Meeting details:');
+      print('Meeting ID: $meetingId');
+      print('Type: $type');
+      print('renewalCount: $renewalCount');
+      print('isTrial: $isTrial');
+
+      // Determine if we need to swap user and participant
+      final String participantId = participantData['_id'];
+      final String userId = userData['_id'];
+      bool usedWrongParticipant = false;
+
+      // Debug output
+      print('InstaTalk - Current user ID: $currentUserId');
+      print('InstaTalk - Meeting user ID: $userId');
+      print('InstaTalk - Meeting participant ID: $participantId');
+
+      Map<String, dynamic> correctParticipantData;
+
+      // If the "participant" is actually the current user, we need to use the "user" as our actual participant
+      if (participantId == currentUserId) {
+        print(
+            'INSTATALK PARTICIPANT SWAP: Using meeting user as the actual participant');
+        correctParticipantData = userData;
+        usedWrongParticipant = true;
+      } else if (userId == currentUserId && participantId != currentUserId) {
+        // This is the correct scenario - currentUser is the "user" and participant is someone else
+        print(
+            'INSTATALK PARTICIPANT CORRECT: Current user is the meeting creator');
+        correctParticipantData = participantData;
+      } else {
+        // Default case - just use participantData as provided
+        print('INSTATALK PARTICIPANT DEFAULT: Using provided participant data');
+        correctParticipantData = participantData;
+      }
 
       final participant = User(
-          sId: participantData['_id'],
-          name: participantData['name'],
-          photos: participantData['photos'] is List
-              ? List<String>.from(participantData['photos'])
+          sId: correctParticipantData['_id'],
+          name: correctParticipantData['name'],
+          photos: correctParticipantData['photos'] is List
+              ? List<String>.from(correctParticipantData['photos'])
               : [],
           earnings: Earnings(
-            chat: participantData['earnings']['chat'] ?? 0,
-            video: participantData['earnings']['video'] ?? 0,
-            voice: participantData['earnings']['voice'] ?? 0,
+            chat: correctParticipantData['earnings']['chat'] ?? 0,
+            video: correctParticipantData['earnings']['video'] ?? 0,
+            voice: correctParticipantData['earnings']['voice'] ?? 0,
           ));
+
+      print('Joining InstaTalk: $meetingId');
+      print('InstaTalk type: $type');
+      print('Selected participant: ${participant.name} (${participant.sId})');
+      if (usedWrongParticipant) {
+        print(
+            'WARNING: Had to swap InstaTalk participant and user due to incorrect IDs!');
+      }
 
       // Check if the user already used their time
       final bool hasUsedTime = isSender
@@ -491,6 +543,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           await Get.to(() => ChatRoomScreen(
                 profile: participant,
                 isInstaTalk: true,
+                isTrial: isTrial,
                 duration: meeting['duration'],
                 isInstaTalkSender: isSender,
                 onSessionEnd: () =>
@@ -504,8 +557,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 scheduleTime: DateTime.now(),
                 type: "voice",
                 isInstaTalk: true,
-                instaTalkDuration:
-                    meeting['duration'], // 30 seconds for InstaTalk
+                isTrial: isTrial,
+                instaTalkDuration: meeting['duration'],
                 onSessionEnd: () =>
                     _showContinueSessionDialog(participant, amount, type),
               ));
@@ -517,8 +570,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 scheduleTime: DateTime.now(),
                 type: "video",
                 isInstaTalk: true,
-                instaTalkDuration:
-                    meeting['duration'], // 30 seconds for InstaTalk
+                isTrial: isTrial,
+                instaTalkDuration: meeting['duration'],
                 onSessionEnd: () =>
                     _showContinueSessionDialog(participant, amount, type),
               ));
@@ -537,29 +590,65 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
 
   void _handleRegularMeetingJoin(Map<String, dynamic> meeting) async {
     try {
+      // Get current user ID first to ensure we have the right participant
+      final currentUserId = await SharedPrefs.getUserIdSharedPreference();
+      if (currentUserId == null) {
+        throw Exception('Unable to identify current user');
+      }
+
+      final userData = meeting['user'];
       final participantData = meeting['participant'];
       final type = meeting['type'];
       final scheduledTime = DateTime.parse(meeting['scheduledTime']);
       final meetingId = meeting['_id'];
 
+      // Determine if we need to swap user and participant
+      final String participantId = participantData['_id'];
+      final String userId = userData['_id'];
+      bool usedWrongParticipant = false;
+
+      // Debug output
+      print('Current user ID: $currentUserId');
+      print('Meeting user ID: $userId');
+      print('Meeting participant ID: $participantId');
+
+      Map<String, dynamic> correctParticipantData;
+
+      // If the "participant" is actually the current user, we need to use the "user" as our actual participant
+      if (participantId == currentUserId) {
+        print('PARTICIPANT SWAP: Using meeting user as the actual participant');
+        correctParticipantData = userData;
+        usedWrongParticipant = true;
+      } else if (userId == currentUserId && participantId != currentUserId) {
+        // This is the correct scenario - currentUser is the "user" and participant is someone else
+        print('PARTICIPANT CORRECT: Current user is the meeting creator');
+        correctParticipantData = participantData;
+      } else {
+        // Default case - just use participantData as provided
+        print('PARTICIPANT DEFAULT: Using provided participant data');
+        correctParticipantData = participantData;
+      }
+
       final participant = User(
-          sId: participantData['_id'],
-          name: participantData['name'],
-          photos: participantData['photos'] is List
-              ? List<String>.from(participantData['photos'])
+          sId: correctParticipantData['_id'],
+          name: correctParticipantData['name'],
+          photos: correctParticipantData['photos'] is List
+              ? List<String>.from(correctParticipantData['photos'])
               : [],
           earnings: Earnings(
-            chat: participantData['earnings']['chat'] ?? 0,
-            video: participantData['earnings']['video'] ?? 0,
-            voice: participantData['earnings']['voice'] ?? 0,
+            chat: correctParticipantData['earnings']['chat'] ?? 0,
+            video: correctParticipantData['earnings']['video'] ?? 0,
+            voice: correctParticipantData['earnings']['voice'] ?? 0,
           ));
 
       print('Joining regular meeting: $meetingId');
       print('Meeting type: $type');
       print('Scheduled time: $scheduledTime');
-      // print("Tiem for meeting start ${DateTime(meeting['scheduledTime'])}");
-      print(meeting['scheduledTime']);
-      print('Duration : ${meeting['duration']}');
+      print('Selected participant: ${participant.name} (${participant.sId})');
+      if (usedWrongParticipant) {
+        print(
+            'WARNING: Had to swap participant and user due to incorrect IDs!');
+      }
 
       switch (type) {
         case 'voice':
@@ -696,7 +785,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           Get.off(() => ChatRoomScreen(
                 profile: participant,
                 isInstaTalk: true,
-                // instaTalkDuration: 30,
+                isTrial: false, // Set to false since it's a paid continuation
                 duration: 60,
                 isInstaTalkSender: controller.isInstaTalkSender({
                   'user': {
@@ -714,6 +803,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 scheduleTime: DateTime.now(),
                 type: "voice",
                 isInstaTalk: true,
+                isTrial: false, // Set to false since it's a paid continuation
                 instaTalkDuration: 30,
                 onSessionEnd: () =>
                     _showContinueSessionDialog(participant, amount, type),
@@ -725,6 +815,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 scheduleTime: DateTime.now(),
                 type: "video",
                 isInstaTalk: true,
+                isTrial: false, // Set to false since it's a paid continuation
                 instaTalkDuration: 30,
                 onSessionEnd: () =>
                     _showContinueSessionDialog(participant, amount, type),
@@ -2416,6 +2507,10 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
       final String type = instaTalk['type'] ?? 'chat';
       final bool isAccepted = instaTalk['acceptedByParticipant'] == true;
       final bool isSender = widget.controller.isInstaTalkSender(instaTalk);
+      final int renewalCount = instaTalk['renewalCount'] ?? 0;
+      final bool isTrial = renewalCount == 0;
+
+      print('InstaTalk join - renewalCount: $renewalCount, isTrial: $isTrial');
 
       final bool hasUsedTime = isSender
           ? instaTalk['userOneTimeUsed'] ?? false
@@ -2423,7 +2518,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
 
       if (hasUsedTime) {
         Get.snackbar(
-          'Already Used',
+          'Session Already Used',
           'You have already joined this InstaTalk session',
           backgroundColor: Colors.orange.withOpacity(0.8),
           colorText: Colors.white,
@@ -2490,11 +2585,10 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
           await Get.to(() => ChatRoomScreen(
                 profile: participant,
                 isInstaTalk: true,
-                // instaTalkDuration: 30,
+                isTrial: isTrial,
                 duration: instaTalk['duration'] ?? 30,
                 isInstaTalkSender:
                     widget.controller.isInstaTalkSender(instaTalk),
-                // rate: liveRate,
               ));
           break;
 
@@ -2504,8 +2598,8 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                 scheduleTime: DateTime.now(),
                 type: "voice",
                 isInstaTalk: true,
-                instaTalkDuration: 30,
-                // rate: liveRate,
+                isTrial: isTrial,
+                instaTalkDuration: instaTalk['duration'] ?? 30,
               ));
           break;
 
@@ -2515,8 +2609,8 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                 scheduleTime: DateTime.now(),
                 type: "video",
                 isInstaTalk: true,
-                instaTalkDuration: 30,
-                // rate: liveRate, // Pass live rate instead of video rate
+                isTrial: isTrial,
+                instaTalkDuration: instaTalk['duration'] ?? 30,
               ));
           break;
 

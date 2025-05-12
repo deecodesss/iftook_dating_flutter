@@ -106,10 +106,8 @@ class CallController extends GetxController {
   }
 
   Future<void> initiateCall(
-    String participantId,
-    String type,
-    DateTime scheduleTime,
-  ) async {
+      String participantId, String type, DateTime scheduleTime,
+      {bool isInstaTalk = false, bool isTrial = false}) async {
     try {
       isJoining(true);
       callStatus('Initializing call...');
@@ -135,7 +133,9 @@ class CallController extends GetxController {
         print('Call Details:'
             '\nChannel: ${channel.value}'
             '\nMeeting ID: ${meetingId.value}'
-            '\nToken: ${token.value}');
+            '\nToken: ${token.value}'
+            '\nisInstaTalk: $isInstaTalk'
+            '\nisTrial: $isTrial');
 
         if (channel.value.isEmpty || token.value.isEmpty) {
           throw Exception('Missing channel or token');
@@ -156,6 +156,8 @@ class CallController extends GetxController {
               meetingId: meetingId.value,
               token: token.value,
               onSessionEnd: onSessionEnd,
+              isInstaTalk: isInstaTalk,
+              isTrial: isTrial,
             ),
             preventDuplicates: true,
           );
@@ -167,6 +169,8 @@ class CallController extends GetxController {
               token: token.value,
               onSessionEnd: onSessionEnd,
               initialTimer: 30,
+              isInstaTalk: isInstaTalk,
+              isTrial: isTrial,
             ),
             preventDuplicates: true,
           );
@@ -269,9 +273,11 @@ class CallController extends GetxController {
   }
 
   // Different initiate methods for InstaTalk and regular meetings
-  Future<void> initiateInstaTalkCall(String participantId, String type) async {
+  Future<void> initiateInstaTalkCall(String participantId, String type,
+      {bool isTrial = false}) async {
     callStatus('Starting InstaTalk call...');
-    await initiateCall(participantId, type, DateTime.now());
+    await initiateCall(participantId, type, DateTime.now(),
+        isInstaTalk: true, isTrial: isTrial);
   }
 
   Future<void> initiateMeetingCall(
