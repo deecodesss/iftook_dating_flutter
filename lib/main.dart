@@ -164,8 +164,9 @@ Future<void> myBackgroundMessageHandler(RemoteMessage message) async {
   print("Notification Message: ${message.notification?.title}");
   print("Data Message: ${message.data}");
 
-  // Handle call notifications in the background
-  if (message.data['type'] == 'voice' || message.data['type'] == 'video') {
+  // Handle call notifications in the background, but only if it's a real call (not a renewal)
+  if ((message.data['type'] == 'voice' || message.data['type'] == 'video') &&
+      message.data['action'] != 'renewal') {
     // Initialize notification plugin first
     final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
         FlutterLocalNotificationsPlugin();

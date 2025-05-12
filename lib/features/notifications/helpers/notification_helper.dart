@@ -165,8 +165,10 @@ class NotificationHelper {
       try {
         Get.put(AuthController());
         if (await Get.find<AuthController>().isLoggedIn()) {
-          if (message.data['type'] == 'voice' ||
-              message.data['type'] == 'video') {
+          if ((message.data['type'] == 'voice' ||
+                  message.data['type'] == 'video') &&
+              message.data['action'] != 'renewal') {
+            // Only show call UI if it's not a renewal notification
             await _showCallNotification(message);
           } else if (message.data['type'] == 'instaTalk') {
             await handleInstaTalkNotification(message.data);
@@ -190,8 +192,10 @@ class NotificationHelper {
         if (message != null && message.data.isNotEmpty) {
           NotificationBody notificationBody = convertNotification(message.data);
 
-          if (notificationBody.type == 'voice' ||
-              notificationBody.type == 'video') {
+          if ((notificationBody.type == 'voice' ||
+                  notificationBody.type == 'video') &&
+              message.data['action'] != 'renewal') {
+            // Only show call UI if it's not a renewal notification
             showCallSnackBar(
               callerName: message.notification?.title ?? "Unknown Caller",
               callerImage: message.data['callerImage'] ?? "",
@@ -228,7 +232,9 @@ class NotificationHelper {
           await _handleChatNotification(payloadData);
         } else if (payloadData.containsKey('type') &&
             (payloadData['type'] == 'voice' ||
-                payloadData['type'] == 'video')) {
+                payloadData['type'] == 'video') &&
+            payloadData['action'] != 'renewal') {
+          // Only treat as call tap if it's not a renewal
           await _handleCallNotificationTap(payloadData);
         } else if (payloadData['type'] == 'instaTalk') {
           await handleInstaTalkNotification(payloadData);
@@ -279,6 +285,51 @@ class NotificationHelper {
   }
 
   static Future<void> _showCallNotification(RemoteMessage message) async {
+    // First check if this is a renewal notification rather than an actual call
+    if (message.data['action'] == 'renewal') {
+      // For renewals, don't show call UI, just a normal notification
+      final String renewerName =
+          message.notification?.title?.split(' ')[0] ?? "Someone";
+      final String typeText =
+          message.data['type'] == 'video' ? 'Video' : 'Voice';
+
+      final String title = "InstaTalk Renewed";
+      final String body = message.notification?.body ??
+          "$renewerName has renewed your $typeText InstaTalk session.";
+
+      // Use a regular notification instead of a call notification
+      final AndroidNotificationDetails androidDetails =
+          AndroidNotificationDetails(
+        MESSAGE_CHANNEL_ID,
+        MESSAGE_CHANNEL_NAME,
+        channelDescription: MESSAGE_CHANNEL_DESC,
+        importance: Importance.high,
+        priority: Priority.high,
+      );
+
+      final NotificationDetails details = NotificationDetails(
+        android: androidDetails,
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      );
+
+      // Show as regular notification
+      await _flutterLocalNotificationsPlugin.show(
+        DateTime.now().millisecond, // Use current time for unique ID
+        title,
+        body,
+        details,
+        payload: json.encode(message.data),
+      );
+
+      // Don't proceed with call notification setup
+      return;
+    }
+
+    // Original call notification logic for actual calls
     // Extract call data
     final String callerName = message.notification?.title ?? "Unknown Caller";
     final String callerInfo = message.notification?.body ?? "Incoming Call";
@@ -1176,9 +1227,10 @@ class NotificationHelper {
         await handleInstaTalkNotification(message.data);
         return;
       }
-      // Handle call notifications
-      else if (message.data['type'] == 'voice' ||
-          message.data['type'] == 'video') {
+      // Handle call notifications (only if not a renewal)
+      else if ((message.data['type'] == 'voice' ||
+              message.data['type'] == 'video') &&
+          message.data['action'] != 'renewal') {
         await _showCallNotification(message);
         return;
       }
