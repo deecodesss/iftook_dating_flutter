@@ -19,17 +19,20 @@ import 'firebase_options.dart';
 import 'core/services/api_service.dart';
 import 'core/services/socket_service.dart';
 import 'package:iftook/helpers/permissions_controller.dart';
+import 'package:iftook/core/services/shared_prefs.dart';
 
-// Global key to access the scaffold messenger
+// Global instances
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
 String? fcmToken;
 
 // Setup notification action listeners
 Future<void> setupNotificationActionListeners() async {
   // For Android
-  final androidImplementation = FlutterLocalNotificationsPlugin()
-      .resolvePlatformSpecificImplementation<
+  final androidImplementation =
+      flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
 
   if (androidImplementation != null) {
@@ -90,17 +93,17 @@ Future<void> handleNotificationClick(RemoteMessage message) async {
     debugPrint("Handling notification click: ${message.data}");
 
     // Check for InstaTalk notification first
-    if (message.data['type'] == 'instaTalk') {
+    if (message.data['type']?.toString() == 'instaTalk') {
       await NotificationHelper.handleInstaTalkNotification(message.data);
       return;
     }
 
     // Handle chat notifications
-    if (message.data['type'] == 'chat') {
-      final String? chatRoomId = message.data['chatRoomId'];
-      final String? senderId = message.data['senderId'];
-      final String? senderName = message.data['senderName'];
-      final String? senderPhoto = message.data['senderPhoto'];
+    if (message.data['type']?.toString() == 'chat') {
+      final String? chatRoomId = message.data['chatRoomId']?.toString();
+      final String? senderId = message.data['senderId']?.toString();
+      final String? senderName = message.data['senderName']?.toString();
+      final String? senderPhoto = message.data['senderPhoto']?.toString();
 
       if (chatRoomId != null && senderId != null) {
         debugPrint(
@@ -113,25 +116,23 @@ Future<void> handleNotificationClick(RemoteMessage message) async {
           photos: senderPhoto != null ? [senderPhoto] : [],
         );
 
-        // Give app a moment to initialize before navigating
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        // Navigate to chat screen with the sender's profile and chatRoomId
-        Get.to(
-          () => ChatRoomScreen(
-            profile: userData,
-            duration: 60,
-            existingChatRoomId:
-                chatRoomId, // Add this parameter to ChatRoomScreen
-          ),
-        );
+        // Use post frame callback for safer navigation
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Get.to(
+            () => ChatRoomScreen(
+              profile: userData,
+              duration: 60,
+              existingChatRoomId: chatRoomId,
+            ),
+          );
+        });
         return;
       }
     }
 
     // Extract chat related data from notification
-    final String? chatRoomId = message.data['chatRoomId'];
-    final String? senderId = message.data['senderId'];
+    final String? chatRoomId = message.data['chatRoomId']?.toString();
+    final String? senderId = message.data['senderId']?.toString();
 
     if (chatRoomId != null && senderId != null) {
       debugPrint(
@@ -143,14 +144,13 @@ Future<void> handleNotificationClick(RemoteMessage message) async {
         final userData = User.fromJson(
             (json.decode(response.body) as Map<String, dynamic>)['data']);
 
-        // Give app a moment to initialize before navigating
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        // Navigate to chat screen with the sender's profile
-        Get.to(() => ChatRoomScreen(
-              profile: userData,
-              duration: 60,
-            ));
+        // Use post frame callback for safer navigation
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Get.to(() => ChatRoomScreen(
+                profile: userData,
+                duration: 60,
+              ));
+        });
         return;
       }
     }
@@ -162,38 +162,47 @@ Future<void> handleNotificationClick(RemoteMessage message) async {
 // Update myBackgroundMessageHandler to handle InstaTalk notifications
 @pragma('vm:entry-point')
 Future<void> myBackgroundMessageHandler(RemoteMessage message) async {
-  print("Background message received");
-  print("Notification Message: ${message.notification?.title}");
-  print("Data Message: ${message.data}");
+  debugPrint("Background message received");
+  debugPrint("Notification Message: ${message.notification?.title}");
+  debugPrint("Data Message: ${message.data}");
 
-  // Handle call notifications in the background, but only if it's a real call (not a renewal)
-  if ((message.data['type'] == 'voice' || message.data['type'] == 'video') &&
-      message.data['action'] != 'renewal') {
-    // Initialize notification plugin first
-    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-        FlutterLocalNotificationsPlugin();
+  try {
+    // Get current user ID
+    final currentUserId = await SharedPrefs.getUserIdSharedPreference();
+
+    // For chat messages, check if we're the sender
+    if (message.data['type']?.toString() == 'chat') {
+      final senderId = message.data['senderId'];
+      // If we're the sender, don't show notification
+      if (senderId == currentUserId) {
+        debugPrint('Skipping background notification - we are the sender');
+        return;
+      }
+    }
+
+    // Handle call notifications in the background, but only if it's a real call (not a renewal)
+    if ((message.data['type']?.toString() == 'voice' ||
+            message.data['type']?.toString() == 'video') &&
+        message.data['action']?.toString() != 'renewal') {
+      await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
+      await NotificationHelper.showCallNotification(message);
+      return;
+    }
+
+    // Handle InstaTalk notification specially in the background
+    if (message.data['type']?.toString() == 'instaTalk') {
+      await NotificationHelper.showInstaTalkNotification(message);
+      return;
+    }
+
+    // Original handling for other notification types
+    debugPrint("Handling other background notifications.");
     await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
-
-    // Show the call notification with action buttons
-    await NotificationHelper.showCallNotification(message);
-    return;
+    await NotificationHelper.showNotification(
+        message, flutterLocalNotificationsPlugin, true);
+  } catch (e) {
+    debugPrint("Error handling background message: $e");
   }
-
-  // Handle InstaTalk notification specially in the background
-  if (message.data['type'] == 'instaTalk') {
-    // Show a simple notification for InstaTalk that the user can tap on
-    await NotificationHelper.showInstaTalkNotification(message);
-    return;
-  }
-
-  // Original handling for other notification types
-  print("Handling other background notifications.");
-
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-      FlutterLocalNotificationsPlugin();
-  await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
-  await NotificationHelper.showNotification(
-      message, flutterLocalNotificationsPlugin, true);
 }
 
 // Initialize socket and online status services
@@ -264,8 +273,7 @@ Future<void> initializeOnlineStatusService() async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-      FlutterLocalNotificationsPlugin();
+
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -274,10 +282,20 @@ Future<void> main() async {
 
   NotificationBody? body;
   try {
-    // Removed permission request code
-    await handleInitialNotification(); // Handle notification if app opened from terminated state
-    await setupNotificationClickHandlers(); // Setup handlers for background/foreground states
-    await setupNotificationActionListeners(); // Setup notification action listeners
+    // Request notification permissions
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
+
+    await handleInitialNotification();
+    await setupNotificationClickHandlers();
+    await setupNotificationActionListeners();
 
     await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
     FirebaseMessaging.onBackgroundMessage(myBackgroundMessageHandler);

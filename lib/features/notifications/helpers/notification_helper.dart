@@ -1137,6 +1137,19 @@ class NotificationHelper {
     print("onMessage data: ${message.data}");
 
     try {
+      // Get current user ID
+      final currentUserId = await SharedPrefs.getUserIdSharedPreference();
+
+      // For chat messages, check if we're the sender
+      if (message.data['type'] == 'chat') {
+        final senderId = message.data['senderId'];
+        // If we're the sender, don't show notification
+        if (senderId == currentUserId) {
+          print('Skipping notification - we are the sender');
+          return;
+        }
+      }
+
       // Check if this is an InstaTalk notification
       if (message.data['type'] == 'instaTalk') {
         // Use the simplified snackbar approach for InstaTalk

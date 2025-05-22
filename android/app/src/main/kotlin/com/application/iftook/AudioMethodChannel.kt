@@ -5,132 +5,83 @@ import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
-import android.net.Uri
 import android.os.Build
-import android.util.Log
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler
-import io.flutter.plugin.common.MethodChannel.Result
 import java.io.IOException
 
-class AudioMethodChannel(private val context: Context) : MethodCallHandler {
+class AudioMethodChannel(private val context: Context) : MethodChannel.MethodCallHandler {
     private var mediaPlayer: MediaPlayer? = null
-    private val TAG = "AudioMethodChannel"
-    
-    override fun onMethodCall(call: MethodCall, result: Result) {
-        try {
-            Log.d(TAG, "Received method call: ${call.method}")
-            when (call.method) {
-                "playRingtone" -> {
-                    playRingtone()
-                    result.success(true)
-                }
-                "playRingtoneAsCall" -> {
-                    playRingtoneAsCall()
-                    result.success(true)
-                }
-                "stopRingtone" -> {
-                    stopRingtone()
-                    result.success(true)
-                }
-                "checkRingtoneAccess" -> {
-                    val hasAccess = checkRingtoneAccess()
-                    Log.d(TAG, "Ringtone access check result: $hasAccess")
-                    result.success(hasAccess)
-                }
-                "checkSoundResource" -> {
-                    val name = call.argument<String>("name") ?: ""
-                    val exists = checkSoundResourceExists(name)
-                    Log.d(TAG, "Sound resource check for '$name': $exists")
-                    result.success(exists)
-                }
-                else -> {
-                    Log.w(TAG, "Method not implemented: ${call.method}")
-                    result.notImplemented()
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error handling method call ${call.method}", e)
-            result.error("ERROR", e.message, e.stackTraceToString())
+    private var vibrator: Vibrator? = null
+    private var isVibrating = false
+    private var isPlaying = false
+
+    init {
+        // Initialize vibrator based on Android version
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            vibrator = vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
     }
-    
-    private fun playRingtone() {
-        stopRingtone() // Stop any existing ringtone
-        
+
+    override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        when (call.method) {
+            "playRingtone" -> {
+                val ringtoneType = call.argument<Int>("ringtoneType") ?: RingtoneManager.TYPE_RINGTONE
+                val loop = call.argument<Boolean>("loop") ?: true
+                playRingtone(ringtoneType, loop)
+                result.success(null)
+            }
+            "stopRingtone" -> {
+                stopRingtone()
+                result.success(null)
+            }
+            "startVibration" -> {
+                val pattern = call.argument<LongArray>("pattern")
+                val repeat = call.argument<Int>("repeat") ?: -1
+                startVibration(pattern, repeat)
+                result.success(null)
+            }
+            "stopVibration" -> {
+                stopVibration()
+                result.success(null)
+            }
+            "checkRingtoneAccess" -> {
+                result.success(true)
+            }
+            else -> result.notImplemented()
+        }
+    }
+
+    private fun playRingtone(ringtoneType: Int, loop: Boolean) {
         try {
-            val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            Log.d(TAG, "Playing ringtone from URI: $ringtoneUri")
+            stopRingtone() // Stop any existing playback
             
+            val ringtone = RingtoneManager.getRingtone(context, RingtoneManager.getDefaultUri(ringtoneType))
             mediaPlayer = MediaPlayer().apply {
-                setDataSource(context, ringtoneUri)
-                
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build()
-                    )
-                } else {
-                    @Suppress("DEPRECATION")
-                    setAudioStreamType(AudioManager.STREAM_RING)
-                }
-                
-                isLooping = true
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                setDataSource(context, RingtoneManager.getDefaultUri(ringtoneType))
+                isLooping = loop
                 prepare()
                 start()
             }
-            Log.d(TAG, "Ringtone playback started successfully")
+            isPlaying = true
         } catch (e: IOException) {
-            Log.e(TAG, "Error playing ringtone", e)
+            e.printStackTrace()
         }
     }
-    
-    private fun playRingtoneAsCall() {
-        stopRingtone() // Stop any existing ringtone
-        
-        try {
-            // Get the default ringtone
-            val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            Log.d(TAG, "Playing call ringtone from URI: $ringtoneUri")
-            
-            // Get the audio manager
-            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            
-            // Save current volume to restore later
-            val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_RING)
-            
-            // Set volume to maximum
-            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_RING)
-            audioManager.setStreamVolume(AudioManager.STREAM_RING, maxVolume, 0)
-            
-            mediaPlayer = MediaPlayer().apply {
-                setDataSource(context, ringtoneUri)
-                
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build()
-                    )
-                } else {
-                    @Suppress("DEPRECATION")
-                    setAudioStreamType(AudioManager.STREAM_VOICE_CALL)
-                }
-                
-                isLooping = true
-                prepare()
-                start()
-            }
-            Log.d(TAG, "Call ringtone playback started successfully")
-        } catch (e: IOException) {
-            Log.e(TAG, "Error playing call ringtone", e)
-        }
-    }
-    
+
     private fun stopRingtone() {
         try {
             mediaPlayer?.apply {
@@ -140,63 +91,40 @@ class AudioMethodChannel(private val context: Context) : MethodCallHandler {
                 release()
             }
             mediaPlayer = null
-            Log.d(TAG, "Ringtone stopped successfully")
+            isPlaying = false
         } catch (e: Exception) {
-            Log.e(TAG, "Error stopping ringtone", e)
+            e.printStackTrace()
         }
     }
-    
-    private fun checkRingtoneAccess(): Boolean {
-        return try {
-            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            val hasAccess = audioManager != null
-            Log.d(TAG, "Ringtone access check: $hasAccess")
-            hasAccess
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking ringtone access", e)
-            false
-        }
-    }
-    
-    private fun checkSoundResourceExists(resourceName: String): Boolean {
-        return try {
-            Log.d(TAG, "Checking sound resource: $resourceName")
-            
-            // First check in raw resources
-            var resourceId = context.resources.getIdentifier(
-                resourceName, "raw", context.packageName
-            )
-            Log.d(TAG, "Raw resource ID for $resourceName: $resourceId")
-            
-            // If not found in raw, check in drawable
-            if (resourceId == 0) {
-                resourceId = context.resources.getIdentifier(
-                    resourceName, "drawable", context.packageName
-                )
-                Log.d(TAG, "Drawable resource ID for $resourceName: $resourceId")
-            }
-            
-            // If still not found, check if it's a system sound
-            if (resourceId == 0) {
-                val isSystemSound = when (resourceName) {
-                    "ringtone" -> {
-                        val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                        ringtoneUri != null
-                    }
-                    "notification" -> {
-                        val notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                        notificationUri != null
-                    }
-                    else -> false
+
+    private fun startVibration(pattern: LongArray?, repeat: Int) {
+        if (vibrator == null) return
+        
+        stopVibration() // Stop any existing vibration
+        
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (pattern != null) {
+                    vibrator?.vibrate(VibrationEffect.createWaveform(pattern, repeat))
+                } else {
+                    vibrator?.vibrate(VibrationEffect.createOneShot(1000, VibrationEffect.DEFAULT_AMPLITUDE))
                 }
-                Log.d(TAG, "System sound check for $resourceName: $isSystemSound")
-                isSystemSound
             } else {
-                true
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(pattern ?: longArrayOf(0, 1000, 1000), repeat)
             }
+            isVibrating = true
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking sound resource: $resourceName", e)
-            false
+            e.printStackTrace()
+        }
+    }
+
+    private fun stopVibration() {
+        try {
+            vibrator?.cancel()
+            isVibrating = false
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

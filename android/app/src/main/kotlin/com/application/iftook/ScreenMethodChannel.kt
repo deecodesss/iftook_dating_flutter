@@ -1,4 +1,4 @@
-package com.example.iftook
+package com.application.iftook
 
 import android.app.KeyguardManager
 import android.content.Context
@@ -20,9 +20,22 @@ class ScreenMethodChannel(private val context: Context) : MethodCallHandler {
                 result.success(true)
             }
             "keepScreenOn" -> {
-                val keep = call.argument<Boolean>("keep") ?: true
-                keepScreenOn(keep)
-                result.success(true)
+                try {
+                    val activity = MainActivity.instance
+                    activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.error("ERROR", e.message, e.stackTraceToString())
+                }
+            }
+            "allowScreenOff" -> {
+                try {
+                    val activity = MainActivity.instance
+                    activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.error("ERROR", e.message, e.stackTraceToString())
+                }
             }
             else -> result.notImplemented()
         }
@@ -64,24 +77,6 @@ class ScreenMethodChannel(private val context: Context) : MethodCallHandler {
                     MainActivity.instance,
                     null
                 )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-    
-    private fun keepScreenOn(keep: Boolean) {
-        try {
-            val activity = MainActivity.instance
-            
-            if (keep) {
-                activity.runOnUiThread {
-                    activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                }
-            } else {
-                activity.runOnUiThread {
-                    activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
