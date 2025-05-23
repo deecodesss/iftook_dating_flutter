@@ -519,7 +519,10 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                       Navigator.pop(context); // Close bottom sheet
                       Get.back(); // Go back to previous screen
                     },
-                    child: const Text('Done'),
+                    child: const Text(
+                      'Done',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ),
               ],

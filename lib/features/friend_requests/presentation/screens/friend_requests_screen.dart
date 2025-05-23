@@ -1255,31 +1255,36 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                               ),
                             ],
                           ),
-                          Row(
-                            children: [
-                              Icon(
-                                isCreator
-                                    ? Icons.call_made_rounded
-                                    : Icons.call_received_rounded,
-                                size: 16,
-                                color: isCreator
-                                    ? Colors.blue.withOpacity(0.7)
-                                    : Colors.green.withOpacity(0.7),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                isCreator
-                                    ? 'You requested meeting with ${participant['name'] ?? "them"}'
-                                    : 'Meeting request from ${user['name'] ?? "someone"}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.blueGrey.withOpacity(0.1),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isCreator
+                                      ? Icons.call_made_rounded
+                                      : Icons.call_received_rounded,
+                                  size: 16,
                                   color: isCreator
                                       ? Colors.blue.withOpacity(0.7)
                                       : Colors.green.withOpacity(0.7),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  isCreator ? 'Sent' : 'Received',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: isCreator
+                                        ? Colors.blue.withOpacity(0.7)
+                                        : Colors.green.withOpacity(0.7),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),

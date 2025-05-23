@@ -5,6 +5,7 @@ import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/features/wallet/controllers/wallet_controller.dart';
+import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 
 class HomeController extends GetxController {
   var profiles = <User>[].obs;
@@ -207,7 +208,7 @@ class HomeController extends GetxController {
           'Please top up your wallet to schedule this meeting',
           isError: true,
           mainButton: TextButton(
-            onPressed: () => Get.toNamed('/wallet/topup'),
+            onPressed: () => Get.to(const WalletScreen()),
             child: Text('Top Up', style: TextStyle(color: Colors.white)),
           ),
         );
@@ -217,7 +218,7 @@ class HomeController extends GetxController {
       print(
           'Creating meeting: $participantId, $type, $scheduleTime, Amount: $amount');
 
-      final response = await ApiService.createMeeting(
+      final response = await ApiService.createScheduledMeeting(
         participantId,
         type,
         scheduleTime,

@@ -476,6 +476,32 @@ class ApiService {
         ));
   }
 
+  static Future<http.Response> createScheduledMeeting(
+      String participantId, String type, DateTime scheduleTime) async {
+    final token = await SharedPrefs.getAccessToken();
+    final userId = await SharedPrefs.getUserIdSharedPreference();
+
+    Map<String, dynamic> data = {
+      "userId": userId,
+      "participantId": participantId,
+      "type": type,
+      "scheduledTime": scheduleTime.toIso8601String(),
+      "duration": 30, // Default duration
+    };
+
+    print('Creating meeting with data: $data');
+
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/meeting/create-meeting-request'),
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(data),
+        ));
+  }
+
   static Future<http.Response> updateMeetingStatus(
       String meetingId, String status) async {
     final token = await SharedPrefs.getAccessToken();
