@@ -6,6 +6,7 @@ import 'package:iftook/core/services/api_service.dart'; // Assuming you have an 
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/home/presentation/screens/home_screen.dart';
 import 'package:iftook/features/notifications/controllers/notification_controller.dart';
+import 'package:flutter/material.dart';
 
 class AuthController extends GetxController {
   // Form fields
@@ -67,7 +68,6 @@ class AuthController extends GetxController {
         'height': height.value,
         'languages': languages.toList(),
         'location': location,
-        // 'photos': photos.toList(),
         'interests': interests.toList(),
         'panDetails': panDetails,
         'earnings': earnings,
@@ -78,23 +78,39 @@ class AuthController extends GetxController {
 
       // Call the API
       final response = await ApiService.register(requestBody);
+      print("Registration response: ${response.body}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
-        await SharedPrefs.saveUserTokenSharedPreference(responseData['token']);
-        await SharedPrefs.saveUserIdSharedPreference(
-            responseData['user']['_id']);
-        updateFCMToken();
 
-        // Handle successful registration
-        Get.offAll(() => const HomeScreen()); // Navigate to home screen
+        // Check if the response contains success flag
+        if (responseData['success'] == true) {
+          // Save user data and token
+          if (responseData['user'] != null) {
+            await SharedPrefs.saveUserIdSharedPreference(
+                responseData['user']['_id']);
+          }
+
+          // Update FCM token
+          updateFCMToken();
+
+          // Handle successful registration
+          Get.offAll(() => const HomeScreen()); // Navigate to home screen
+          Get.snackbar('Success', 'Registration successful!',
+              backgroundColor: Colors.green, colorText: Colors.white);
+        } else {
+          errorMessage.value =
+              responseData['message']?.toString() ?? 'Registration failed';
+        }
       } else {
         // Handle API errors
-        errorMessage.value = jsonDecode(response.body)['message']?.toString() ??
-            'Registration failed';
+        final errorData = jsonDecode(response.body);
+        errorMessage.value =
+            errorData['message']?.toString() ?? 'Registration failed';
       }
     } catch (e) {
-      errorMessage('An error occurred: $e');
+      print('Registration error: $e');
+      errorMessage.value = 'An error occurred during registration';
     } finally {
       isLoading(false);
     }

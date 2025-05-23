@@ -759,19 +759,70 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                           Row(
                             children: [
                               Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () {},
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primaryColor,
-                                    foregroundColor: Colors.white,
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 8),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                  child: const Text('Become Friends'),
-                                ),
+                                child: Obx(() {
+                                  // Check if request is already sent
+                                  final isRequestSent = _friendController
+                                      .sentRequests
+                                      .any((req) =>
+                                          req.receiver?.sId == profile.sId);
+
+                                  // Check if already friends
+                                  final isFriend = _friendController.friends
+                                      .any((friend) =>
+                                          friend.sId == profile.sId);
+
+                                  if (isFriend) {
+                                    return ElevatedButton(
+                                      onPressed: null,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            Colors.grey.withOpacity(0.2),
+                                        foregroundColor: Colors.grey,
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                      child: const Text('Friends'),
+                                    );
+                                  } else if (isRequestSent) {
+                                    return ElevatedButton(
+                                      onPressed: null,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.primaryColor
+                                            .withOpacity(0.2),
+                                        foregroundColor: AppColors.primaryColor,
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                      child: const Text('Request Sent'),
+                                    );
+                                  } else {
+                                    return ElevatedButton(
+                                      onPressed: () {
+                                        _homeController
+                                            .sendFriendRequest(profile.sId!);
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.primaryColor,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                      child: const Text('Become Friends'),
+                                    );
+                                  }
+                                }),
                               ),
                               const SizedBox(width: 8),
                               Expanded(

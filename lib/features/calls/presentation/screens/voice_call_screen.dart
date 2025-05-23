@@ -48,6 +48,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   bool _isMuted = false;
   bool _localUserJoined = false;
   late RtcEngine _engine;
+  bool _isEngineInitialized = false;
 
   RxBool isConnecting = true.obs;
   RxString connectionStatus = 'Initializing...'.obs;
@@ -56,28 +57,25 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   Timer? _sessionTimer;
   Timer? _autoPaymentTimer;
   Timer? _startupDelayTimer;
-  Timer? _walletRefreshTimer; // Timer for refreshing wallet balance
+  Timer? _walletRefreshTimer;
   int _remainingSeconds = 0;
-  int _elapsedSeconds = 0; // For growing timer in InstaTalk
+  int _elapsedSeconds = 0;
   bool _sessionExpired = false;
   bool _showingPaymentPrompt = false;
   bool _timerStarted = false;
   bool _hasRenewedSession = false;
   bool _isRenewing = false;
-  bool _callEnded = false; // To track if call has been ended by remote user
+  bool _callEnded = false;
+  bool _isSpeakerOn = true;
 
   // Payment variables
-  static const int AUTO_PAYMENT_INTERVAL = 60; // Seconds between auto payments
+  static const int AUTO_PAYMENT_INTERVAL = 60;
   double _ratePerMinute = 0;
   bool _autoPaymentEnabled = false;
 
   late final CallController _callController;
   late final CallDurationService _durationService;
-  late final ChatController _chatController; // For wallet balance
-  Timer? _timer;
-  bool _isSpeakerOn = true;
-  bool _isCallConnected = false;
-  String _connectionStatus = 'Connecting...';
+  late final ChatController _chatController;
 
   @override
   void initState() {
@@ -87,10 +85,21 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     _chatController = Get.put(ChatController());
     _initializeDurationService();
 
+    // Initialize Agora engine first
+    _initializeAgora().then((_) {
+      if (mounted) {
+        setState(() {
+          _isEngineInitialized = true;
+          // Set initial speaker state after engine is initialized
+          _engine.setEnableSpeakerphone(_isSpeakerOn);
+        });
+      }
+    });
+
     // Fetch initial wallet balance
     _chatController.fetchWalletBalance();
 
-    // Setup wallet refresh timer (every 30 seconds)
+    // Setup wallet refresh timer
     _walletRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) {
         _chatController.fetchWalletBalance();
@@ -110,7 +119,6 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     }
 
     // Start timers
-    _initializeAgora();
     _checkPermissions();
     _setupCallController();
   }
@@ -661,20 +669,34 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
 
   // Toggle microphone mute
   void _toggleMute() {
+    if (!_isEngineInitialized) return;
+
     setState(() {
       _isMuted = !_isMuted;
     });
     _engine.muteLocalAudioStream(_isMuted);
   }
 
+  // Toggle speaker
+  void _toggleSpeaker() {
+    if (!_isEngineInitialized) return;
+
+    setState(() {
+      _isSpeakerOn = !_isSpeakerOn;
+    });
+    _engine.setEnableSpeakerphone(_isSpeakerOn);
+  }
+
   // End the call
   void _endCall() {
-    _engine.leaveChannel();
-    _engine.release();
+    if (_isEngineInitialized) {
+      _engine.leaveChannel();
+      _engine.release();
+    }
     _sessionTimer?.cancel();
     _autoPaymentTimer?.cancel();
     _startupDelayTimer?.cancel();
-    _walletRefreshTimer?.cancel(); // Cancel wallet refresh timer
+    _walletRefreshTimer?.cancel();
     _autoPaymentEnabled = false;
 
     if (widget.onSessionEnd != null) {
@@ -692,12 +714,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
 
   @override
   void dispose() {
-    _engine.leaveChannel();
-    _engine.release();
+    if (_isEngineInitialized) {
+      _engine.leaveChannel();
+      _engine.release();
+    }
     _sessionTimer?.cancel();
     _autoPaymentTimer?.cancel();
     _startupDelayTimer?.cancel();
-    _walletRefreshTimer?.cancel(); // Cancel wallet refresh timer
+    _walletRefreshTimer?.cancel();
     _autoPaymentEnabled = false;
     _durationService.reset();
     super.dispose();
@@ -792,11 +816,13 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                             size: 65,
                           ),
                           _buildCallButton(
-                            icon: Icons.volume_up,
+                            icon: _isSpeakerOn
+                                ? Icons.volume_up
+                                : Icons.volume_off,
                             color: Colors.white,
-                            backgroundColor: Colors.grey[800]!,
-                            onTap:
-                                () {}, // Speaker toggle could be implemented here
+                            backgroundColor:
+                                _isSpeakerOn ? Colors.grey[800]! : Colors.red,
+                            onTap: _toggleSpeaker,
                           ),
                         ],
                       ),

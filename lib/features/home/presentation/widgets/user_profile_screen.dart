@@ -14,6 +14,7 @@ import 'package:iftook/features/profile/presentation/screens/view_reviews_screen
 import 'package:iftook/features/live/controllers/live_controller.dart';
 import 'package:iftook/features/live/screens/viewer_screen.dart';
 import 'package:iftook/features/wallet/controllers/wallet_controller.dart';
+import 'package:iftook/features/instatalk/presentation/instatalk_schedule.dart';
 
 import '../../../calls/presentation/screens/laoding_voice_call_screen.dart';
 import '../../../calls/presentation/screens/loading_video_call_screen.dart';
@@ -104,6 +105,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       print('Error initializing HomeController: $e');
       _homeController = HomeController();
       Get.put(_homeController);
+    }
+
+    // InstaTalkController initialization
+    try {
+      if (!Get.isRegistered<InstaTalkController>()) {
+        Get.put(InstaTalkController());
+      }
+      _instaTalkController = Get.find<InstaTalkController>();
+    } catch (e) {
+      print('Error initializing InstaTalkController: $e');
+      _instaTalkController = InstaTalkController();
+      Get.put(_instaTalkController);
     }
   }
 
@@ -883,19 +896,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   void _startInstaTalk(String option) async {
-    if (widget.profile.sId == null) return;
+    if (widget.profile.sId == null) {
+      Get.snackbar(
+        'Error',
+        'User ID not found',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
 
-    // Get the InstaTalk type based on the selected option
-    String instaTalkType;
+    // Get the meeting type based on the selected option
+    MeetingType meetingType;
     switch (option.toLowerCase()) {
       case 'chat':
-        instaTalkType = 'chat';
+        meetingType = MeetingType.chat;
         break;
       case 'call':
-        instaTalkType = 'voice';
+        meetingType = MeetingType.voice;
         break;
       case 'video':
-        instaTalkType = 'video';
+        meetingType = MeetingType.video;
         break;
       default:
         Get.snackbar(
@@ -907,20 +928,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         return;
     }
 
-    // Check if InstaTalk already exists or create a new one
-    final result = await _instaTalkController.createInstaTalk(
-        widget.profile.sId!, instaTalkType);
-
-    // If creation failed, return early
-    if (result == null) return;
-
-    // If creation succeeded, show success message
-    Get.snackbar(
-      'InstaTalk Request Sent',
-      '${widget.profile.name} will need to accept your request',
-      backgroundColor: Colors.green.withOpacity(0.8),
-      colorText: Colors.white,
-      duration: const Duration(seconds: 3),
-    );
+    // Navigate to InstaTalk scheduling screen
+    Get.to(() => ScheduleInstaTalkScreen(
+          participant: widget.profile,
+          type: meetingType,
+        ));
   }
 }

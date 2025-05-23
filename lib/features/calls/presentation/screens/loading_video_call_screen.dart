@@ -41,6 +41,9 @@ class VideoCallLoadingScreen extends StatefulWidget {
 
 class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
   late final CallController _callController;
+  bool _isSpeakerOn = true;
+  bool _isMuted = false;
+  bool _isCameraOff = false;
 
   @override
   void initState() {
@@ -146,6 +149,24 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
     Get.back();
   }
 
+  void _toggleSpeaker() {
+    setState(() {
+      _isSpeakerOn = !_isSpeakerOn;
+    });
+  }
+
+  void _toggleMute() {
+    setState(() {
+      _isMuted = !_isMuted;
+    });
+  }
+
+  void _toggleCamera() {
+    setState(() {
+      _isCameraOff = !_isCameraOff;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -195,14 +216,17 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   _buildCallButton(
-                    icon: Icons.mic_off,
+                    icon: _isMuted ? Icons.mic_off : Icons.mic,
                     color: Colors.white,
-                    backgroundColor: Colors.grey[800]!,
+                    backgroundColor: _isMuted ? Colors.red : Colors.grey[800]!,
+                    onTap: _toggleMute,
                   ),
                   _buildCallButton(
-                    icon: Icons.videocam_off,
+                    icon: _isCameraOff ? Icons.videocam_off : Icons.videocam,
                     color: Colors.white,
-                    backgroundColor: Colors.grey[800]!,
+                    backgroundColor:
+                        _isCameraOff ? Colors.red : Colors.grey[800]!,
+                    onTap: _toggleCamera,
                   ),
                   _buildCallButton(
                     icon: Icons.call_end,
@@ -217,9 +241,11 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
                     backgroundColor: Colors.grey[800]!,
                   ),
                   _buildCallButton(
-                    icon: Icons.volume_up,
+                    icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_off,
                     color: Colors.white,
-                    backgroundColor: Colors.grey[800]!,
+                    backgroundColor:
+                        _isSpeakerOn ? Colors.grey[800]! : Colors.red,
+                    onTap: _toggleSpeaker,
                   ),
                 ],
               ),

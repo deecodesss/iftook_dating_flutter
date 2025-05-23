@@ -341,10 +341,10 @@ class NotificationHelper {
       return;
     }
 
-    // Original call notification logic for actual calls
     // Extract call data with fallbacks to ensure we always have values
     final String callerName = message.data['callerName'] ??
-        message.notification?.title ??
+        message.notification?.title?.split(' ')[0] ??
+        message.data['senderName'] ??
         "Unknown Caller";
     final String callerInfo = message.notification?.body ?? "Incoming Call";
     final String callType = message.data['type'] ?? 'voice';
@@ -355,8 +355,10 @@ class NotificationHelper {
         message.data['duration'] ?? message.data['callDuration'] ?? "30";
     final String callerImage = message.data['callerImage'] ??
         message.data['callerProfilePicture'] ??
+        message.data['senderImage'] ??
         "";
-    final String callerId = message.data['callerId'] ?? "";
+    final String callerId =
+        message.data['callerId'] ?? message.data['senderId'] ?? "";
 
     Map<String, dynamic> payloadData = {
       ...message.data,

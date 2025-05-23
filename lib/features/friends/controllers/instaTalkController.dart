@@ -71,9 +71,9 @@ class InstaTalkController extends GetxController {
       // Create InstaTalk request after payment (if required)
       final response = await ApiService.createInstaTalk(participantId, type);
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('InstaTalk created successfully: ${data['data']}');
+        print('InstaTalk created/renewed successfully: ${data['data']}');
         return data['data'];
       } else {
         final data = jsonDecode(response.body);

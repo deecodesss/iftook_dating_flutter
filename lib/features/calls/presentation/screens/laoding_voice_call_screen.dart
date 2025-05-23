@@ -40,6 +40,8 @@ class VoiceCallLoadingScreen extends StatefulWidget {
 
 class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
   late final CallController _callController;
+  bool _isSpeakerOn = true;
+  bool _isMuted = false;
 
   @override
   void initState() {
@@ -139,6 +141,18 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
     Get.back();
   }
 
+  void _toggleSpeaker() {
+    setState(() {
+      _isSpeakerOn = !_isSpeakerOn;
+    });
+  }
+
+  void _toggleMute() {
+    setState(() {
+      _isMuted = !_isMuted;
+    });
+  }
+
   @override
   void dispose() {
     if (widget.meetingId != null) {
@@ -203,11 +217,12 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  // _buildCallButton(
-                  //   icon: Icons.mic_off,
-                  //   color: Colors.white,
-                  //   backgroundColor: Colors.grey[800]!,
-                  // ),
+                  _buildCallButton(
+                    icon: _isMuted ? Icons.mic_off : Icons.mic,
+                    color: Colors.white,
+                    backgroundColor: _isMuted ? Colors.red : Colors.grey[800]!,
+                    onTap: _toggleMute,
+                  ),
                   _buildCallButton(
                     icon: Icons.call_end,
                     color: Colors.white,
@@ -215,11 +230,13 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
                     size: 65,
                     onTap: _endCall,
                   ),
-                  // _buildCallButton(
-                  //   icon: Icons.volume_up,
-                  //   color: Colors.white,
-                  //   backgroundColor: Colors.grey[800]!,
-                  // ),
+                  _buildCallButton(
+                    icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_off,
+                    color: Colors.white,
+                    backgroundColor:
+                        _isSpeakerOn ? Colors.grey[800]! : Colors.red,
+                    onTap: _toggleSpeaker,
+                  ),
                 ],
               ),
               const SizedBox(height: 40),

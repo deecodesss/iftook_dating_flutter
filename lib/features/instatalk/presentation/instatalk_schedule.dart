@@ -468,34 +468,17 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
         ),
       );
 
-      bool success = false;
-
-      if (isTrialUsed) {
-        // Calculate the payment amount based on selected duration and rate
-        final amount = meetingRate * durationInMinutes / 30;
-
-        // Handle paid InstaTalk through controller
-        final result = await _instaTalkController.createInstaTalk(
-            widget.participant.sId!, _selectedType.toApiValue());
-
-        success = result != null;
-      } else {
-        // Handle free trial InstaTalk
-        // The createInstaTalk method returns a Map<String, dynamic>?, not a bool
-        final result = await _instaTalkController.createInstaTalk(
-          widget.participant.sId!,
-          _selectedType.toApiValue(),
-        );
-
-        // Set success based on whether result is not null
-        success = result != null;
-      }
+      // Create InstaTalk request
+      final result = await _instaTalkController.createInstaTalk(
+        widget.participant.sId!,
+        _selectedType.toApiValue(),
+      );
 
       // Remove loading sheet
       Navigator.pop(context);
 
-      // There is no 'res' variable, use the 'success' boolean we set above
-      if (success) {
+      // Check if result is not null
+      if (result != null) {
         // Show success bottom sheet
         showModalBottomSheet(
           context: context,
@@ -520,9 +503,9 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
                       color: Colors.green, size: 40),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'InstaTalk Request Sent',
-                  style: TextStyle(
+                Text(
+                  isTrialUsed ? 'InstaTalk Renewed' : 'InstaTalk Request Sent',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -530,7 +513,9 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'You will be notified when ${widget.participant.name} accepts your request',
+                  isTrialUsed
+                      ? 'Your InstaTalk session has been renewed'
+                      : 'You will be notified when ${widget.participant.name} accepts your request',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey[400]),
                 ),
@@ -554,7 +539,7 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
           ),
         );
       } else {
-        // Show error bottom sheet
+        // Show error bottom sheet only if result is null
         showModalBottomSheet(
           context: context,
           backgroundColor: Colors.transparent,
@@ -613,11 +598,13 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
       Navigator.pop(context); // Remove loading indicator
       print('Error scheduling InstaTalk: $e');
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
+      // Show error snackbar
+      Get.snackbar(
+        'Error',
+        'Failed to send InstaTalk request. Please try again.',
+        backgroundColor: Colors.red.withOpacity(0.8),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
       );
     }
   }
