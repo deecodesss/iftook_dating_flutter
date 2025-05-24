@@ -20,6 +20,8 @@ import 'core/services/api_service.dart';
 import 'core/services/socket_service.dart';
 import 'package:iftook/helpers/permissions_controller.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:iftook/features/calls/services/call_notification_service.dart';
 
 // Global instances
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
@@ -48,6 +50,8 @@ Future<void> setupNotificationActionListeners() async {
         playSound: true,
         enableVibration: true,
         enableLights: true,
+        showBadge: true,
+        sound: RawResourceAndroidNotificationSound('ringtone'),
       ),
     );
   }
@@ -162,20 +166,21 @@ Future<void> handleNotificationClick(RemoteMessage message) async {
 // Update myBackgroundMessageHandler to handle InstaTalk notifications
 @pragma('vm:entry-point')
 Future<void> myBackgroundMessageHandler(RemoteMessage message) async {
-  debugPrint("Background message received");
-  debugPrint("Notification Message: ${message.notification?.title}");
-  debugPrint("Data Message: ${message.data}");
+  debugPrint("🔔 Background message received");
+  debugPrint("📝 Notification Message: ${message.notification?.title}");
+  debugPrint("📝 Data Message: ${message.data}");
 
   try {
     // Get current user ID
     final currentUserId = await SharedPrefs.getUserIdSharedPreference();
+    debugPrint("👤 Current user ID: $currentUserId");
 
     // For chat messages, check if we're the sender
     if (message.data['type']?.toString() == 'chat') {
       final senderId = message.data['senderId'];
       // If we're the sender, don't show notification
       if (senderId == currentUserId) {
-        debugPrint('Skipping background notification - we are the sender');
+        debugPrint('⚠️ Skipping background notification - we are the sender');
         return;
       }
     }
@@ -184,24 +189,32 @@ Future<void> myBackgroundMessageHandler(RemoteMessage message) async {
     if ((message.data['type']?.toString() == 'voice' ||
             message.data['type']?.toString() == 'video') &&
         message.data['action']?.toString() != 'renewal') {
+      debugPrint('📞 Handling incoming call notification');
+      debugPrint('📞 Call type: ${message.data['type']}');
+      debugPrint('📞 Call action: ${message.data['action']}');
+      debugPrint('📞 Meeting ID: ${message.data['meetingId']}');
+      debugPrint('📞 Channel: ${message.data['channelName']}');
+      debugPrint('📞 Token: ${message.data['token']}');
+
       await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
-      await NotificationHelper.showCallNotification(message);
+      await CallNotificationService().handleIncomingCall(message);
       return;
     }
 
     // Handle InstaTalk notification specially in the background
     if (message.data['type']?.toString() == 'instaTalk') {
+      debugPrint('📱 Handling InstaTalk notification');
       await NotificationHelper.showInstaTalkNotification(message);
       return;
     }
 
     // Original handling for other notification types
-    debugPrint("Handling other background notifications.");
+    debugPrint("📝 Handling other background notifications.");
     await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
     await NotificationHelper.showNotification(
         message, flutterLocalNotificationsPlugin, true);
   } catch (e) {
-    debugPrint("Error handling background message: $e");
+    debugPrint("❌ Error handling background message: $e");
   }
 }
 

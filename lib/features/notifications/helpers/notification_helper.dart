@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
@@ -12,6 +13,7 @@ import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/auth/controllers/auth_controller.dart';
 import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
+import 'package:iftook/features/calls/services/call_notification_service.dart';
 import 'package:iftook/features/friends/controllers/instaTalkController.dart';
 import 'package:iftook/features/friends/presentation/screens/chat_room_screen.dart';
 import 'package:iftook/features/home/controllers/home_controller.dart';
@@ -21,6 +23,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import '../../friends/controllers/chat_controller.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -50,6 +53,102 @@ class NotificationHelper {
     try {
       await _checkDeviceCapabilities();
       await _requestAllPermissions();
+
+      // Setup FlutterCallkitIncoming event listeners
+      FlutterCallkitIncoming.onEvent.listen((event) async {
+        switch (event!.event) {
+          case 'ACTION_CALL_INCOMING':
+            // Received an incoming call
+            debugPrint('Incoming call received');
+            break;
+          case 'ACTION_CALL_ACCEPT':
+            // Call was accepted
+            debugPrint('Call accepted');
+            final extra = event as Map<String, dynamic>?;
+            if (extra != null) {
+              final isVideo = extra['type'] == 1;
+              final meetingId = extra['meetingId'];
+              final channelName = extra['channelName'];
+              final token = extra['token'];
+              final callDuration = extra['callDuration'] ?? '30';
+
+              // Navigate to appropriate call screen
+              if (isVideo) {
+                await Get.to(() => VideoCallLoadingScreen(
+                      participant: User(
+                        sId: extra['callerId'],
+                        name: extra['nameCaller'],
+                        photos:
+                            extra['avatar'] != null ? [extra['avatar']] : [],
+                      ),
+                      type: "video",
+                      scheduleTime: DateTime.now(),
+                      meetingId: meetingId,
+                      token: token,
+                      channel: channelName,
+                    ));
+              } else {
+                await Get.to(() => VoiceCallLoadingScreen(
+                      participant: User(
+                        sId: extra['callerId'],
+                        name: extra['nameCaller'],
+                        photos:
+                            extra['avatar'] != null ? [extra['avatar']] : [],
+                      ),
+                      type: "voice",
+                      scheduleTime: DateTime.now(),
+                      meetingId: meetingId,
+                      token: token,
+                      channel: channelName,
+                    ));
+              }
+            }
+            break;
+          case 'ACTION_CALL_DECLINE':
+            // Call was declined
+            debugPrint('Call declined');
+            final extra = event as Map<String, dynamic>?;
+            if (extra != null) {
+              final meetingId = extra['meetingId'];
+              if (meetingId != null) {
+                await rejectCall(meetingId);
+              }
+            }
+            break;
+          case 'ACTION_CALL_ENDED':
+            // Call ended
+            debugPrint('Call ended');
+            break;
+          case 'ACTION_CALL_TIMEOUT':
+            // Call timed out
+            debugPrint('Call timed out');
+            break;
+          case 'ACTION_CALL_CALLBACK':
+            // Call back action
+            debugPrint('Call back action');
+            break;
+          case 'ACTION_CALL_TOGGLE_MUTE':
+            // Call mute toggled
+            debugPrint('Call mute toggled');
+            break;
+          case 'ACTION_CALL_TOGGLE_DMTF':
+            // Call DTMF toggled
+            debugPrint('Call DTMF toggled');
+            break;
+          case 'ACTION_CALL_TOGGLE_GROUP':
+            // Call group toggled
+            debugPrint('Call group toggled');
+            break;
+          case 'ACTION_CALL_TOGGLE_HOLD':
+            // Call hold toggled
+            debugPrint('Call hold toggled');
+            break;
+          default:
+            // Handle any other events
+            debugPrint('Unhandled call event: ${event.event}');
+            break;
+        }
+      });
 
       var androidInitialize =
           const AndroidInitializationSettings('notification_icon');
@@ -341,265 +440,26 @@ class NotificationHelper {
       return;
     }
 
-    // Extract call data with fallbacks to ensure we always have values
-    final String callerName = message.data['callerName'] ??
-        message.notification?.title?.split(' ')[0] ??
-        message.data['senderName'] ??
-        "Unknown Caller";
-    final String callerInfo = message.notification?.body ?? "Incoming Call";
-    final String callType = message.data['type'] ?? 'voice';
-    final bool isVideo = callType == 'video';
-    final String meetingType = message.data['meetingType'] ?? 'regularMeeting';
-    final bool isInstaTalk = message.data['isInstaTalk'] == 'true';
-    final String callDuration =
-        message.data['duration'] ?? message.data['callDuration'] ?? "30";
-    final String callerImage = message.data['callerImage'] ??
-        message.data['callerProfilePicture'] ??
-        message.data['senderImage'] ??
-        "";
-    final String callerId =
-        message.data['callerId'] ?? message.data['senderId'] ?? "";
-
-    Map<String, dynamic> payloadData = {
-      ...message.data,
-      'callerName': callerName,
-      'callerImage': callerImage,
-      'callAction': 'RECEIVED',
-      'isInstaTalk': isInstaTalk,
-      'meetingType': meetingType,
-      'callerId': callerId,
-      'callDuration': callDuration,
-    };
-    String payload = json.encode(payloadData);
-
-    try {
-      // Use our snackbar notification for in-app experience
-      showCallSnackBar(
-        callerName: callerName,
-        callerImage: callerImage,
-        isVideo: isVideo,
-        meetingId: message.data['meetingId'] ?? "",
-        channelName: message.data['channelName'] ?? "",
-        token: message.data['token'] ?? "",
-        callerId: callerId,
-        callDuration: callDuration,
-        callRate: message.data['callRate'] ?? "0",
-        callerRating: message.data['callerRating'] ?? "0",
-        isInstaTalk: isInstaTalk,
-        meetingType: meetingType,
-      );
-
-      // Play ringtone
-      _playCallRingtone();
-
-      // Also show a system notification with action buttons
-      final androidStyle = await _createCallNotificationStyle(
-        callerName: callerName,
-        callInfo: callerInfo,
-        isVideo: isVideo,
-        callerImage: message.data['callerImage'] ?? '',
-      );
-
-      final AndroidNotificationDetails androidDetails =
-          AndroidNotificationDetails(
-        CALL_CHANNEL_ID,
-        CALL_CHANNEL_NAME,
-        channelDescription: CALL_CHANNEL_DESC,
-        importance: Importance.max,
-        priority: Priority.max,
-        category: AndroidNotificationCategory.call,
-        fullScreenIntent: true,
-        showWhen: true,
-        ongoing: true,
-        autoCancel: false,
-        visibility: NotificationVisibility.public,
-        playSound:
-            false, // Don't play sound from notification since we're using the ringtone player
-        styleInformation: androidStyle,
-        actions: <AndroidNotificationAction>[
-          AndroidNotificationAction(
-            'ACCEPT',
-            'Accept',
-            icon: DrawableResourceAndroidBitmap('call_accept'),
-            showsUserInterface: true,
-            contextual: true,
-          ),
-          AndroidNotificationAction(
-            'DECLINE',
-            'Decline',
-            icon: DrawableResourceAndroidBitmap('call_decline'),
-            showsUserInterface: true,
-            contextual: true,
-          ),
-        ],
-      );
-
-      final DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-        sound: 'default_ringtone.caf',
-        interruptionLevel: InterruptionLevel.critical,
-        categoryIdentifier: 'call_category',
-      );
-
-      final NotificationDetails details = NotificationDetails(
-        android: androidDetails,
-        iOS: iosDetails,
-      );
-
-      // Show notification
-      await _flutterLocalNotificationsPlugin.show(
-        _callNotificationId,
-        "${isVideo ? 'Video' : 'Voice'} Call from $callerName",
-        "Tap to respond", // Simple instruction
-        details,
-        payload: payload,
-      );
-    } catch (e) {
-      debugPrint('Error showing call notification: $e');
-      // Fallback to standard notification if there's an error
-      _showFallbackCallNotification(callerName, isVideo, message, payload);
-    }
-  }
-
-  static void _playCallRingtone() {
-    try {
-      FlutterRingtonePlayer().stop();
-
-      FlutterRingtonePlayer().play(
-        android: AndroidSounds.ringtone,
-        ios: IosSounds.electronic,
-        looping: true,
-        volume: 1.0,
-        asAlarm: true,
-      );
-
-      if (Platform.isAndroid) {
-        const platform = MethodChannel('com.application.iftook/audio');
-        platform.invokeMethod('playRingtoneAsCall');
-      }
-    } catch (e) {
-      debugPrint('Error playing call ringtone: $e');
-    }
-  }
-
-  static Future<void> _showFallbackCallNotification(String callerName,
-      bool isVideo, RemoteMessage message, String payload) async {
-    try {
-      final AndroidNotificationDetails simpleAndroidDetails =
-          AndroidNotificationDetails(
-        CALL_CHANNEL_ID,
-        CALL_CHANNEL_NAME,
-        channelDescription: CALL_CHANNEL_DESC,
-        importance: Importance.max,
-        priority: Priority.max,
-        category: AndroidNotificationCategory.call,
-        fullScreenIntent: true,
-      );
-
-      final NotificationDetails simpleDetails = NotificationDetails(
-        android: simpleAndroidDetails,
-        iOS: const DarwinNotificationDetails(
-          sound: 'default_ringtone.caf',
-          presentAlert: true,
-          presentSound: true,
-          interruptionLevel: InterruptionLevel.critical,
-        ),
-      );
-
-      await _flutterLocalNotificationsPlugin.show(
-        _callNotificationId,
-        callerName,
-        isVideo ? 'Video Call' : 'Voice Call',
-        simpleDetails,
-        payload: payload,
-      );
-    } catch (fallbackError) {
-      debugPrint('Error showing fallback notification: $fallbackError');
-    }
-  }
-
-  static Future<StyleInformation> _createCallNotificationStyle({
-    required String callerName,
-    required String callInfo,
-    required bool isVideo,
-    required String callerImage,
-  }) async {
-    StyleInformation style;
-
-    if (callerImage.isNotEmpty) {
-      try {
-        final String largeIconPath =
-            await _downloadAndSaveFile(callerImage, 'caller_image');
-        style = BigPictureStyleInformation(
-          FilePathAndroidBitmap(largeIconPath),
-          largeIcon: FilePathAndroidBitmap(largeIconPath),
-          contentTitle: callerName,
-          htmlFormatContentTitle: true,
-          summaryText: isVideo ? 'Video Call' : 'Voice Call',
-          htmlFormatSummaryText: true,
-        );
-      } catch (e) {
-        debugPrint('Error creating picture style: $e');
-        style = BigTextStyleInformation(
-          callInfo,
-          htmlFormatBigText: true,
-          contentTitle: callerName,
-          htmlFormatContentTitle: true,
-          summaryText: isVideo ? 'Video Call' : 'Voice Call',
-          htmlFormatSummaryText: true,
-        );
-      }
-    } else {
-      style = BigTextStyleInformation(
-        callInfo,
-        htmlFormatBigText: true,
-        contentTitle: callerName,
-        htmlFormatContentTitle: true,
-        summaryText: isVideo ? 'Video Call' : 'Voice Call',
-        htmlFormatSummaryText: true,
-      );
-    }
-
-    return style;
+    // Use the dedicated call notification service
+    await CallNotificationService().handleIncomingCall(message);
   }
 
   static Future<void> stopCallNotificationEffects() async {
-    try {
-      try {
-        await FlutterRingtonePlayer().stop();
-
-        if (Platform.isAndroid) {
-          const platform = MethodChannel('com.application.iftook/audio');
-          await platform.invokeMethod('stopRingtone');
-        }
-      } catch (e) {
-        debugPrint('Error stopping audio: $e');
-      }
-    } catch (e) {
-      debugPrint('Error stopping notification effects: $e');
-    }
+    await CallNotificationService().endCurrentCall();
   }
 
   static Future<bool> rejectCall(String meetingId) async {
     try {
-      // Cancel the notification
-      await _flutterLocalNotificationsPlugin.cancel(_callNotificationId);
-
-      // Stop audio effects
-      await stopCallNotificationEffects();
+      await CallNotificationService().endCurrentCall();
 
       // Send call rejection notification to backend
       try {
-        // Prepare rejection data
         Map<String, dynamic> rejectionData = {
           'meetingId': meetingId,
           'status': 'rejected',
           'timestamp': DateTime.now().toIso8601String(),
         };
 
-        // Send rejection to API
         final response = await ApiService.rejectCall(meetingId, rejectionData);
 
         if (response.statusCode == 200) {
@@ -610,15 +470,6 @@ class NotificationHelper {
       } catch (e) {
         debugPrint('Exception during call rejection API call: $e');
       }
-
-      // Show confirmation snackbar
-      Get.snackbar(
-        'Call Declined',
-        'You declined the incoming call',
-        backgroundColor: Colors.grey[800],
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
 
       return true;
     } catch (e) {

@@ -25,19 +25,19 @@ class VideoCallScreen extends StatefulWidget {
   final bool isIncomingCall;
 
   const VideoCallScreen({
-    Key? key,
+    Key? key, // Add Key? key here
     required this.meetingId,
     required this.token,
     required this.channel,
-    this.initialTimer = 30,
     this.onSessionEnd,
     this.participant,
     this.isInstaTalk = false,
     this.isTrial = false,
-    this.instaTalkDuration = 30,
+    this.instaTalkDuration = 30, // Default value if not provided
+    required this.initialTimer,
     this.fromChat = false,
     this.isIncomingCall = false,
-  }) : super(key: key);
+  }) : super(key: key); // Pass key to super
 
   @override
   State<VideoCallScreen> createState() => _VideoCallScreenState();

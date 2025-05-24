@@ -7,6 +7,7 @@ import '../../../../helpers/app_colors.dart';
 import '../../../profile/data/models/user.dart';
 import '../../controllers/call_controller.dart';
 import '../../../wallet/controllers/wallet_controller.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 
 class VoiceCallLoadingScreen extends StatefulWidget {
   final User participant;
@@ -42,12 +43,23 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
   late final CallController _callController;
   bool _isSpeakerOn = true;
   bool _isMuted = false;
+  String _loadingStateMessage =
+      'Calling...'; // To manage different loading/failure states
 
   @override
   void initState() {
     super.initState();
     // Initialize CallController if not already initialized
     _callController = Get.put(CallController());
+
+    // Listen to call controller's state for more detailed feedback
+    // Assuming CallController has observables like:
+    // RxString callStatusMessage = 'Calling...'.obs;
+    // RxBool callFailed = false.obs;
+    // For this example, we'll use _loadingStateMessage and update it based on hypothetical controller states.
+
+    // Example of how you might listen to detailed status from CallController:
+    // ever(_callController.callStatus, _handleCallStatusChange);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
@@ -65,12 +77,40 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
 
           // Start call rejection listener for outgoing calls
           _callController.startCallRejectionListener(widget.meetingId!);
+          // Update loading state message based on call controller's status
+          // This is a simplified representation. Ideally, CallController would expose a reactive state.
+          if (_callController.wasCallRejected.value) {
+            // Hypothetically, CallController might have a more specific reason
+            // String reason = _callController.rejectionReason.value; // e.g., "declined", "busy"
+            // For now, we'll use a generic message if wasCallRejected is true before navigation.
+            setState(() {
+              _loadingStateMessage =
+                  "${widget.participant.name ?? 'User'} is unavailable.";
+            });
+            // Potentially show the rejection UI immediately if already rejected.
+            return; // Don't proceed to navigate if already rejected.
+          }
+
+          // End any existing call notifications
+          await FlutterCallkitIncoming.endCall(widget.meetingId!);
 
           // Navigate directly to call screen after a short delay
           // to give the rejection listener time to initialize
-          Future.delayed(Duration(milliseconds: 500), () {
+          Future.delayed(const Duration(milliseconds: 500), () {
             // Don't navigate if component is unmounted or call was rejected
-            if (!mounted || _callController.wasCallRejected.value) return;
+            if (!mounted) return;
+
+            if (_callController.wasCallRejected.value) {
+              // Update UI based on rejection
+              setState(() {
+                // Assuming CallController provides a specific message for rejection/busy.
+                // For example: _loadingStateMessage = _callController.callFailedMessage.value;
+                // If not, use a generic one.
+                _loadingStateMessage =
+                    "${widget.participant.name ?? 'User'} declined the call.";
+              });
+              return;
+            }
 
             print('Navigating to VoiceCallScreen with:');
             print('Is InstaTalk: ${widget.isInstaTalk}');
@@ -104,41 +144,61 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
         print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
         if (widget.isInstaTalk) {
-          _callController.initiateInstaTalkCall(
+          // Listen for immediate failure from initiateInstaTalkCall if it returns a status
+          // or updates an observable in CallController
+          await _callController.initiateInstaTalkCall(
             widget.participant.sId.toString(),
             widget.type,
             isTrial: widget.isTrial,
           );
         } else {
-          _callController.initiateMeetingCall(
+          await _callController.initiateMeetingCall(
             widget.participant.sId.toString(),
             widget.type,
             widget.scheduleTime,
           );
         }
+        // After initiation, check controller status again or rely on listeners
+        // if (_callController.callFailed.value) { // Hypothetical
+        //   setState(() {
+        //     _loadingStateMessage = _callController.callFailedMessage.value;
+        //   });
+        // }
       } catch (e) {
         print('Error initializing voice call: $e');
-        Get.snackbar(
-          'Error',
-          'Failed to initialize voice call: ${e.toString()}',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
+        if (mounted) {
+          setState(() {
+            _loadingStateMessage = 'Failed to connect';
+          });
+        }
       }
     });
   }
 
   void _endCall() {
     try {
-      // Explicitly reject the call when user cancels
       if (widget.meetingId != null) {
-        _callController.rejectCall();
+        _callController
+            .rejectCall(); // This should ideally tell the backend the sender cancelled
+        FlutterCallkitIncoming.endCall(widget.meetingId!);
+      }
+      if (mounted) {
+        setState(() {
+          // Assuming CallController updates a state that leads to wasCallRejected being true
+          // and potentially a message like "Call Cancelled"
+          _loadingStateMessage = "Call Cancelled";
+        });
+        // Delay Get.back to allow UI to update if desired, or handle it via controller state change
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) Get.back();
+        });
+      } else {
+        Get.back();
       }
     } catch (e) {
       print('Error ending call: $e');
+      if (mounted) Get.back();
     }
-
-    Get.back();
   }
 
   void _toggleSpeaker() {
@@ -167,9 +227,38 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
       backgroundColor: const Color(0xFF1A1A1A),
       body: SafeArea(
         child: Obx(() {
-          // Show rejection UI if call has been rejected
-          if (_callController.wasCallRejected.value) {
-            return _buildRejectionUI();
+          // Show rejection/failure UI if call has been rejected or failed
+          // This condition should be driven by more specific states from CallController
+          // For example: if (_callController.callState.value == CallState.rejected || _callController.callState.value == CallState.busy)
+          if (_callController.wasCallRejected.value ||
+              _loadingStateMessage == "Call Cancelled" ||
+              _loadingStateMessage == "Failed to connect" ||
+              _loadingStateMessage.contains("unavailable") ||
+              _loadingStateMessage.contains("declined")) {
+            // Determine the specific message for the UI
+            String statusMessage = _loadingStateMessage;
+            IconData statusIcon = Icons.call_end;
+            Color iconColor = Colors.red;
+
+            // Hypothetical: refine message based on CallController's detailed status
+            // if (_callController.callEndReason.value == "busy") {
+            //   statusMessage = "${widget.participant.name ?? 'User'} is busy";
+            //   statusIcon = Icons.phone_missed; // Or a busy icon
+            // } else if (_callController.callEndReason.value == "declined") {
+            //   statusMessage = "${widget.participant.name ?? 'User'} declined the call";
+            // } else if (_loadingStateMessage == "Call Cancelled") {
+            //   statusMessage = "Call Cancelled";
+            // }
+
+            // For now, we use the _loadingStateMessage directly if it's a failure/rejection state
+            if (_callController.wasCallRejected.value &&
+                !_loadingStateMessage.contains("declined") &&
+                !_loadingStateMessage.contains("unavailable")) {
+              statusMessage =
+                  "${widget.participant.name ?? 'User'} declined the call.";
+            }
+
+            return _buildCallStatusUI(statusMessage, statusIcon, iconColor);
           }
 
           // Otherwise show regular loading UI
@@ -200,6 +289,14 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
                   const Text(
                     'Calling...',
                     style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _loadingStateMessage, // Use the dynamic loading state message
+                    style: const TextStyle(
                       fontSize: 18,
                       color: Colors.white,
                     ),
@@ -247,8 +344,8 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
     );
   }
 
-  // New method to build UI when call is rejected
-  Widget _buildRejectionUI() {
+  // Renamed and generalized UI for various call end/failure statuses
+  Widget _buildCallStatusUI(String message, IconData icon, Color iconColor) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -263,14 +360,15 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
                 : null,
           ),
           const SizedBox(height: 30),
-          const Icon(
-            Icons.call_end,
-            color: Colors.red,
+          Icon(
+            icon,
+            color: iconColor,
             size: 50,
           ),
           const SizedBox(height: 20),
           Text(
-            "${widget.participant.name} declined the call",
+            message, // Display the specific message
+            textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
@@ -289,7 +387,9 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
             onPressed: () => Get.back(),
             child: const Text(
               "Go Back",
-              style: TextStyle(fontSize: 18),
+              style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.white), // Ensure text color is white
             ),
           ),
         ],

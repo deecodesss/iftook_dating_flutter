@@ -1230,18 +1230,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
-                                      isUserInCall
-                                          ? Icons.call_end_rounded
-                                          : Icons.call_outlined,
-                                      size: 12,
-                                      color: isUserInCall
-                                          ? Colors.red
-                                          : Colors.green,
-                                    ),
-                                    const SizedBox(width: 4),
                                     Text(
-                                      isUserInCall ? 'IN CALL' : 'FREE',
+                                      isUserInCall ? 'IN CALL' : 'IDLE',
                                       style: TextStyle(
                                         color: isUserInCall
                                             ? Colors.red
@@ -1259,6 +1249,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
+                              borderRadius:
+                                  BorderRadius.all(Radius.circular(12)),
                               color: Colors.blueGrey.withOpacity(0.1),
                             ),
                             child: Row(
@@ -2242,7 +2234,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                                         ),
                                       ),
                                       child: Text(
-                                        isUserInCall ? 'IN CALL' : 'FREE',
+                                        isUserInCall ? 'IN CALL' : 'IDLE',
                                         style: TextStyle(
                                           color: isUserInCall
                                               ? Colors.red
@@ -2265,7 +2257,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    '$typeText InstaTalk',
+                                    '$typeText',
                                     style: TextStyle(
                                       color: Colors.grey[400],
                                       fontSize: 13,
@@ -2296,13 +2288,9 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    isNearExpiration && !isExpired
-                                        ? 'Expires in ${minutesRemaining}m'
-                                        : timeAgo,
+                                    timeAgo,
                                     style: TextStyle(
-                                      color: isNearExpiration && !isExpired
-                                          ? Colors.orange
-                                          : Colors.grey[500],
+                                      color: Colors.grey[500],
                                       fontSize: 12,
                                       fontStyle: FontStyle.italic,
                                       fontWeight: isNearExpiration && !isExpired
@@ -2333,9 +2321,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              isSender
-                                  ? 'You sent a quick $type InstaTalk to $displayName'
-                                  : '$displayName sent you a quick $type InstaTalk request',
+                              isSender ? 'Sent' : 'Received',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: isSender

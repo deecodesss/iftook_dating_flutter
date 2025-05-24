@@ -11,6 +11,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/calls/services/call_duration_service.dart';
 import 'package:iftook/features/friends/controllers/chat_controller.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 
 class VoiceCallScreen extends StatefulWidget {
   final String meetingId;
@@ -121,6 +122,13 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     // Start timers
     _checkPermissions();
     _setupCallController();
+
+    // End any existing call notifications.
+    // This is generally safe. If CallNotificationService handled a call that led here,
+    // its ID might be different, or endCall is idempotent for non-existent IDs.
+    // For outgoing calls, this ensures no stale CallKit UI.
+    // For incoming calls accepted via CallKit, CallNotificationService should have already ended it.
+    FlutterCallkitIncoming.endCall(widget.meetingId);
   }
 
   Future<void> _checkPermissions() async {
@@ -132,7 +140,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   }
 
   Future<void> _initializeDurationService() async {
-    if (widget.participant != null) {
+    if (widget.participant != null && widget.participant!.sId != null) {
       await _durationService.initialize(widget.participant!.sId!);
     }
   }
@@ -699,6 +707,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     _walletRefreshTimer?.cancel();
     _autoPaymentEnabled = false;
 
+    // End the call in CallKit
+    FlutterCallkitIncoming.endCall(widget.meetingId);
+
     if (widget.onSessionEnd != null) {
       widget.onSessionEnd!();
     }
@@ -724,6 +735,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     _walletRefreshTimer?.cancel();
     _autoPaymentEnabled = false;
     _durationService.reset();
+
+    // End the call in CallKit
+    FlutterCallkitIncoming.endCall(widget.meetingId);
+
     super.dispose();
   }
 
