@@ -42,6 +42,10 @@ android {
         targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Add or update this line to support Android 13 telecom service
+        minSdkVersion 21
+        targetSdkVersion 33
     }
 
     buildTypes {
@@ -50,10 +54,17 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.debug
             signingConfig = signingConfigs.release
+
+            // Make sure your ProGuard rules are properly referenced
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // ...existing code...
 }

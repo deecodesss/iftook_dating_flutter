@@ -16,6 +16,21 @@ import 'package:flutter/material.dart';
 import '../presentation/screens/voice_call_screen.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 
+// Define call states for better state management
+enum CallState {
+  idle, // No active call
+  initializing, // Setting up call
+  outgoing, // Outgoing call, waiting for remote user
+  incoming, // Incoming call
+  connecting, // Connecting to call server
+  connected, // Call connected
+  disconnected, // Call ended normally
+  rejected, // Call rejected by callee
+  missed, // Call missed/timed out
+  failed, // Call failed to connect
+  busy // Remote user is busy
+}
+
 class CallController extends GetxController {
   final ApiService _apiService = ApiService();
   RxBool isTransferring = false.obs;
@@ -33,7 +48,13 @@ class CallController extends GetxController {
   final hasRemoteUserJoined = false.obs;
   final isCallActive = false.obs;
   final wasCallRejected = false.obs;
+  final wasCallBusy = false.obs; // Add flag for busy state
+  final wasCallFailed = false.obs; // Add flag for failure
   final rejectedBy = ''.obs;
+
+  // Call state management
+  final Rx<CallState> currentCallState = Rx<CallState>(CallState.idle);
+  final RxString callStatusMessage = RxString('');
 
   // For call rejection handling
   Timer? _callRejectionCheckTimer;
@@ -43,6 +64,72 @@ class CallController extends GetxController {
 
   // Get current call type
   RxString callType = ''.obs;
+
+  // Track if call is incoming vs outgoing for UI differences
+  RxBool isIncomingCall = false.obs;
+
+  // Method to update call state and status message
+  void updateCallState(CallState newState, {String? message}) {
+    currentCallState.value = newState;
+
+    // Set default message based on state if none provided
+    if (message == null) {
+      switch (newState) {
+        case CallState.idle:
+          callStatusMessage.value = '';
+          break;
+        case CallState.initializing:
+          callStatusMessage.value = 'Initializing call...';
+          break;
+        case CallState.outgoing:
+          callStatusMessage.value = 'Calling...';
+          break;
+        case CallState.incoming:
+          callStatusMessage.value = 'Incoming call...';
+          break;
+        case CallState.connecting:
+          callStatusMessage.value = 'Connecting...';
+          break;
+        case CallState.connected:
+          callStatusMessage.value = 'Connected';
+          break;
+        case CallState.disconnected:
+          callStatusMessage.value = 'Call ended';
+          break;
+        case CallState.rejected:
+          callStatusMessage.value = 'Call rejected';
+          wasCallRejected.value = true;
+          break;
+        case CallState.missed:
+          callStatusMessage.value = 'Call missed';
+          break;
+        case CallState.failed:
+          callStatusMessage.value = 'Call failed';
+          wasCallFailed.value = true;
+          break;
+        case CallState.busy:
+          callStatusMessage.value = 'User is busy';
+          wasCallBusy.value = true;
+          break;
+      }
+    } else {
+      callStatusMessage.value = message;
+    }
+
+    // Update call status for UI components that use this
+    callStatus.value = callStatusMessage.value;
+
+    // Set rejection flags based on state
+    if (newState == CallState.rejected) {
+      wasCallRejected.value = true;
+    }
+    if (newState == CallState.busy) {
+      wasCallBusy.value = true;
+    }
+
+    debugPrint(
+        '📞 Call state changed to: $newState with message: ${callStatusMessage.value}');
+  }
 
   Future<void> handleCameraAndMic(Permission permisison) async {
     final status = await permisison.request();
@@ -54,6 +141,8 @@ class CallController extends GetxController {
     // Update meetingId and reset rejection state
     meetingId.value = callMeetingId;
     wasCallRejected.value = false;
+    wasCallBusy.value = false;
+    wasCallFailed.value = false;
     isCallActive.value = true;
 
     // Listen for call rejection via stream instead of direct socket event
@@ -61,7 +150,13 @@ class CallController extends GetxController {
       print('📱 Call rejection event received from stream: $data');
       if (data != null && data['meetingId'] == meetingId.value) {
         final rejectorId = data['rejectedBy'] ?? '';
-        _handleCallRejection(rejectorId);
+        final status = data['status'] ?? 'rejected';
+
+        if (status == 'busy') {
+          _handleCallBusy(rejectorId);
+        } else {
+          _handleCallRejection(rejectorId);
+        }
       }
     });
 
@@ -74,13 +169,32 @@ class CallController extends GetxController {
 
   // Method to check call status via API
   Future<void> _checkCallStatus(String callMeetingId) async {
-    if (wasCallRejected.value) return;
+    if (wasCallRejected.value ||
+        wasCallBusy.value ||
+        currentCallState.value == CallState.connected) {
+      return;
+    }
 
     try {
-      final statusData = await ChatCallService.getCallStatus(callMeetingId);
-      if (statusData != null && statusData['status'] == 'rejected') {
-        final rejectorId = statusData['rejectedBy'] ?? '';
-        _handleCallRejection(rejectorId);
+      final response = await ApiService.getCallStatus(callMeetingId);
+
+      if (response.statusCode == 200) {
+        final statusData = json.decode(response.body);
+        final status = statusData['status'];
+
+        if (status == 'rejected') {
+          final rejectorId = statusData['rejectedBy'] ?? '';
+          _handleCallRejection(rejectorId);
+        } else if (status == 'busy') {
+          final rejectorId = statusData['rejectedBy'] ?? '';
+          _handleCallBusy(rejectorId);
+        } else if (status == 'ended' &&
+            currentCallState.value != CallState.connected &&
+            !hasRemoteUserJoined.value) {
+          // Call was ended before connecting - likely cancelled by caller
+          updateCallState(CallState.disconnected, message: 'Call cancelled');
+          stopCallRejectionListener();
+        }
       }
     } catch (e) {
       print('Error checking call status: $e');
@@ -89,14 +203,20 @@ class CallController extends GetxController {
 
   // Unified method to handle call rejection
   void _handleCallRejection(String rejectorId) {
-    wasCallRejected.value = true;
-    rejectedBy.value = rejectorId;
-    callStatus.value = "Call declined";
-    isCallActive.value = false;
-    _callRejectionCheckTimer?.cancel();
+    if (wasCallRejected.value) return; // Prevent duplicate handling
 
-    // We'll handle the UI directly in the loading screens
-    // by observing the wasCallRejected value
+    rejectedBy.value = rejectorId;
+    updateCallState(CallState.rejected);
+    _callRejectionCheckTimer?.cancel();
+  }
+
+  // New method to handle busy state
+  void _handleCallBusy(String busyUserId) {
+    if (wasCallBusy.value) return; // Prevent duplicate handling
+
+    rejectedBy.value = busyUserId;
+    updateCallState(CallState.busy);
+    _callRejectionCheckTimer?.cancel();
   }
 
   // Clean up call rejection listeners
@@ -110,9 +230,11 @@ class CallController extends GetxController {
       {bool isInstaTalk = false, bool isTrial = false}) async {
     try {
       isJoining(true);
-      callStatus('Initializing call...');
-      // Set call type
+      updateCallState(CallState.initializing);
+
+      // Set call type and mark as outgoing
       callType.value = type;
+      isIncomingCall.value = false;
 
       final response =
           await ApiService.initiateCall(participantId, type, scheduleTime);
@@ -123,6 +245,7 @@ class CallController extends GetxController {
         final responseMap = jsonDecode(response.body)['data'];
 
         if (responseMap == null) {
+          updateCallState(CallState.failed, message: 'Invalid response data');
           throw Exception('Invalid response data');
         }
 
@@ -138,10 +261,12 @@ class CallController extends GetxController {
             '\nisTrial: $isTrial');
 
         if (channel.value.isEmpty || token.value.isEmpty) {
+          updateCallState(CallState.failed,
+              message: 'Missing channel or token');
           throw Exception('Missing channel or token');
         }
 
-        callStatus('Joining call...');
+        updateCallState(CallState.outgoing);
 
         // Start listening for call rejection
         startCallRejectionListener(meetingId.value);
@@ -176,21 +301,38 @@ class CallController extends GetxController {
           );
         }
       } else {
+        updateCallState(CallState.failed,
+            message: 'Call initiation failed: ${response.statusCode}');
         throw Exception('Call initiation failed: ${response.statusCode}');
       }
     } catch (e) {
       isJoining(false);
-      callStatus('Error: ${e.toString()}');
+      updateCallState(CallState.failed, message: 'Error: ${e.toString()}');
       rethrow;
     }
   }
 
   // Call this when user explicitly ends/cancels a call
   Future<void> rejectCall() async {
-    if (meetingId.value.isNotEmpty) {
-      await ChatCallService.rejectCall(meetingId.value);
+    try {
+      if (meetingId.value.isNotEmpty) {
+        final userId = await SharedPrefs.getUserIdSharedPreference();
+
+        // Send rejection to backend
+        await ApiService.rejectCall(meetingId.value, {
+          'meetingId': meetingId.value,
+          'status': 'rejected',
+          'rejectedBy': userId,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+
+        updateCallState(CallState.disconnected, message: 'Call ended');
+      }
+    } catch (e) {
+      print('Error rejecting call: $e');
+    } finally {
+      stopCallRejectionListener();
     }
-    stopCallRejectionListener();
   }
 
   bool isFreeCall(double? callRate) {
@@ -275,7 +417,8 @@ class CallController extends GetxController {
   // Different initiate methods for InstaTalk and regular meetings
   Future<void> initiateInstaTalkCall(String participantId, String type,
       {bool isTrial = false}) async {
-    callStatus('Starting InstaTalk call...');
+    updateCallState(CallState.initializing,
+        message: 'Starting InstaTalk call...');
     await initiateCall(participantId, type, DateTime.now(),
         isInstaTalk: true, isTrial: isTrial);
   }
@@ -283,8 +426,11 @@ class CallController extends GetxController {
   Future<void> initiateMeetingCall(
       String participantId, String type, DateTime scheduleTime) async {
     try {
-      callStatus('Starting scheduled call...');
+      updateCallState(CallState.initializing,
+          message: 'Starting scheduled call...');
       callType.value = type;
+      isIncomingCall.value = false;
+
       print('Initiating meeting call for existing meeting');
       print('Participant: $participantId');
       print('Type: $type');
@@ -307,20 +453,36 @@ class CallController extends GetxController {
         token.value = responseMap['token'] ?? '';
 
         if (channel.value.isEmpty || token.value.isEmpty) {
+          updateCallState(CallState.failed,
+              message: 'Invalid meeting credentials received');
           throw Exception('Invalid meeting credentials received');
         }
+
+        updateCallState(CallState.outgoing);
 
         print('Successfully initialized meeting:'
             '\nChannel: ${channel.value}'
             '\nMeeting ID: ${meetingId.value}'
             '\nToken: ${token.value}');
       } else {
+        updateCallState(CallState.failed,
+            message: 'Failed to initialize meeting: ${response.statusCode}');
         throw Exception('Failed to initialize meeting: ${response.statusCode}');
       }
     } catch (e) {
       print('Error initiating meeting call: $e');
+      updateCallState(CallState.failed, message: 'Error: $e');
       throw e;
     }
+  }
+
+  // Prepare for incoming call
+  void setupIncomingCall(String callId, String callChannel, String callToken) {
+    meetingId.value = callId;
+    channel.value = callChannel;
+    token.value = callToken;
+    isIncomingCall.value = true;
+    updateCallState(CallState.incoming);
   }
 
   void initializeEventHandlers() {
@@ -330,6 +492,8 @@ class CallController extends GetxController {
           print('Local user joined channel: ${connection.channelId}');
           isCallActive.value = true;
           isCallConnected.value = true;
+          updateCallState(CallState.connecting,
+              message: 'Waiting for other participant...');
 
           // Notify call status system that user has joined a call
           _notifyUserJoinedCall();
@@ -338,6 +502,7 @@ class CallController extends GetxController {
           print('Remote user joined: $uid');
           _remoteUid.value = uid;
           hasRemoteUserJoined.value = true;
+          updateCallState(CallState.connected);
 
           // If we're in loading screen, navigate to main call screen
           if (Get.currentRoute.contains('loading')) {
@@ -354,6 +519,11 @@ class CallController extends GetxController {
           print('Remote user left: $uid');
           _remoteUid.value = 0;
           hasRemoteUserJoined.value = false;
+          updateCallState(CallState.disconnected,
+              message: reason == UserOfflineReasonType.userOfflineQuit
+                  ? 'User ended call'
+                  : 'User disconnected');
+
           // Auto end call and go back when remote user leaves
           endCall();
           Get.back();
@@ -361,8 +531,23 @@ class CallController extends GetxController {
         onConnectionStateChanged: (RtcConnection connection,
             ConnectionStateType state, ConnectionChangedReasonType reason) {
           print('Connection state changed: $state reason: $reason');
-          isCallConnected.value =
-              (state == ConnectionStateType.connectionStateConnected);
+
+          if (state == ConnectionStateType.connectionStateConnecting) {
+            updateCallState(CallState.connecting);
+          } else if (state == ConnectionStateType.connectionStateConnected) {
+            isCallConnected.value = true;
+            if (hasRemoteUserJoined.value) {
+              updateCallState(CallState.connected);
+            } else {
+              updateCallState(CallState.connecting,
+                  message: 'Waiting for other participant...');
+            }
+          } else if (state == ConnectionStateType.connectionStateFailed) {
+            updateCallState(CallState.failed,
+                message: 'Connection failed: $reason');
+          } else if (state == ConnectionStateType.connectionStateDisconnected) {
+            updateCallState(CallState.disconnected);
+          }
         },
       ),
     );
@@ -443,6 +628,8 @@ class CallController extends GetxController {
       hasRemoteUserJoined.value = false;
       isCallConnected.value = false;
 
+      updateCallState(CallState.disconnected);
+
       // Notify call status system that user has left a call
       _notifyUserLeftCall();
     } catch (e) {
@@ -453,17 +640,44 @@ class CallController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+
     // Initialize call status controller
     if (!Get.isRegistered<CallStatusController>()) {
       Get.put(CallStatusController());
     }
     _callStatusController = Get.find<CallStatusController>();
+
+    // Set initial call state
+    updateCallState(CallState.idle);
   }
 
   @override
   void onClose() {
     stopSessionTimer();
     stopCallRejectionListener();
+
+    // Reset all call state
+    updateCallState(CallState.idle);
+    wasCallRejected.value = false;
+    wasCallBusy.value = false;
+    wasCallFailed.value = false;
+
     super.onClose();
+  }
+
+  // Reset call state - used when returning to idle
+  void resetCallState() {
+    wasCallRejected.value = false;
+    wasCallBusy.value = false;
+    wasCallFailed.value = false;
+    hasRemoteUserJoined.value = false;
+    isCallConnected.value = false;
+    isCallActive.value = false;
+    isIncomingCall.value = false;
+    updateCallState(CallState.idle);
+    meetingId.value = '';
+    channel.value = '';
+    token.value = '';
+    stopCallRejectionListener();
   }
 }

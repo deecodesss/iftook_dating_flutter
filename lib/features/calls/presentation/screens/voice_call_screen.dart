@@ -713,6 +713,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     if (widget.onSessionEnd != null) {
       widget.onSessionEnd!();
     }
+    Get.back();
 
     if (_hasRenewedSession) {
       Get.off(() => AddReviewScreen(
@@ -915,9 +916,28 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
 
           const SizedBox(height: 50),
 
-          // Return to home button
+          // Return to home button - Fix navigation
           ElevatedButton(
-            onPressed: () => Get.back(),
+            onPressed: () {
+              debugPrint('Return to Home button pressed in VoiceCallScreen');
+
+              // Ensure we end the call properly first
+              if (_isEngineInitialized) {
+                _engine.leaveChannel();
+                _engine.release();
+              }
+
+              // End any call notifications
+              FlutterCallkitIncoming.endAllCalls();
+
+              // Navigate to home - use both methods for reliability
+              Get.offAllNamed('/');
+
+              // Alternative if the above doesn't work
+              if (Get.currentRoute != '/') {
+                Get.until((route) => route.isFirst);
+              }
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryColor,
               foregroundColor: Colors.white,

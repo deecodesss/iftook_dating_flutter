@@ -2407,49 +2407,65 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                                           ],
                                         ),
                                         const SizedBox(height: 8),
-                                        // Text(
-                                        //   'For voice and video calls, only the person who created the InstaTalk can initiate the call',
-                                        //   style: TextStyle(
-                                        //     color: Colors.amber.shade700,
-                                        //     fontSize: 11,
-                                        //   ),
-                                        // ),
                                       ],
                                     ),
                                   )
-                                : ElevatedButton.icon(
-                                    onPressed: (hasUsedTime ||
-                                            !isOtherUserOnline ||
-                                            isUserInCall ||
-                                            ((type == 'voice' ||
-                                                    type == 'video') &&
-                                                !isSender))
-                                        ? null
-                                        : () => _joinInstaTalk(instaTalk),
-                                    icon: _getTypeIcon(type),
-                                    label: Text(hasUsedTime
-                                        ? 'Already Joined'
-                                        : isUserInCall
-                                            ? 'User is in a Call'
-                                            : !isOtherUserOnline
-                                                ? 'Waiting for User to be Online'
-                                                : 'Join InstaTalk'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: hasUsedTime
-                                          ? Colors.grey
-                                          : isUserInCall
-                                              ? Colors.red.shade400
-                                              : !isOtherUserOnline
-                                                  ? Colors.amber
-                                                  : Colors.green,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 12),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
+                                : hasUsedTime
+                                    ? Padding(
+                                        padding: const EdgeInsets.only(top: 16),
+                                        child: ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                AppColors.primaryColor,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          onPressed: () =>
+                                              _showContinueInstaTalkDialog(
+                                                  instaTalk),
+                                          child: Text(
+                                            'Renew',
+                                            style: GoogleFonts.manrope(
+                                                color: Colors.white),
+                                          ),
+                                        ),
+                                      )
+                                    : ElevatedButton.icon(
+                                        onPressed: (hasUsedTime ||
+                                                !isOtherUserOnline ||
+                                                isUserInCall ||
+                                                ((type == 'voice' ||
+                                                        type == 'video') &&
+                                                    !isSender))
+                                            ? null
+                                            : () => _joinInstaTalk(instaTalk),
+                                        icon: _getTypeIcon(type),
+                                        label: Text(hasUsedTime
+                                            ? 'Already Joined'
+                                            : isUserInCall
+                                                ? 'User is in a Call'
+                                                : !isOtherUserOnline
+                                                    ? 'Waiting for User to be Online'
+                                                    : 'Join InstaTalk'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: hasUsedTime
+                                              ? Colors.grey
+                                              : isUserInCall
+                                                  ? Colors.red.shade400
+                                                  : !isOtherUserOnline
+                                                      ? Colors.amber
+                                                      : Colors.green,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 12),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
                           ),
                         ),
                     ],
@@ -2512,57 +2528,56 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                           ),
                         ),
                       ),
-                    if (isExpired)
+
+                    if (!isOtherUserOnline &&
+                        !isAccepted &&
+                        isActive &&
+                        !hasUsedTime)
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
                         child: Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.grey.withOpacity(0.1),
+                            color: Colors.blueAccent.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border:
-                                Border.all(color: Colors.grey.withOpacity(0.3)),
+                            border: Border.all(
+                                color: Colors.blueAccent.withOpacity(0.3)),
                           ),
                           child: Row(
                             children: [
-                              Icon(
-                                Icons.timer_off_outlined,
-                                color: Colors.grey[400],
-                                size: 16,
-                              ),
+                              Icon(Icons.timer_outlined,
+                                  color: Colors.blueAccent, size: 16),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'This InstaTalk request has expired',
+                                  'Waiting for ${displayName} to acccept the request',
                                   style: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 12,
-                                  ),
+                                      color: Colors.blueAccent, fontSize: 12),
                                 ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                    if (isExpired || hasUsedTime)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          onPressed: () =>
-                              _showContinueInstaTalkDialog(instaTalk),
-                          child: Text(
-                            'Continue Session',
-                            style: GoogleFonts.manrope(color: Colors.white),
-                          ),
-                        ),
-                      ),
+                    // if (hasUsedTime)
+                    //   Padding(
+                    //     padding: const EdgeInsets.only(top: 16),
+                    //     child: ElevatedButton(
+                    //       style: ElevatedButton.styleFrom(
+                    //         backgroundColor: AppColors.primaryColor,
+                    //         shape: RoundedRectangleBorder(
+                    //           borderRadius: BorderRadius.circular(8),
+                    //         ),
+                    //       ),
+                    //       onPressed: () =>
+                    //           _showContinueInstaTalkDialog(instaTalk),
+                    //       child: Text(
+                    //         'Continue Session',
+                    //         style: GoogleFonts.manrope(color: Colors.white),
+                    //       ),
+                    //     ),
+                    //   ),
                     if (isUserInCall && isAccepted && isActive && !hasUsedTime)
                       Padding(
                         padding: const EdgeInsets.only(top: 12),

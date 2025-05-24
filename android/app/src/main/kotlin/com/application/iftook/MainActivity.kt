@@ -1,5 +1,6 @@
 package com.application.iftook
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
@@ -15,6 +16,7 @@ class MainActivity: FlutterActivity() {
     private val AUDIO_CHANNEL = "com.application.iftook/audio"
     private val RESOURCES_CHANNEL = "com.application.iftook/resources"
     private val SCREEN_CHANNEL = "com.application.iftook/screen"
+    private val CHANNEL = "com.iftook.app/intent"
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,6 +30,8 @@ class MainActivity: FlutterActivity() {
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
             WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         )
+        
+        handleIntent(intent)
     }
     
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -63,5 +67,37 @@ class MainActivity: FlutterActivity() {
         // Register the screen method channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SCREEN_CHANNEL)
             .setMethodCallHandler(ScreenMethodChannel(context))
+        
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+            // Handle method calls from Flutter here
+        }
+    }
+    
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+    
+    private fun handleIntent(intent: Intent) {
+        // Extract call actions from intent
+        val callAction = intent.getStringExtra("call_action")
+        val callId = intent.getStringExtra("call_id")
+        val isVideo = intent.getBooleanExtra("is_video", false)
+        
+        if (callAction != null && callId != null) {
+            // Send to Flutter
+            val args = HashMap<String, Any>()
+            args["call_action"] = callAction
+            args["call_id"] = callId
+            if (isVideo) {
+                args["is_video"] = true
+            }
+            
+            if (flutterEngine != null) {
+                MethodChannel(flutterEngine!!.dartExecutor.binaryMessenger, CHANNEL)
+                    .invokeMethod("onNewIntent", args)
+            }
+        }
     }
 }
