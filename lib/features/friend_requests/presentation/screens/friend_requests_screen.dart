@@ -19,6 +19,7 @@ import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:iftook/features/calls/controllers/call_status_controller.dart';
+import 'package:iftook/features/calls/services/chat_call_service.dart';
 
 import '../../../../core/services/shared_prefs.dart';
 import '../../../friends/controllers/chat_controller.dart';
@@ -666,29 +667,31 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
 
         switch (type) {
           case 'voice':
-            await Get.to(() => VoiceCallLoadingScreen(
-                  participant: participant,
-                  scheduleTime: scheduledTime,
-                  type: "voice",
-                  isInstaTalk: false,
-                  meetingId: meetingId,
-                  token: token,
-                  channel: channelName,
-                  instaTalkDuration: meeting['duration'] ?? 30,
-                ));
+            // await Get.to(() => VoiceCallLoadingScreen(
+            //       participant: participant,
+            //       scheduleTime: scheduledTime,
+            //       type: "voice",
+            //       isInstaTalk: false,
+            //       meetingId: meetingId, // Ensure meetingId is passed
+            //       token: token,
+            //       channel: channelName,
+            //       instaTalkDuration: meeting['duration'] ?? 30,
+            //     ));
+            await _handleChatVoiceCall(participant);
             break;
 
           case 'video':
-            await Get.to(() => VideoCallLoadingScreen(
-                  participant: participant,
-                  scheduleTime: scheduledTime,
-                  type: "video",
-                  isInstaTalk: false,
-                  meetingId: meetingId,
-                  token: token,
-                  channel: channelName,
-                  instaTalkDuration: meeting['duration'] ?? 30,
-                ));
+            // await Get.to(() => VideoCallLoadingScreen(
+            //       participant: participant,
+            //       scheduleTime: scheduledTime,
+            //       type: "video",
+            //       isInstaTalk: false,
+            //       meetingId: meetingId, // Ensure meetingId is passed
+            //       token: token,
+            //       channel: channelName,
+            //       instaTalkDuration: meeting['duration'] ?? 30,
+            //     ));
+            await _handleChatVideoCall(participant);
             break;
 
           case 'chat':
@@ -704,27 +707,30 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         }
       } else {
         print(
-            'WARNING: No Agora credentials found in meeting data. Initiating new call.');
+            'WARNING: No Agora credentials found in meeting data. Initiating new call with meetingId: $meetingId');
 
-        // If token and channel aren't available, we'll need to initiate a new call
-        // This will generate new credentials through the API
+        // Critical fix: Always pass the meetingId parameter even when token/channel aren't available
         switch (type) {
           case 'voice':
-            await Get.to(() => VoiceCallLoadingScreen(
-                  participant: participant,
-                  scheduleTime: scheduledTime,
-                  type: "voice",
-                  isInstaTalk: false,
-                ));
+            // await Get.to(() => VoiceCallLoadingScreen(
+            //       participant: participant,
+            //       scheduleTime: scheduledTime,
+            //       type: "voice",
+            //       isInstaTalk: false,
+            //       meetingId: meetingId, // Add meetingId here
+            //     ));
+            await _handleChatVoiceCall(participant);
             break;
 
           case 'video':
-            await Get.to(() => VideoCallLoadingScreen(
-                  participant: participant,
-                  scheduleTime: scheduledTime,
-                  type: "video",
-                  isInstaTalk: false,
-                ));
+            // await Get.to(() => VideoCallLoadingScreen(
+            //       participant: participant,
+            //       scheduleTime: scheduledTime,
+            //       type: "video",
+            //       isInstaTalk: false,
+            //       meetingId: meetingId, // Add meetingId here
+            //     ));
+            await _handleChatVideoCall(participant);
             break;
 
           case 'chat':
@@ -747,6 +753,98 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         backgroundColor: Colors.red.withOpacity(0.8),
         colorText: Colors.white,
       );
+    }
+  }
+
+  _handleChatVideoCall(participant) async {
+    try {
+      Get.dialog(
+        const Center(child: CircularProgressIndicator()),
+        barrierDismissible: false,
+      );
+
+      final callData = await ChatCallService.initiateChatCall(
+        participant.sId!,
+        'video',
+      );
+
+      Get.back(); // Close loading dialog
+
+      if (callData != null) {
+        print('Video call initialized with data: $callData');
+
+        await Get.to(() => VideoCallLoadingScreen(
+              participant: participant,
+              type: "video",
+              scheduleTime: DateTime.now(),
+              meetingId: callData['meetingId'],
+              token: callData['token'],
+              channel: callData['channelName'],
+            ));
+      }
+    } catch (e) {
+      Get.back(); // Close loading dialog
+      if (e.toString().contains('already in progress')) {
+        Get.snackbar(
+          'Please Wait',
+          'A call request is already being processed',
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+        );
+      } else {
+        Get.snackbar(
+          'Error',
+          'Could not start video call: ${e.toString()}',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    }
+  }
+
+  _handleChatVoiceCall(participant) async {
+    try {
+      Get.dialog(
+        const Center(child: CircularProgressIndicator()),
+        barrierDismissible: false,
+      );
+
+      final callData = await ChatCallService.initiateChatCall(
+        participant.sId!,
+        'voice',
+      );
+
+      Get.back(); // Close loading dialog
+
+      if (callData != null) {
+        print('Voice call initialized with data: $callData');
+
+        await Get.to(() => VoiceCallLoadingScreen(
+              participant: participant,
+              type: "voice",
+              scheduleTime: DateTime.now(),
+              meetingId: callData['meetingId'],
+              token: callData['token'],
+              channel: callData['channelName'],
+            ));
+      }
+    } catch (e) {
+      Get.back(); // Close loading dialog
+      if (e.toString().contains('already in progress')) {
+        Get.snackbar(
+          'Please Wait',
+          'A call request is already being processed',
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+        );
+      } else {
+        Get.snackbar(
+          'Error',
+          'Could not start voice call: ${e.toString()}',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
     }
   }
 
@@ -2066,552 +2164,567 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
 
         // Add nested StreamBuilder for call status
         return StreamBuilder<Map<String, dynamic>>(
-          stream: Get.find<CallStatusController>()
-              .getUserCallStatusStream(otherUserId),
-          initialData: {'inCall': false},
-          builder: (context, callSnapshot) {
-            final bool isUserInCall = callSnapshot.data?['inCall'] ?? false;
-            final String? callType = callSnapshot.data?['callType'];
+            stream: Get.find<CallStatusController>()
+                .getUserCallStatusStream(otherUserId),
+            initialData: {'inCall': false},
+            builder: (context, callSnapshot) {
+              final bool isUserInCall = callSnapshot.data?['inCall'] ?? false;
+              final String? callType = callSnapshot.data?['callType'];
 
-            final bool canJoin = isAccepted &&
-                isActive &&
-                !hasUsedTime &&
-                isOtherUserOnline &&
-                !isUserInCall;
+              final bool canJoin = isAccepted &&
+                  isActive &&
+                  !hasUsedTime &&
+                  isOtherUserOnline &&
+                  !isUserInCall;
 
-            final DateTime createdAt =
-                DateTime.parse(instaTalk['scheduledTime']);
-            final String timeAgo = timeago.format(createdAt);
+              final DateTime createdAt =
+                  DateTime.parse(instaTalk['scheduledTime']);
+              final String timeAgo = timeago.format(createdAt);
 
-            final now = DateTime.now();
-            final int minutesSinceCreation =
-                now.difference(createdAt).inMinutes;
-            final int minutesRemaining = 60 - minutesSinceCreation;
-            final bool isNearExpiration =
-                minutesRemaining <= 10 && minutesRemaining > 0;
+              final now = DateTime.now();
+              final int minutesSinceCreation =
+                  now.difference(createdAt).inMinutes;
+              final int minutesRemaining = 60 - minutesSinceCreation;
+              final bool isNearExpiration =
+                  minutesRemaining <= 10 && minutesRemaining > 0;
 
-            IconData typeIcon;
-            String typeText;
-            switch (type) {
-              case 'voice':
-                typeIcon = Icons.call_outlined;
-                typeText = 'Voice';
-                break;
-              case 'video':
-                typeIcon = Icons.videocam_outlined;
-                typeText = 'Video';
-                break;
-              default:
-                typeIcon = Icons.chat_outlined;
-                typeText = 'Chat';
-            }
+              IconData typeIcon;
+              String typeText;
+              switch (type) {
+                case 'voice':
+                  typeIcon = Icons.call_outlined;
+                  typeText = 'Voice';
+                  break;
+                case 'video':
+                  typeIcon = Icons.videocam_outlined;
+                  typeText = 'Video';
+                  break;
+                default:
+                  typeIcon = Icons.chat_outlined;
+                  typeText = 'Chat';
+              }
 
-            Color borderColor;
-            if (isExpired) {
-              borderColor = Colors.grey.withOpacity(0.5);
-            } else if (isAccepted) {
-              borderColor = Colors.green.withOpacity(0.5);
-            } else {
-              borderColor = Colors.amber.withOpacity(0.5);
-            }
+              Color borderColor;
+              if (isExpired) {
+                borderColor = Colors.grey.withOpacity(0.5);
+              } else if (isAccepted) {
+                borderColor = Colors.green.withOpacity(0.5);
+              } else {
+                borderColor = Colors.amber.withOpacity(0.5);
+              }
 
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.blueGrey.withOpacity(0.1),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                  color: borderColor,
-                  width: 1,
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              return Card(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  color: Colors.blueGrey.withOpacity(0.1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: borderColor,
+                      width: 1,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Stack(
+                        Row(
                           children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: borderColor,
-                                  width: 2,
-                                ),
-                              ),
-                              child: CircleAvatar(
-                                radius: 24,
-                                backgroundImage: _getProfileImage(isSender
-                                    ? instaTalk['participant']
-                                    : instaTalk['user']),
-                                child: _getProfileImage(isSender
-                                            ? instaTalk['participant']
-                                            : instaTalk['user']) ==
-                                        null
-                                    ? const Icon(Icons.person,
-                                        color: Colors.white70)
-                                    : null,
-                              ),
-                            ),
-                            // Online status indicator
-                            Positioned(
-                              right: 0,
-                              bottom: 0,
-                              child: Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                  color: isOtherUserOnline
-                                      ? Colors.green
-                                      : Colors.grey,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.black,
-                                    width: 1.5,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      displayName,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                            Stack(
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: borderColor,
+                                      width: 2,
                                     ),
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
+                                  child: CircleAvatar(
+                                    radius: 24,
+                                    backgroundImage: _getProfileImage(isSender
+                                        ? instaTalk['participant']
+                                        : instaTalk['user']),
+                                    child: _getProfileImage(isSender
+                                                ? instaTalk['participant']
+                                                : instaTalk['user']) ==
+                                            null
+                                        ? const Icon(Icons.person,
+                                            color: Colors.white70)
+                                        : null,
+                                  ),
+                                ),
+                                // Online status indicator
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    width: 12,
+                                    height: 12,
                                     decoration: BoxDecoration(
-                                      color: _getStatusColor(
-                                          isExpired, isAccepted),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      _getStatusText(isExpired, isAccepted),
-                                      style: TextStyle(
-                                        color: _getStatusTextColor(
-                                            isExpired, isAccepted),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
+                                      color: isOtherUserOnline
+                                          ? Colors.green
+                                          : Colors.grey,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.black,
+                                        width: 1.5,
                                       ),
                                     ),
                                   ),
-
-                                  // Add call status tag
-                                  if (!isExpired && isAccepted) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 6, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: isUserInCall
-                                            ? Colors.red.withOpacity(0.2)
-                                            : Colors.green.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: isUserInCall
-                                              ? Colors.red.withOpacity(0.3)
-                                              : Colors.green.withOpacity(0.3),
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        isUserInCall ? 'IN CALL' : 'IDLE',
-                                        style: TextStyle(
-                                          color: isUserInCall
-                                              ? Colors.red
-                                              : Colors.green,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(
-                                    typeIcon,
-                                    size: 16,
-                                    color: Colors.grey[400],
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '$typeText',
-                                    style: TextStyle(
-                                      color: Colors.grey[400],
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  // Online status text
                                   Row(
-                                    mainAxisSize: MainAxisSize.min,
                                     children: [
+                                      Expanded(
+                                        child: Text(
+                                          displayName,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: _getStatusColor(
+                                              isExpired, isAccepted),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          _getStatusText(isExpired, isAccepted),
+                                          style: TextStyle(
+                                            color: _getStatusTextColor(
+                                                isExpired, isAccepted),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+
+                                      // Add call status tag
+                                      if (!isExpired && isAccepted) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: isUserInCall
+                                                ? Colors.red.withOpacity(0.2)
+                                                : Colors.green.withOpacity(0.2),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: isUserInCall
+                                                  ? Colors.red.withOpacity(0.3)
+                                                  : Colors.green
+                                                      .withOpacity(0.3),
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            isUserInCall ? 'IN CALL' : 'IDLE',
+                                            style: TextStyle(
+                                              color: isUserInCall
+                                                  ? Colors.red
+                                                  : Colors.green,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        typeIcon,
+                                        size: 16,
+                                        color: Colors.grey[400],
+                                      ),
+                                      const SizedBox(width: 4),
                                       Text(
-                                        isUserInCall
-                                            ? '• In a ${callType ?? ""} call'
-                                            : isOtherUserOnline
-                                                ? '• Online'
-                                                : '• Offline',
+                                        '$typeText',
                                         style: TextStyle(
-                                          color: isUserInCall
-                                              ? Colors.red
-                                              : isOtherUserOnline
-                                                  ? Colors.green
-                                                  : Colors.grey,
+                                          color: Colors.grey[400],
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      // Online status text
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            isUserInCall
+                                                ? '• In a ${callType ?? ""} call'
+                                                : isOtherUserOnline
+                                                    ? '• Online'
+                                                    : '• Offline',
+                                            style: TextStyle(
+                                              color: isUserInCall
+                                                  ? Colors.red
+                                                  : isOtherUserOnline
+                                                      ? Colors.green
+                                                      : Colors.grey,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        timeAgo,
+                                        style: TextStyle(
+                                          color: Colors.grey[500],
                                           fontSize: 12,
-                                          fontWeight: FontWeight.w500,
+                                          fontStyle: FontStyle.italic,
+                                          fontWeight:
+                                              isNearExpiration && !isExpired
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    timeAgo,
-                                    style: TextStyle(
-                                      color: Colors.grey[500],
-                                      fontSize: 12,
-                                      fontStyle: FontStyle.italic,
-                                      fontWeight: isNearExpiration && !isExpired
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                    ),
-                                  ),
                                 ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12, left: 4),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isSender
-                                ? Icons.arrow_outward
-                                : Icons.arrow_downward,
-                            size: 14,
-                            color: isSender
-                                ? Colors.blue.withOpacity(0.7)
-                                : Colors.green.withOpacity(0.7),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              isSender ? 'Sent' : 'Received',
-                              style: TextStyle(
-                                fontSize: 12,
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12, left: 4),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isSender
+                                    ? Icons.arrow_outward
+                                    : Icons.arrow_downward,
+                                size: 14,
                                 color: isSender
                                     ? Colors.blue.withOpacity(0.7)
                                     : Colors.green.withOpacity(0.7),
                               ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (!isExpired) ...[
-                      if (canInteract)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              OutlinedButton(
-                                onPressed: () =>
-                                    _declineInstaTalk(instaTalk['_id']),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.grey[400],
-                                  side: BorderSide(color: Colors.grey[700]!),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  isSender ? 'Sent' : 'Received',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isSender
+                                        ? Colors.blue.withOpacity(0.7)
+                                        : Colors.green.withOpacity(0.7),
                                   ),
                                 ),
-                                child: const Text('Decline'),
-                              ),
-                              const SizedBox(width: 12),
-                              ElevatedButton(
-                                onPressed: () =>
-                                    _acceptInstaTalk(instaTalk['_id']),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primaryColor,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                child: const Text('Accept'),
                               ),
                             ],
                           ),
                         ),
-                      if (isAccepted && isActive)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: SizedBox(
-                            width: double.infinity,
-                            // Only show join button for voice/video if user is creator, or for chat type
-                            child: (type == 'voice' || type == 'video') &&
-                                    !isSender
-                                ? Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.amber.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                          color: Colors.amber.withOpacity(0.3)),
+                        if (!isExpired) ...[
+                          if (canInteract)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  OutlinedButton(
+                                    onPressed: () =>
+                                        _declineInstaTalk(instaTalk['_id']),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.grey[400],
+                                      side:
+                                          BorderSide(color: Colors.grey[700]!),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
-                                    child: Column(
-                                      children: [
-                                        Row(
+                                    child: const Text('Decline'),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  ElevatedButton(
+                                    onPressed: () =>
+                                        _acceptInstaTalk(instaTalk['_id']),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primaryColor,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: const Text('Accept'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (isAccepted && isActive)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: SizedBox(
+                                width: double.infinity,
+                                // Only show join button for voice/video if user is creator, or for chat type
+                                child: (type == 'voice' || type == 'video') &&
+                                        !isSender
+                                    ? Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.amber.withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
+                                              color: Colors.amber
+                                                  .withOpacity(0.3)),
+                                        ),
+                                        child: Column(
                                           children: [
-                                            const Icon(
-                                              Icons.info_outline,
-                                              color: Colors.amber,
-                                              size: 18,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                'You will be notified when $displayName joins the call',
-                                                style: TextStyle(
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.info_outline,
                                                   color: Colors.amber,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w500,
+                                                  size: 18,
                                                 ),
-                                              ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    'You will be notified when $displayName joins the call',
+                                                    style: TextStyle(
+                                                      color: Colors.amber,
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
+                                            const SizedBox(height: 8),
                                           ],
                                         ),
-                                        const SizedBox(height: 8),
-                                      ],
-                                    ),
-                                  )
-                                : hasUsedTime
-                                    ? Padding(
-                                        padding: const EdgeInsets.only(top: 16),
-                                        child: ElevatedButton(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                AppColors.primaryColor,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
+                                      )
+                                    : hasUsedTime
+                                        ? Padding(
+                                            padding:
+                                                const EdgeInsets.only(top: 16),
+                                            child: ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    AppColors.primaryColor,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                              ),
+                                              onPressed: () =>
+                                                  _showContinueInstaTalkDialog(
+                                                      instaTalk),
+                                              child: Text(
+                                                'Renew',
+                                                style: GoogleFonts.manrope(
+                                                    color: Colors.white),
+                                              ),
+                                            ),
+                                          )
+                                        : ElevatedButton.icon(
+                                            onPressed: (hasUsedTime ||
+                                                    !isOtherUserOnline ||
+                                                    isUserInCall ||
+                                                    ((type == 'voice' ||
+                                                            type == 'video') &&
+                                                        !isSender))
+                                                ? null
+                                                : () =>
+                                                    _joinInstaTalk(instaTalk),
+                                            icon: _getTypeIcon(type),
+                                            label: Text(hasUsedTime
+                                                ? 'Already Joined'
+                                                : isUserInCall
+                                                    ? 'User is in a Call'
+                                                    : !isOtherUserOnline
+                                                        ? 'Waiting for User to be Online'
+                                                        : 'Join InstaTalk'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: hasUsedTime
+                                                  ? Colors.grey
+                                                  : isUserInCall
+                                                      ? Colors.red.shade400
+                                                      : !isOtherUserOnline
+                                                          ? Colors.amber
+                                                          : Colors.green,
+                                              foregroundColor: Colors.white,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 12),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
                                             ),
                                           ),
-                                          onPressed: () =>
-                                              _showContinueInstaTalkDialog(
-                                                  instaTalk),
-                                          child: Text(
-                                            'Renew',
-                                            style: GoogleFonts.manrope(
-                                                color: Colors.white),
-                                          ),
-                                        ),
-                                      )
-                                    : ElevatedButton.icon(
-                                        onPressed: (hasUsedTime ||
-                                                !isOtherUserOnline ||
-                                                isUserInCall ||
-                                                ((type == 'voice' ||
-                                                        type == 'video') &&
-                                                    !isSender))
-                                            ? null
-                                            : () => _joinInstaTalk(instaTalk),
-                                        icon: _getTypeIcon(type),
-                                        label: Text(hasUsedTime
-                                            ? 'Already Joined'
-                                            : isUserInCall
-                                                ? 'User is in a Call'
-                                                : !isOtherUserOnline
-                                                    ? 'Waiting for User to be Online'
-                                                    : 'Join InstaTalk'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: hasUsedTime
-                                              ? Colors.grey
-                                              : isUserInCall
-                                                  ? Colors.red.shade400
-                                                  : !isOtherUserOnline
-                                                      ? Colors.amber
-                                                      : Colors.green,
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 12),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                      ),
-                          ),
-                        ),
-                    ],
-                    if (hasUsedTime)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border:
-                                Border.all(color: Colors.grey.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.check_circle_outline,
-                                  color: Colors.grey[400], size: 16),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'You have already joined this InstaTalk session',
-                                  style: TextStyle(
-                                      color: Colors.grey[400], fontSize: 12),
-                                ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    if (!isOtherUserOnline &&
-                        isAccepted &&
-                        isActive &&
-                        !hasUsedTime)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: Colors.amber.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.info_outline,
-                                  color: Colors.amber, size: 16),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Waiting for ${displayName} to be online',
-                                  style: TextStyle(
-                                      color: Colors.amber, fontSize: 12),
-                                ),
+                            ),
+                        ],
+                        if (hasUsedTime)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Colors.grey.withOpacity(0.3)),
                               ),
-                            ],
+                              child: Row(
+                                children: [
+                                  Icon(Icons.check_circle_outline,
+                                      color: Colors.grey[400], size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'You have already joined this InstaTalk session',
+                                      style: TextStyle(
+                                          color: Colors.grey[400],
+                                          fontSize: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
+                        if (!isOtherUserOnline &&
+                            isAccepted &&
+                            isActive &&
+                            !hasUsedTime)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Colors.amber.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline,
+                                      color: Colors.amber, size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Waiting for ${displayName} to be online',
+                                      style: TextStyle(
+                                          color: Colors.amber, fontSize: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
 
-                    if (!isOtherUserOnline &&
-                        !isAccepted &&
-                        isActive &&
-                        !hasUsedTime)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.blueAccent.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: Colors.blueAccent.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.timer_outlined,
-                                  color: Colors.blueAccent, size: 16),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Waiting for ${displayName} to acccept the request',
-                                  style: TextStyle(
-                                      color: Colors.blueAccent, fontSize: 12),
-                                ),
+                        if (!isOtherUserOnline &&
+                            !isAccepted &&
+                            isActive &&
+                            !hasUsedTime)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.blueAccent.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Colors.blueAccent.withOpacity(0.3)),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    // if (hasUsedTime)
-                    //   Padding(
-                    //     padding: const EdgeInsets.only(top: 16),
-                    //     child: ElevatedButton(
-                    //       style: ElevatedButton.styleFrom(
-                    //         backgroundColor: AppColors.primaryColor,
-                    //         shape: RoundedRectangleBorder(
-                    //           borderRadius: BorderRadius.circular(8),
-                    //         ),
-                    //       ),
-                    //       onPressed: () =>
-                    //           _showContinueInstaTalkDialog(instaTalk),
-                    //       child: Text(
-                    //         'Continue Session',
-                    //         style: GoogleFonts.manrope(color: Colors.white),
-                    //       ),
-                    //     ),
-                    //   ),
-                    if (isUserInCall && isAccepted && isActive && !hasUsedTime)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border:
-                                Border.all(color: Colors.red.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.call_end_rounded,
-                                  color: Colors.red, size: 16),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '$displayName is currently in a ${callType ?? ""} call',
-                                  style: TextStyle(
-                                      color: Colors.red, fontSize: 12),
-                                ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.timer_outlined,
+                                      color: Colors.blueAccent, size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Waiting for ${displayName} to acccept the request',
+                                      style: TextStyle(
+                                          color: Colors.blueAccent,
+                                          fontSize: 12),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
+                        // if (hasUsedTime)
+                        //   Padding(
+                        //     padding: const EdgeInsets.only(top: 16),
+                        //     child: ElevatedButton(
+                        //       style: ElevatedButton.styleFrom(
+                        //         backgroundColor: AppColors.primaryColor,
+                        //         shape: RoundedRectangleBorder(
+                        //           borderRadius: BorderRadius.circular(8),
+                        //         ),
+                        //       ),
+                        //       onPressed: () =>
+                        //           _showContinueInstaTalkDialog(instaTalk),
+                        //       child: Text(
+                        //         'Continue Session',
+                        //         style: GoogleFonts.manrope(color: Colors.white),
+                        //       ),
+                        //     ),
+                        //   ),
+                        if (isUserInCall &&
+                            isAccepted &&
+                            isActive &&
+                            !hasUsedTime)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Colors.red.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.call_end_rounded,
+                                      color: Colors.red, size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '$displayName is currently in a ${callType ?? ""} call',
+                                      style: TextStyle(
+                                          color: Colors.red, fontSize: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ));
+            });
       },
     );
   }

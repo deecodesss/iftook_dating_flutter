@@ -6,23 +6,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
-import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
-import 'package:iftook/features/calls/presentation/screens/voice_call_screen.dart';
 import 'package:iftook/features/calls/services/chat_call_service.dart';
 import 'package:iftook/features/friends/data/message.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
 import 'package:iftook/features/shared/controllers/user_online_controller.dart';
-import 'package:iftook/features/shared/widgets/user_online_indicator.dart';
-import 'package:iftook/features/shared/widgets/rating_review_widget.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
-import 'package:iftook/features/home/data/enums/meeting_type.dart';
-import 'package:iftook/features/home/presentation/screens/schedule_meeting_screen.dart';
-import 'package:iftook/features/friends/data/chatroom.dart';
 import 'package:shimmer/shimmer.dart';
-
-import '../../../../core/services/api_service.dart';
 import '../../controllers/chat_controller.dart';
 
 class ChatRoomScreen extends StatefulWidget {
