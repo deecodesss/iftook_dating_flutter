@@ -188,7 +188,7 @@ class CallNotificationService {
           'apiKey': 'Abc@123!',
           'platform': 'flutter',
         },
-        android: AndroidParams(
+        android: const AndroidParams(
           isCustomNotification: true,
           isCustomSmallExNotification: true,
           isShowLogo: true,
@@ -202,7 +202,7 @@ class CallNotificationService {
           isShowFullLockedScreen: true, // Critical for locked screen display
           isImportant: true,
         ),
-        ios: IOSParams(
+        ios: const IOSParams(
           iconName: 'CallKitLogo',
           handleType: 'generic',
           supportsVideo: true,
@@ -296,13 +296,13 @@ class CallNotificationService {
       });
 
       // Show the notification
-      await _flutterLocalNotificationsPlugin.show(
-        meetingId.hashCode, // Use meetingId hash as notification ID
-        'Incoming ${isVideo ? 'Video' : 'Voice'} Call',
-        callerName,
-        notificationDetails,
-        payload: payload,
-      );
+      // await _flutterLocalNotificationsPlugin.show(
+      //   meetingId.hashCode, // Use meetingId hash as notification ID
+      //   'Incoming ${isVideo ? 'Video' : 'Voice'} Call',
+      //   callerName,
+      //   notificationDetails,
+      //   payload: payload,
+      // );
 
       debugPrint('✅ Fallback notification shown');
     } catch (e) {

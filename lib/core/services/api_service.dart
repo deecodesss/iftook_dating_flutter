@@ -450,8 +450,8 @@ class ApiService {
         ));
   }
 
-  static Future<http.Response> createMeeting(
-      String participantId, String type, DateTime scheduleTime) async {
+  static Future<http.Response> createMeeting(String participantId, String type,
+      DateTime scheduleTime, double duration) async {
     final token = await SharedPrefs.getAccessToken();
     final userId = await SharedPrefs.getUserIdSharedPreference();
 
@@ -460,7 +460,7 @@ class ApiService {
       "participantId": participantId,
       "type": type,
       "scheduledTime": scheduleTime.toIso8601String(),
-      "duration": 30, // Default duration
+      "duration": duration, // Default duration
     };
 
     print('Creating meeting with data: $data');

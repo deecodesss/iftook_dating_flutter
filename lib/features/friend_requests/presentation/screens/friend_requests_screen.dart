@@ -763,10 +763,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         barrierDismissible: false,
       );
 
-      final callData = await ChatCallService.initiateChatCall(
-        participant.sId!,
-        'video',
-      );
+      final callData =
+          await ChatCallService.initiateChatCall(participant.sId!, 'video', 30);
 
       Get.back(); // Close loading dialog
 
@@ -809,10 +807,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         barrierDismissible: false,
       );
 
-      final callData = await ChatCallService.initiateChatCall(
-        participant.sId!,
-        'voice',
-      );
+      final callData =
+          await ChatCallService.initiateChatCall(participant.sId!, 'voice', 30);
 
       Get.back(); // Close loading dialog
 
@@ -2783,9 +2779,10 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
 
   void _acceptInstaTalk(String meetingId) async {
     final result = await widget.controller.acceptInstaTalk(meetingId);
-    if (result != null) {
-      _joinInstaTalk(result);
-    }
+    // if (result != null) {
+    //   _joinInstaTalk(result);
+    // }
+    print('InstaTalk accepted: $result');
   }
 
   void _joinInstaTalk(Map<String, dynamic> instaTalk) async {

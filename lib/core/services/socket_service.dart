@@ -281,7 +281,7 @@ class SocketService {
     }
 
     try {
-      print('📋 Checking call status for user $userId via socket');
+      // print('📋 Checking call status for user $userId via socket');
 
       // Create a completer to wait for the response
       Completer<Map<String, dynamic>> completer =
@@ -292,7 +292,7 @@ class SocketService {
           ack: (response) {
         Map<String, dynamic> callStatus = {'inCall': false};
 
-        print('📋 Received call status response for user $userId: $response');
+        // print('📋 Received call status response for user $userId: $response');
 
         if (response != null && response is Map) {
           final inCall = response['inCall'] ?? false;
@@ -306,8 +306,8 @@ class SocketService {
           };
 
           _userCallStatusCache[userId] = callStatus; // Update cache
-          print(
-              '📋 Updated cache with call status for user $userId: ${inCall ? "In Call" : "Not in Call"}');
+          // print(
+          //     '📋 Updated cache with call status for user $userId: ${inCall ? "In Call" : "Not in Call"}');
         }
 
         if (!completer.isCompleted) {
@@ -324,8 +324,8 @@ class SocketService {
       });
 
       final result = await completer.future;
-      print(
-          '📋 Final call status result for user $userId: ${result['inCall'] ? "In Call" : "Not in Call"}');
+      // print(
+      //     '📋 Final call status result for user $userId: ${result['inCall'] ? "In Call" : "Not in Call"}');
       return result;
     } catch (e) {
       print('❌ Error checking call status: $e');

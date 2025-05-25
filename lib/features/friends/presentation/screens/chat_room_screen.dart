@@ -1023,6 +1023,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       final callData = await ChatCallService.initiateChatCall(
         widget.profile.sId!,
         'video',
+        60,
       );
 
       Get.back(); // Close loading dialog
@@ -1071,6 +1072,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       final callData = await ChatCallService.initiateChatCall(
         widget.profile.sId!,
         'voice',
+        60,
       );
 
       Get.back(); // Close loading dialog

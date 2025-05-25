@@ -486,55 +486,52 @@ class HomeController extends GetxController {
     return result;
   }
 
-  Future<bool> createInstantMeeting(
-    String participantId,
-    String type,
-    double rate,
-  ) async {
-    try {
-      isLoading(true);
-      final scheduleTime = DateTime.now();
+  // Future<bool> createInstantMeeting(
+  //     String participantId, String type, double rate, double duration) async {
+  //   try {
+  //     isLoading(true);
+  //     final scheduleTime = DateTime.now();
 
-      final response =
-          await ApiService.createMeeting(participantId, type, scheduleTime);
+  //     final response = await ApiService.createMeeting(
+  //         participantId, type, scheduleTime, duration);
 
-      if (response.statusCode == 201) {
-        final data = jsonDecode(response.body);
+  //     if (response.statusCode == 201) {
+  //       final data = jsonDecode(response.body);
 
-        Get.snackbar(
-          'Success',
-          'Instant session created successfully',
-          backgroundColor: Colors.green.withOpacity(0.8),
-          colorText: Colors.white,
-        );
+  //       Get.snackbar(
+  //         'Success',
+  //         'Instant session created successfully',
+  //         backgroundColor: Colors.green.withOpacity(0.8),
+  //         colorText: Colors.white,
+  //       );
 
-        return true;
-      } else {
-        final data = jsonDecode(response.body);
-        errorMessage(data['message'] ?? 'Failed to create instant session');
+  //       return true;
+  //     } else {
+  //       final data = jsonDecode(response.body);
+  //       errorMessage(data['message'] ?? 'Failed to create instant session');
 
-        Get.snackbar(
-          'Error',
-          errorMessage.value,
-          backgroundColor: Colors.red.withOpacity(0.8),
-          colorText: Colors.white,
-        );
+  //       Get.snackbar(
+  //         'Error',
+  //         errorMessage.value,
+  //         backgroundColor: Colors.red.withOpacity(0.8),
+  //         colorText: Colors.white,
+  //       );
 
-        return false;
-      }
-    } catch (e) {
-      errorMessage('An error occurred: $e');
+  //       return false;
+  //     }
+  //   } catch (e) {
+  //     errorMessage('An error occurred: $e');
 
-      Get.snackbar(
-        'Error',
-        errorMessage.value,
-        backgroundColor: Colors.red.withOpacity(0.8),
-        colorText: Colors.white,
-      );
+  //     Get.snackbar(
+  //       'Error',
+  //       errorMessage.value,
+  //       backgroundColor: Colors.red.withOpacity(0.8),
+  //       colorText: Colors.white,
+  //     );
 
-      return false;
-    } finally {
-      isLoading(false);
-    }
-  }
+  //     return false;
+  //   } finally {
+  //     isLoading(false);
+  //   }
+  // }
 }
