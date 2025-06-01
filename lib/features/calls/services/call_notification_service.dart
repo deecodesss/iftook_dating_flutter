@@ -9,6 +9,9 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 import 'package:iftook/features/calls/controllers/call_controller.dart';
 import 'package:iftook/features/calls/presentation/screens/call_screen.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVideoCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoicelCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
 import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/missed_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
@@ -125,7 +128,7 @@ class CallNotificationService {
           message.data['meetingType'] ?? 'regularMeeting';
       final bool isInstaTalk = message.data['isInstaTalk'] == 'true';
       final String callDuration =
-          message.data['duration'] ?? message.data['callDuration'] ?? "30";
+          message.data['duration'] ?? message.data['duration'] ?? "30";
       final String callerImage = message.data['callerImage'] ??
           message.data['callerProfilePicture'] ??
           message.data['senderImage'] ??
@@ -174,7 +177,7 @@ class CallNotificationService {
           'channelName': channelName,
           'token': token,
           'callerId': callerId,
-          'callDuration': callDuration,
+          'duration': callDuration,
           'callRate': message.data['callRate'] ?? "0",
           'callerRating': message.data['callerRating'] ?? "0",
           'isInstaTalk': isInstaTalk,
@@ -372,6 +375,7 @@ class CallNotificationService {
       final String token = data['token'] ?? '';
       final bool isVideo = data['isVideo'] == true;
       final String callerId = data['callerId'] ?? '';
+      final String duration = data['duration'] ?? '30';
       final String callerName = data['callerName'] ?? 'Unknown Caller';
 
       // Create a User object for caller
@@ -398,6 +402,12 @@ class CallNotificationService {
                 token: token,
                 participant: caller,
                 isIncomingCall: true,
+                callerName: callerName,
+                callerImage: data['callerImage'] ?? '',
+                initialTimer: data['duration'] != null
+                    ? int.tryParse(data['duration'].toString()) ?? 30
+                    : 30,
+                isInstaTalk: data['isInstaTalk'] == false ? false : true,
               ));
         }
       }
@@ -588,7 +598,7 @@ class CallNotificationService {
           body['nameCaller']?.toString() ?? 'Unknown Caller';
       final String callerImage = body['avatar']?.toString() ?? '';
       final bool isInstaTalk = extra['isInstaTalk'] as bool? ?? false;
-      final String callDuration = extra['callDuration']?.toString() ?? '30';
+      final String callDuration = extra['duration']?.toString() ?? '30';
 
       if (meetingId.isEmpty ||
           channelName.isEmpty ||
@@ -622,8 +632,8 @@ class CallNotificationService {
       // Check if app is already running
       if (Get.context != null) {
         // App is already running - use existing instance
-        if (isVideoCall) {
-          await Get.offAll(() => VideoCallScreen(
+        if (!isInstaTalk && isVideoCall) {
+          Get.to(() => VideoCallScreen(
                 key: ValueKey(meetingId),
                 meetingId: meetingId,
                 channel: channelName,
@@ -635,8 +645,8 @@ class CallNotificationService {
                 isTrial: extra['isTrial'] as bool? ?? false,
                 instaTalkDuration: parsedInitialTimer,
               ));
-        } else {
-          await Get.offAll(() => CallScreen(
+        } else if (!isInstaTalk && !isVideoCall) {
+          Get.to(() => NormalVoiceCallScreen(
                 key: ValueKey(meetingId),
                 meetingId: meetingId,
                 channel: channelName,
@@ -648,6 +658,32 @@ class CallNotificationService {
                 callerName: callerName,
                 callerImage: callerImage,
               ));
+        } else if (isInstaTalk && !isVideoCall) {
+          await Get.to(() => ITVoiceCallScreen(
+                key: ValueKey(meetingId),
+                meetingId: meetingId,
+                channel: channelName,
+                token: token,
+                participant: caller,
+                // isInstaTalk: isInstaTalk,
+                // initialTimer: parsedInitialTimer,
+                isIncomingCall: true,
+                callerName: callerName,
+                callerImage: callerImage,
+              ));
+        } else {
+          Get.to(() => ITVideoCallScreen(
+                key: ValueKey(meetingId),
+                meetingId: meetingId,
+                channel: channelName,
+                token: token,
+                participant: caller,
+                // isInstaTalk: isInstaTalk,
+                // initialTimer: parsedInitialTimer,
+                isIncomingCall: true,
+                // callerName: callerName,
+                // callerImage: callerImage,
+              ));
         }
       } else {
         // App is not running yet - need to set up Get first
@@ -655,7 +691,7 @@ class CallNotificationService {
         await Future.delayed(Duration(
             milliseconds: 500)); // Small delay to ensure GetX is initialized
 
-        if (isVideoCall) {
+        if (!isInstaTalk && isVideoCall) {
           Get.offAll(() => VideoCallScreen(
                 key: ValueKey(meetingId),
                 meetingId: meetingId,
@@ -668,8 +704,8 @@ class CallNotificationService {
                 isTrial: extra['isTrial'] as bool? ?? false,
                 instaTalkDuration: parsedInitialTimer,
               ));
-        } else {
-          Get.offAll(() => CallScreen(
+        } else if (!isInstaTalk && !isVideoCall) {
+          Get.offAll(() => NormalVoiceCallScreen(
                 key: ValueKey(meetingId),
                 meetingId: meetingId,
                 channel: channelName,
@@ -680,6 +716,32 @@ class CallNotificationService {
                 isIncomingCall: true,
                 callerName: callerName,
                 callerImage: callerImage,
+              ));
+        } else if (isInstaTalk && !isVideoCall) {
+          await Get.offAll(() => ITVoiceCallScreen(
+                key: ValueKey(meetingId),
+                meetingId: meetingId,
+                channel: channelName,
+                token: token,
+                participant: caller,
+                // isInstaTalk: isInstaTalk,
+                // initialTimer: parsedInitialTimer,
+                isIncomingCall: true,
+                callerName: callerName,
+                callerImage: callerImage,
+              ));
+        } else {
+          Get.offAll(() => ITVideoCallScreen(
+                key: ValueKey(meetingId),
+                meetingId: meetingId,
+                channel: channelName,
+                token: token,
+                participant: caller,
+                // isInstaTalk: isInstaTalk,
+                // initialTimer: parsedInitialTimer,
+                isIncomingCall: true,
+                // callerName: callerName,
+                // callerImage: callerImage,
               ));
         }
       }

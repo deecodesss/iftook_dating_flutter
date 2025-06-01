@@ -70,19 +70,18 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
     });
 
     // Set a timeout to automatically go back if call setup takes too long
-    _callTimeoutTimer = Timer(const Duration(seconds: 45), () {
-      if (mounted && !_callController.hasRemoteUserJoined.value) {
-        loadingStateMessage.value = 'Call timed out';
-        // Show UI for timeout/no answer for a moment before going back
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) Get.back();
-        });
-      }
-    });
+    // _callTimeoutTimer = Timer(const Duration(seconds: 45), () {
+    //   if (mounted && !_callController.hasRemoteUserJoined.value) {
+    //     loadingStateMessage.value = 'Call timed out';
+    //     // Show UI for timeout/no answer for a moment before going back
+    //     Future.delayed(const Duration(seconds: 2), () {
+    //       if (mounted) Get.back();
+    //     });
+    //   }
+    // });
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
-        // If we already have meeting details, skip API call
         if (widget.meetingId != null &&
             widget.token != null &&
             widget.channel != null) {
@@ -94,26 +93,20 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
           print('Is Trial: ${widget.isTrial}');
           print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
-          // Set the call controller state to outgoing
           _callController.updateCallState(CallState.outgoing);
 
-          // Start call rejection listener for outgoing calls
           _callController.startCallRejectionListener(widget.meetingId!);
 
           // End any existing call notifications
           await FlutterCallkitIncoming.endCall(widget.meetingId!);
 
-          // Navigate directly to call screen after a short delay
-          // to give the rejection listener time to initialize
           Future.delayed(const Duration(milliseconds: 500), () {
-            // Don't navigate if component is unmounted or call was rejected
             if (!mounted) return;
 
-            // Check for rejection again before navigating
             if (_callController.wasCallRejected.value ||
                 _callController.wasCallBusy.value ||
                 _callController.wasCallFailed.value) {
-              return; // Don't navigate - UI will show rejection state
+              return;
             }
 
             print('Navigating to VoiceCallScreen with:');
@@ -121,7 +114,6 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
             print('Is Trial: ${widget.isTrial}');
             print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
-            // Navigate to call screen only if call hasn't been rejected
             Get.to(
                 () => VoiceCallScreen(
                       meetingId: widget.meetingId!,
@@ -147,11 +139,9 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
         print('Is Trial: ${widget.isTrial}');
         print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
-        // Update loading status to reflect initialization
         loadingStateMessage.value = 'Setting up call...';
 
         if (widget.isInstaTalk) {
-          // Update status for InstaTalk
           loadingStateMessage.value = 'Starting InstaTalk call...';
           await _callController.initiateInstaTalkCall(
             widget.participant.sId.toString(),
@@ -159,7 +149,6 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
             isTrial: widget.isTrial,
           );
         } else {
-          // Update status for regular call
           loadingStateMessage.value = 'Calling ${widget.participant.name}...';
           await _callController.initiateMeetingCall(
             widget.participant.sId.toString(),

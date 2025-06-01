@@ -47,11 +47,11 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
 
     switch (_selectedType) {
       case MeetingType.video:
-        return earnings.liveRate;
+        return earnings.live.toDouble();
       case MeetingType.voice:
-        return earnings.liveRate;
+        return earnings.live.toDouble();
       case MeetingType.chat:
-        return earnings.liveRate;
+        return earnings.live.toDouble();
     }
   }
 
@@ -263,7 +263,7 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
                                 ),
                                 Text(
                                   isTrialUsed
-                                      ? '₹${(meetingRate * durationInMinutes / 30).toStringAsFixed(0)}'
+                                      ? '₹${(meetingRate).toStringAsFixed(0)}'
                                       : 'FREE',
                                   style: TextStyle(
                                     fontSize: 20,

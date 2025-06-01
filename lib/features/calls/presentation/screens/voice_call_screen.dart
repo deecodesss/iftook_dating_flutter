@@ -12,6 +12,7 @@ import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/calls/services/call_duration_service.dart';
 import 'package:iftook/features/friends/controllers/chat_controller.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 
 class VoiceCallScreen extends StatefulWidget {
   final String meetingId;
@@ -173,6 +174,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     print("Starting timers:");
     print("Is InstaTalk: ${widget.isInstaTalk}");
     print("Is Trial: ${widget.isTrial}");
+    print("Is Incoming: ${widget.isIncomingCall}");
     print("Initial Timer: ${widget.initialTimer}");
 
     setState(() {
@@ -181,20 +183,36 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
 
     if (widget.isInstaTalk) {
       if (widget.isTrial) {
-        // Trial InstaTalk - 30 seconds countdown
+        // Trial InstaTalk - 30 seconds countdown, then end call
         print("Starting TRIAL countdown timer (30 seconds)");
         _startTrialCountdownTimer();
       } else {
-        // Paid InstaTalk - growing timer with auto-payment
-        print("Starting PAID InstaTalk growing timer with auto-payment");
+        // Paid InstaTalk - growing timer
+        print("Starting PAID InstaTalk growing timer");
         _startGrowingTimer();
-        _startAutoPaymentTimer();
+
+        // Only start auto-payment for incoming InstaTalk calls
+        if (widget.isIncomingCall) {
+          print("Starting auto-payment for incoming InstaTalk call");
+          _startAutoPaymentTimer(true); // Use InstaTalk rate
+        } else {
+          print("No auto-payment for outgoing InstaTalk call");
+        }
       }
     } else {
-      // Regular meeting - standard timer based on session duration
+      // Regular meeting
       print(
           "Starting REGULAR meeting countdown timer (${widget.initialTimer} minutes)");
       _startRegularTimer();
+      _startGrowingTimer(); // Also track elapsed time
+
+      // For regular meetings, only start auto-payment if it's NOT an incoming call
+      if (!widget.isIncomingCall) {
+        print("Starting auto-payment for outgoing regular call");
+        _startAutoPaymentTimer(false); // Use regular voice call rate
+      } else {
+        print("No auto-payment for incoming regular call");
+      }
     }
   }
 
@@ -202,24 +220,24 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   void _startTrialCountdownTimer() {
     setState(() {
       _remainingSeconds = 30; // 30 seconds for trial
+      _elapsedSeconds = 0;
     });
 
     _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         if (_remainingSeconds > 0) {
           _remainingSeconds--;
+          _elapsedSeconds++;
         } else {
           _sessionTimer?.cancel();
-          if (!_showingPaymentPrompt) {
-            _sessionExpired = true;
-            _showContinueCallPrompt();
-          }
+          // For trial, automatically end the call after 30 seconds
+          _endCall();
         }
       });
     });
   }
 
-  // Growing timer for paid InstaTalk
+  // Growing timer for tracking elapsed time
   void _startGrowingTimer() {
     setState(() {
       _elapsedSeconds = 0;
@@ -232,21 +250,34 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     });
   }
 
-  // Auto-payment timer for paid InstaTalk
-  void _startAutoPaymentTimer() {
+  // Auto-payment timer
+  void _startAutoPaymentTimer(bool isInstaTalk) {
+    // Calculate rate per minute based on call type
+    double ratePerMinute;
+    if (isInstaTalk) {
+      // For InstaTalk, use instaTalk rate directly (already per minute)
+      ratePerMinute = widget.participant?.earnings?.live.toDouble() ?? 0;
+    } else {
+      // For regular voice calls, divide voice rate by 30 (since it's for 30 minutes)
+      final voiceRate = widget.participant?.earnings?.voice ?? 300;
+      ratePerMinute = voiceRate / 30;
+    }
+
+    // Update the stored rate
+    _ratePerMinute = ratePerMinute;
+
     if (_ratePerMinute <= 0) return;
 
     _autoPaymentEnabled = true;
-    const paymentIntervalSeconds = AUTO_PAYMENT_INTERVAL;
+    const paymentIntervalSeconds = 60; // Charge every minute
 
     _autoPaymentTimer = Timer.periodic(
         Duration(seconds: paymentIntervalSeconds), (timer) async {
       if (!_autoPaymentEnabled) return;
 
       try {
-        // Calculate cost for the interval
-        final minutesFraction = paymentIntervalSeconds / 60;
-        final cost = _ratePerMinute * minutesFraction;
+        // Calculate cost for one minute
+        final cost = _ratePerMinute;
 
         // Get chat controller to process payment
         final chatController = Get.find<ChatController>();
@@ -260,7 +291,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
           return;
         }
 
-        // Silently process payment
+        // Process payment for one minute
         final success = await chatController.purchaseChatSession(
             widget.participant!.sId!, cost,
             minutes: 1, silent: true);
@@ -283,12 +314,18 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
           widget.initialTimer * 60; // Convert minutes to seconds
     });
 
-    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    // We use a separate timer for the countdown, not the same as _sessionTimer
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
       setState(() {
         if (_remainingSeconds > 0) {
           _remainingSeconds--;
         } else {
-          _sessionTimer?.cancel();
+          timer.cancel();
           if (!_showingPaymentPrompt) {
             _sessionExpired = true;
             _showContinueCallPrompt();
@@ -335,10 +372,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
             ),
             onPressed: () {
               Navigator.pop(context);
-              Get.toNamed('/wallet/topup');
+              // Go to wallet screen
+              Get.to(() => const WalletScreen(),
+                  arguments: {'fromCall': true},
+                  transition: Transition.rightToLeft);
+              // End the call when redirecting to wallet
               _endCall();
             },
-            child: const Text('Top Up Wallet'),
+            child: const Text('Add Funds'),
           ),
         ],
       ),
@@ -517,7 +558,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
               _startGrowingTimer();
             }
             if (_autoPaymentTimer == null || !_autoPaymentTimer!.isActive) {
-              _startAutoPaymentTimer();
+              _startAutoPaymentTimer(widget.isInstaTalk);
             }
           } else {
             // For regular call or trial that got converted to paid
@@ -710,17 +751,19 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     // End the call in CallKit
     FlutterCallkitIncoming.endCall(widget.meetingId);
 
+    // Call session end callback if provided
     if (widget.onSessionEnd != null) {
       widget.onSessionEnd!();
     }
-    Get.back();
 
+    // Improved navigation - directly return to home screen
     if (_hasRenewedSession) {
       Get.off(() => AddReviewScreen(
             userId: widget.participant?.sId ?? '',
           ));
     } else {
-      Get.back();
+      // Navigate directly to home screen instead of using multiple Get.back()
+      Get.offAllNamed('/');
     }
   }
 
@@ -753,96 +796,292 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
             child: _callEnded
                 ? _buildCallEndedUI()
                 : Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Timer display
+                      // Top section with enhanced call type and wallet balance
                       Padding(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 8, horizontal: 16),
-                        child: _buildTimerDisplay(),
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Enhanced call type indicator with all necessary information
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: widget.isInstaTalk
+                                      ? [Colors.purple, Colors.deepPurple]
+                                      : [Colors.blue, Colors.teal],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: widget.isInstaTalk
+                                        ? Colors.purple.withOpacity(0.3)
+                                        : Colors.blue.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    widget.isInstaTalk
+                                        ? Icons.star
+                                        : Icons.event,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    widget.isInstaTalk
+                                        ? widget.isTrial
+                                            ? "InstaTalk Trial"
+                                            : "InstaTalk Premium"
+                                        : "Voice Meeting",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Wallet Balance - Simplified
+                            Obx(() => Text(
+                                  '₹${_chatController.userWalletBalance.value.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 14,
+                                  ),
+                                )),
+                          ],
+                        ),
                       ),
 
-                      // Caller details section
+                      // Remove the redundant middle badge and continue with incoming/outgoing indicator
+                      // Incoming/Outgoing indicator - Make it more compact
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 5, horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: widget.isIncomingCall
+                              ? Colors.green.withOpacity(0.15)
+                              : Colors.blue.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              widget.isIncomingCall
+                                  ? Icons.call_received
+                                  : Icons.call_made,
+                              color: widget.isIncomingCall
+                                  ? Colors.green
+                                  : Colors.blue,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              widget.isIncomingCall ? "Incoming" : "Outgoing",
+                              style: TextStyle(
+                                color: widget.isIncomingCall
+                                    ? Colors.green
+                                    : Colors.blue,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // User profile with status - more compact
                       Column(
                         children: [
-                          // Profile photo
-                          CircleAvatar(
-                            radius: 70,
-                            backgroundImage:
+                          // Profile photo - with colored border based on call type
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: widget.isInstaTalk
+                                    ? Colors.purple
+                                    : Colors.blue,
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: widget.isInstaTalk
+                                      ? Colors.purple.withOpacity(0.2)
+                                      : Colors.blue.withOpacity(0.2),
+                                  blurRadius: 12,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child:
                                 widget.participant?.photos?.isNotEmpty == true
-                                    ? NetworkImage(
-                                        widget.participant!.photos!.first)
-                                    : null,
-                            child: widget.participant?.photos?.isEmpty ?? true
-                                ? const Icon(Icons.person,
-                                    size: 70, color: Colors.white54)
-                                : null,
+                                    ? CircleAvatar(
+                                        radius: 60,
+                                        backgroundColor: Colors.grey[800],
+                                        backgroundImage: NetworkImage(
+                                            widget.participant!.photos!.first),
+                                        onBackgroundImageError: (_, __) {},
+                                      )
+                                    : CircleAvatar(
+                                        radius: 60,
+                                        backgroundColor: Colors.grey[800],
+                                        child: const Icon(Icons.person,
+                                            size: 60, color: Colors.white54),
+                                      ),
                           ),
-                          const SizedBox(height: 20),
-                          // Caller name
+                          const SizedBox(height: 16),
+
+                          // Caller name and status
                           Text(
                             widget.participant?.name ?? 'Unknown User',
                             style: const TextStyle(
-                              fontSize: 24,
+                              fontSize: 22,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          // Call type and status
-                          Text(
-                            widget.isInstaTalk
-                                ? 'InstaTalk Voice Call'
-                                : 'Voice Call',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey[400],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          // Connection status
-                          Obx(() => Text(
-                                connectionStatus.value,
-                                style: TextStyle(
-                                  fontSize: 16,
+                          const SizedBox(height: 6),
+
+                          // Connection status with colored indicator
+                          Obx(() => Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 3),
+                                decoration: BoxDecoration(
                                   color: isConnecting.value
-                                      ? Colors.amber
-                                      : Colors.green,
+                                      ? Colors.amber.withOpacity(0.2)
+                                      : Colors.green.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  connectionStatus.value,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: isConnecting.value
+                                        ? Colors.amber
+                                        : Colors.green,
+                                  ),
                                 ),
                               )),
                         ],
                       ),
 
-                      // Call controls
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildCallButton(
-                            icon: _isMuted ? Icons.mic_off : Icons.mic,
-                            color: Colors.white,
-                            backgroundColor:
-                                _isMuted ? Colors.red : Colors.grey[800]!,
-                            onTap: _toggleMute,
+                      // Ultra-simplified timer display
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 10, horizontal: 20),
+                        margin: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.black12,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: widget.isInstaTalk
+                                ? Colors.purple.withOpacity(0.3)
+                                : Colors.blue.withOpacity(0.3),
+                            width: 1,
                           ),
-                          _buildCallButton(
-                            icon: Icons.call_end,
-                            color: Colors.white,
-                            backgroundColor: Colors.red,
-                            onTap: _endCall,
-                            size: 65,
-                          ),
-                          _buildCallButton(
-                            icon: _isSpeakerOn
-                                ? Icons.volume_up
-                                : Icons.volume_off,
-                            color: Colors.white,
-                            backgroundColor:
-                                _isSpeakerOn ? Colors.grey[800]! : Colors.red,
-                            onTap: _toggleSpeaker,
-                          ),
-                        ],
+                        ),
+                        child: Column(
+                          children: [
+                            // Timer display
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.timer,
+                                  color: widget.isInstaTalk
+                                      ? Colors.purple
+                                      : Colors.blue,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _formatTime(_elapsedSeconds),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 24,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            // Only show trial countdown if it's a trial call
+                            if (widget.isInstaTalk && widget.isTrial)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 5),
+                                child: Text(
+                                  'Trial ends in: ${_formatTime(_remainingSeconds)}',
+                                  style: const TextStyle(
+                                    color: Colors.amber,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+
+                            // Rate display
+                            Padding(
+                              padding: const EdgeInsets.only(top: 5),
+                              child: Text(
+                                widget.isInstaTalk && widget.isTrial
+                                    ? 'Free Trial'
+                                    : '₹${_ratePerMinute.toStringAsFixed(0)}/min',
+                                style: TextStyle(
+                                  color: Colors.grey[400],
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 40),
+
+                      // Call controls - Improved spacing and visibility
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildCallButton(
+                              icon: _isMuted ? Icons.mic_off : Icons.mic,
+                              color: Colors.white,
+                              backgroundColor:
+                                  _isMuted ? Colors.red : Colors.grey[800]!,
+                              onTap: _toggleMute,
+                            ),
+                            _buildCallButton(
+                              icon: Icons.call_end,
+                              color: Colors.white,
+                              backgroundColor: Colors.red,
+                              onTap: _endCall,
+                              size: 65,
+                            ),
+                            _buildCallButton(
+                              icon: _isSpeakerOn
+                                  ? Icons.volume_up
+                                  : Icons.volume_off,
+                              color: Colors.white,
+                              backgroundColor:
+                                  _isSpeakerOn ? Colors.grey[800]! : Colors.red,
+                              onTap: _toggleSpeaker,
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
           ),
@@ -855,6 +1094,87 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  // Simplified timer display with only elapsed time
+  Widget _buildSimplifiedTimerDisplay() {
+    if (!_timerStarted) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.black26,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Text(
+          'Connecting...',
+          style: TextStyle(color: Colors.grey, fontSize: 16),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.black26,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+      ),
+      child: Column(
+        children: [
+          // Elapsed time display
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.timer,
+                color: widget.isInstaTalk ? Colors.purple : Colors.blue,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                _formatTime(_elapsedSeconds),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+
+          // Trial timer (only show for trial calls)
+          if (widget.isInstaTalk && widget.isTrial)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Trial ends in: ${_formatTime(_remainingSeconds)}',
+                style: const TextStyle(
+                  color: Colors.amber,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+
+          // Rate display
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              widget.isInstaTalk && widget.isTrial
+                  ? 'Trial Call (Free)'
+                  : '₹${_ratePerMinute.toStringAsFixed(2)}/minute',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -949,143 +1269,6 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
             child: const Text(
               'Return to Home',
               style: TextStyle(fontSize: 16),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTimerDisplay() {
-    // If it's an incoming call, don't show any timer
-    if (widget.isIncomingCall) {
-      return const SizedBox.shrink();
-    }
-
-    if (!_timerStarted) {
-      return const SizedBox.shrink();
-    }
-
-    // For paid InstaTalk, show growing timer with payment info and wallet balance
-    if (widget.isInstaTalk && !widget.isTrial) {
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.primaryColor.withOpacity(0.7),
-              Colors.blueGrey.withOpacity(0.5),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.timer, color: Colors.white, size: 20),
-                      const SizedBox(width: 6),
-                      Text(
-                        _formatTime(_elapsedSeconds),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.attach_money,
-                        color: Colors.white, size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      '₹${_ratePerMinute.toStringAsFixed(2)}/min',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-                Obx(() => Row(
-                      children: [
-                        const Icon(Icons.account_balance_wallet,
-                            color: Colors.white, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Balance: ₹${_chatController.userWalletBalance.value.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    )),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
-
-    // For countdown timers (trial InstaTalk or regular meetings)
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: widget.isInstaTalk
-            ? Colors.amber.withOpacity(0.2)
-            : Colors.blueGrey.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.timer, color: Colors.white),
-          const SizedBox(width: 8),
-          Text(
-            _formatTime(_remainingSeconds),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            'remaining',
-            style: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 12,
             ),
           ),
         ],

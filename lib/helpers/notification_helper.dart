@@ -27,7 +27,7 @@ class NotificationHelper {
     const AndroidInitializationSettings androidInitialize =
         AndroidInitializationSettings('app_icon');
 
-    final InitializationSettings initializationSettings =
+    const InitializationSettings initializationSettings =
         const InitializationSettings(
       android: androidInitialize,
     );

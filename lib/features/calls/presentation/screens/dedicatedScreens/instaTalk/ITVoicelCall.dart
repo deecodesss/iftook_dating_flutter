@@ -14,29 +14,25 @@ import 'package:iftook/features/friends/controllers/chat_controller.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 
-class CallScreen extends StatefulWidget {
+class ITVoiceCallScreen extends StatefulWidget {
   final String meetingId;
   final String token;
   final String channel;
   final Function? onSessionEnd;
   final User participant;
-  final bool isInstaTalk;
   final bool isTrial;
   final int instaTalkDuration;
-  final int initialTimer;
   final bool isIncomingCall;
   final String? callerName;
   final String? callerImage;
 
-  const CallScreen({
+  const ITVoiceCallScreen({
     Key? key,
     required this.meetingId,
     required this.token,
     required this.channel,
     required this.participant,
-    this.initialTimer = 30,
     this.onSessionEnd,
-    this.isInstaTalk = false,
     this.isTrial = false,
     this.instaTalkDuration = 30,
     this.isIncomingCall = false,
@@ -45,10 +41,10 @@ class CallScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<CallScreen> createState() => _CallScreenState();
+  State<ITVoiceCallScreen> createState() => _ITVoiceCallScreenState();
 }
 
-class _CallScreenState extends State<CallScreen> {
+class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
   final String appId = "5da40b914dcf4a089e8bbee75a926178";
   int? _remoteUid;
   bool _isMuted = false;
@@ -62,7 +58,6 @@ class _CallScreenState extends State<CallScreen> {
   // Timer variables
   Timer? _sessionTimer;
   Timer? _autoPaymentTimer;
-  Timer? _startupDelayTimer;
   Timer? _walletRefreshTimer;
   int _remainingSeconds = 0;
   int _elapsedSeconds = 0;
@@ -74,7 +69,6 @@ class _CallScreenState extends State<CallScreen> {
   bool _callEnded = false;
 
   // Payment variables
-  static const int AUTO_PAYMENT_INTERVAL = 60;
   double _ratePerMinute = 0;
   bool _autoPaymentEnabled = false;
 
@@ -100,8 +94,8 @@ class _CallScreenState extends State<CallScreen> {
       }
     });
     print(
-        "CallScreen initialized with participant: ${widget.participant.name}");
-    print("CallScreen initialTimer: ${widget.initialTimer}");
+        "InstaTalk Voice Call initialized with participant: ${widget.participant.name}");
+    print("InstaTalk Trial: ${widget.isTrial}");
 
     // Fetch initial wallet balance
     _chatController.fetchWalletBalance();
@@ -114,23 +108,15 @@ class _CallScreenState extends State<CallScreen> {
     });
 
     // Initialize call variables
-    // if (widget.participant != null) { // participant is non-nullable
-    _ratePerMinute = widget.participant.earnings?.voiceRate ?? 0;
-    // }
+    _ratePerMinute = widget.participant.earnings?.live?.toDouble() ?? 0;
 
     // Start timers and setup
-    _checkPermissions(); // This requests microphone, which is fine.
-    // _setupCallController(); // This was empty, can be removed if not used.
+    _checkPermissions();
 
-    // For incoming calls, stop the ringtone as CallNotificationService should have started it.
-    // The CallKit UI should have already been dismissed by CallNotificationService.
+    // For incoming calls, stop the ringtone
     if (widget.isIncomingCall) {
       _stopCallRingtone();
-      // No need to call FlutterCallkitIncoming.endCall here if CallNotificationService._handleCallAccept does it.
     }
-
-    // Print initialTimer for debugging
-    print("Setting up call with initialTimer: ${widget.initialTimer} minutes");
   }
 
   Future<void> _playCallRingtone() async {
@@ -241,39 +227,29 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
-  // Update the startTimers method to match VoiceCallScreen
+  // Update the startTimers method to focus only on InstaTalk
   void _startTimers() {
-    print("Starting timers:");
-    print("Is InstaTalk: ${widget.isInstaTalk}");
+    print("Starting InstaTalk timers:");
     print("Is Trial: ${widget.isTrial}");
-    print("Initial Timer: ${widget.initialTimer}");
+    print("InstaTalk Duration: ${widget.instaTalkDuration}");
 
     setState(() {
       _timerStarted = true;
     });
 
-    if (widget.isInstaTalk) {
-      if (widget.isTrial) {
-        // Trial InstaTalk - 30 seconds countdown, then end call
-        print("Starting TRIAL countdown timer (30 seconds)");
-        _startTrialCountdownTimer();
-      } else {
-        // Paid InstaTalk - growing timer with auto-payment per minute
-        print("Starting PAID InstaTalk growing timer with auto-payment");
-        _startGrowingTimer();
-        _startAutoPaymentTimer(true); // Use InstaTalk rate
-      }
+    if (widget.isTrial) {
+      // Trial InstaTalk - 30 seconds countdown, then end call
+      print("Starting TRIAL countdown timer (30 seconds)");
+      _startTrialCountdownTimer();
     } else {
-      // Regular meeting - standard timer based on initialTimer parameter instead of fixed 30 minutes
-      print(
-          "Starting REGULAR meeting countdown timer (${widget.initialTimer} minutes)");
-      _startRegularTimer();
-      _startGrowingTimer(); // Also track elapsed time
-      _startAutoPaymentTimer(false); // Use regular voice call rate
+      // Paid InstaTalk - growing timer with auto-payment per minute
+      print("Starting PAID InstaTalk growing timer with auto-payment");
+      _startGrowingTimer();
+      _startAutoPaymentTimer();
     }
   }
 
-  // Update trial countdown timer
+  // Trial countdown timer
   void _startTrialCountdownTimer() {
     setState(() {
       _remainingSeconds = 30; // 30 seconds for trial
@@ -294,7 +270,7 @@ class _CallScreenState extends State<CallScreen> {
     });
   }
 
-  // Update growing timer for tracking elapsed time
+  // Growing timer for tracking elapsed time
   void _startGrowingTimer() {
     setState(() {
       _elapsedSeconds = 0;
@@ -307,50 +283,10 @@ class _CallScreenState extends State<CallScreen> {
     });
   }
 
-  // Update regular timer to use initialTimer
-  void _startRegularTimer() {
-    setState(() {
-      // Use initialTimer from widget parameter
-      _remainingSeconds =
-          widget.initialTimer * 60; // Convert minutes to seconds
-    });
-
-    // We use a separate timer for the countdown, not the same as _sessionTimer
-    Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-
-      setState(() {
-        if (_remainingSeconds > 0) {
-          _remainingSeconds--;
-        } else {
-          timer.cancel();
-          if (!_showingPaymentPrompt) {
-            _sessionExpired = true;
-            _showContinueCallPrompt();
-          }
-        }
-      });
-    });
-  }
-
-  // Update auto-payment timer to take a parameter
-  void _startAutoPaymentTimer([bool isInstaTalk = false]) {
-    // Calculate rate per minute based on call type
-    double ratePerMinute;
-    if (isInstaTalk) {
-      // For InstaTalk, use instaTalk rate directly (already per minute)
-      ratePerMinute = widget.participant.earnings?.live?.toDouble() ?? 0;
-    } else {
-      // For regular voice calls, divide voice rate by 30 (since it's for 30 minutes)
-      final voiceRate = widget.participant.earnings?.voice ?? 300;
-      ratePerMinute = voiceRate / 30;
-    }
-
-    // Update the stored rate
-    _ratePerMinute = ratePerMinute;
+  // Auto-payment timer specifically for InstaTalk
+  void _startAutoPaymentTimer() {
+    // For InstaTalk, use instaTalk rate directly (already per minute)
+    _ratePerMinute = widget.participant.earnings?.live?.toDouble() ?? 0;
 
     if (_ratePerMinute <= 0) return;
 
@@ -425,7 +361,6 @@ class _CallScreenState extends State<CallScreen> {
     }
     _sessionTimer?.cancel();
     _autoPaymentTimer?.cancel();
-    _startupDelayTimer?.cancel();
     _walletRefreshTimer?.cancel();
     _autoPaymentEnabled = false;
 
@@ -509,7 +444,6 @@ class _CallScreenState extends State<CallScreen> {
     }
     _sessionTimer?.cancel();
     _autoPaymentTimer?.cancel();
-    _startupDelayTimer?.cancel();
     _walletRefreshTimer?.cancel();
     _autoPaymentEnabled = false;
     _durationService.reset();
@@ -531,30 +465,26 @@ class _CallScreenState extends State<CallScreen> {
             : Column(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  // Top section with enhanced call type and wallet balance
+                  // Top section with call type and wallet balance
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Enhanced call type indicator with all necessary information
+                        // InstaTalk call type indicator
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: widget.isInstaTalk
-                                  ? [Colors.purple, Colors.deepPurple]
-                                  : [Colors.blue, Colors.teal],
+                            gradient: const LinearGradient(
+                              colors: [Colors.purple, Colors.deepPurple],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: widget.isInstaTalk
-                                    ? Colors.purple.withOpacity(0.3)
-                                    : Colors.blue.withOpacity(0.3),
+                                color: Colors.purple.withOpacity(0.3),
                                 blurRadius: 8,
                                 spreadRadius: 1,
                               ),
@@ -563,18 +493,16 @@ class _CallScreenState extends State<CallScreen> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                widget.isInstaTalk ? Icons.star : Icons.event,
+                              const Icon(
+                                Icons.star,
                                 color: Colors.white,
                                 size: 16,
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                widget.isInstaTalk
-                                    ? widget.isTrial
-                                        ? "InstaTalk Trial"
-                                        : "InstaTalk"
-                                    : "Voice Meeting",
+                                widget.isTrial
+                                    ? "InstaTalk Trial"
+                                    : "InstaTalk",
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -585,7 +513,7 @@ class _CallScreenState extends State<CallScreen> {
                           ),
                         ),
 
-                        // Wallet Balance - Simplified
+                        // Wallet Balance
                         Obx(() => Text(
                               '₹${_chatController.userWalletBalance.value.toStringAsFixed(0)}',
                               style: const TextStyle(
@@ -598,8 +526,7 @@ class _CallScreenState extends State<CallScreen> {
                     ),
                   ),
 
-                  // Remove the redundant middle badge and continue with incoming/outgoing indicator
-                  // Incoming/Outgoing indicator - Make it more compact
+                  // Incoming/Outgoing indicator
                   Container(
                     padding:
                         const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
@@ -635,24 +562,20 @@ class _CallScreenState extends State<CallScreen> {
                     ),
                   ),
 
-                  // User profile with status - more compact
+                  // User profile with status
                   Column(
                     children: [
-                      // Profile photo - with colored border based on call type
+                      // Profile photo with purple border for InstaTalk
                       Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: widget.isInstaTalk
-                                ? Colors.purple
-                                : Colors.blue,
+                            color: Colors.purple,
                             width: 3,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: widget.isInstaTalk
-                                  ? Colors.purple.withOpacity(0.2)
-                                  : Colors.blue.withOpacity(0.2),
+                              color: Colors.purple.withOpacity(0.2),
                               blurRadius: 12,
                               spreadRadius: 2,
                             ),
@@ -675,7 +598,7 @@ class _CallScreenState extends State<CallScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Caller name and status
+                      // Caller name
                       Text(
                         widget.participant.name ?? 'Unknown User',
                         style: const TextStyle(
@@ -686,7 +609,7 @@ class _CallScreenState extends State<CallScreen> {
                       ),
                       const SizedBox(height: 6),
 
-                      // Connection status with colored indicator
+                      // Connection status
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 3),
@@ -707,10 +630,10 @@ class _CallScreenState extends State<CallScreen> {
                     ],
                   ),
 
-                  // Ultra-simplified timer display
-                  _buildSimplifiedTimerDisplay(),
+                  // Timer display
+                  _buildInstaTalkTimerDisplay(),
 
-                  // Call controls - Improved spacing and visibility
+                  // Call controls
                   Padding(
                     padding: const EdgeInsets.only(bottom: 20),
                     child: Row(
@@ -747,8 +670,8 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
-  // Simplified timer display with only essential information
-  Widget _buildSimplifiedTimerDisplay() {
+  // InstaTalk-specific timer display
+  Widget _buildInstaTalkTimerDisplay() {
     if (!_timerStarted) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -771,9 +694,7 @@ class _CallScreenState extends State<CallScreen> {
         color: Colors.black12,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: widget.isInstaTalk
-              ? Colors.purple.withOpacity(0.3)
-              : Colors.blue.withOpacity(0.3),
+          color: Colors.purple.withOpacity(0.3),
           width: 1,
         ),
       ),
@@ -783,9 +704,9 @@ class _CallScreenState extends State<CallScreen> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              const Icon(
                 Icons.timer,
-                color: widget.isInstaTalk ? Colors.purple : Colors.blue,
+                color: Colors.purple,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -801,8 +722,8 @@ class _CallScreenState extends State<CallScreen> {
             ],
           ),
 
-          // Only show trial countdown if it's a trial call
-          if (widget.isInstaTalk && widget.isTrial)
+          // Trial countdown if applicable
+          if (widget.isTrial)
             Padding(
               padding: const EdgeInsets.only(top: 5),
               child: Text(
@@ -818,7 +739,7 @@ class _CallScreenState extends State<CallScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 5),
             child: Text(
-              widget.isInstaTalk && widget.isTrial
+              widget.isTrial
                   ? 'Free Trial'
                   : '₹${_ratePerMinute.toStringAsFixed(0)}/min',
               style: TextStyle(
@@ -972,17 +893,16 @@ class _CallScreenState extends State<CallScreen> {
 
   // Update _purchaseCall method to fix the call to _startAutoPaymentTimer
   void _purchaseCall() async {
-    if (widget.participant == null) return;
-
     setState(() => _isRenewing = true);
 
     try {
-      final callRate = widget.participant.earnings?.voiceRate ?? 300.0;
+      final instaTalkRate = widget.participant.earnings?.live?.toDouble() ?? 0;
+      // Purchase for InstaTalk session at the live rate
       final success = await _callController.purchaseCallSession(
         widget.participant.sId!,
-        callRate,
+        instaTalkRate * widget.instaTalkDuration, // Rate * duration
         'voice',
-        minutes: 30,
+        minutes: widget.instaTalkDuration,
       );
 
       if (success) {
@@ -991,26 +911,19 @@ class _CallScreenState extends State<CallScreen> {
           _hasRenewedSession = true;
           _isRenewing = false;
           _showingPaymentPrompt = false;
-          _elapsedSeconds = 0; // Reset elapsed time counter for new session
+          _elapsedSeconds = 0; // Reset elapsed time for new session
 
-          if (widget.isInstaTalk && !widget.isTrial) {
-            if (_sessionTimer == null || !_sessionTimer!.isActive) {
-              _startGrowingTimer();
-            }
-            if (_autoPaymentTimer == null || !_autoPaymentTimer!.isActive) {
-              _startAutoPaymentTimer(true); // Use InstaTalk rate
-            }
-          } else {
-            _remainingSeconds = 30 * 60; // New 30-minute session
-            if (_sessionTimer == null || !_sessionTimer!.isActive) {
-              _startRegularTimer();
-            }
+          if (_sessionTimer == null || !_sessionTimer!.isActive) {
+            _startGrowingTimer();
+          }
+          if (_autoPaymentTimer == null || !_autoPaymentTimer!.isActive) {
+            _startAutoPaymentTimer();
           }
         });
 
         Get.snackbar(
           'Success',
-          'Voice call session purchased',
+          'InstaTalk session purchased',
           backgroundColor: Colors.green,
           colorText: Colors.white,
         );
@@ -1021,7 +934,7 @@ class _CallScreenState extends State<CallScreen> {
       setState(() => _isRenewing = false);
       Get.snackbar(
         'Error',
-        'Failed to purchase call session',
+        'Failed to purchase InstaTalk session',
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
@@ -1108,16 +1021,14 @@ class _CallScreenState extends State<CallScreen> {
   void _showContinueCallPrompt() {
     _showingPaymentPrompt = true;
 
-    if (widget.onSessionEnd != null && !widget.isInstaTalk) {
+    if (widget.onSessionEnd != null) {
       widget.onSessionEnd!();
       return;
     }
 
-    if (widget.participant == null) return;
-
-    final prompt = widget.isInstaTalk && widget.isTrial
-        ? '30-second free voice call'
-        : '${widget.initialTimer}-minute voice call session';
+    final prompt = widget.isTrial
+        ? '30-second free InstaTalk trial'
+        : '${widget.instaTalkDuration}-minute InstaTalk session';
 
     showDialog(
       context: context,
@@ -1125,7 +1036,7 @@ class _CallScreenState extends State<CallScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
         title: const Text(
-          'Session Ended',
+          'InstaTalk Session Ended',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: Column(
@@ -1137,12 +1048,12 @@ class _CallScreenState extends State<CallScreen> {
             ),
             const SizedBox(height: 16),
             const Text(
-              'Would you like to continue this call?',
+              'Would you like to continue this InstaTalk call?',
               style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
             Text(
-              'Rate: ₹${widget.participant.earnings?.voiceRate ?? 300} for 30 minutes',
+              'Rate: ₹${widget.participant.earnings?.live?.toStringAsFixed(0) ?? "0"}/minute',
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,

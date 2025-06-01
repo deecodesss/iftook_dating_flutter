@@ -425,8 +425,8 @@ class ApiService {
     }
   }
 
-  static Future<http.Response> initiateCall(
-      String participantId, String type, DateTime scheduleTime) async {
+  static Future<http.Response> initiateCall(String participantId, String type,
+      DateTime scheduleTime, bool isInstatalk) async {
     final token = await SharedPrefs.getAccessToken();
     final userId = await SharedPrefs.getUserIdSharedPreference();
     Map<String, dynamic> data = {
@@ -434,6 +434,7 @@ class ApiService {
       "participantId": participantId,
       "type": type,
       "scheduledTime": scheduleTime.toIso8601String(),
+      "isInstatalk": isInstatalk, // Assuming this is an InstaTalk call
     };
 
     print('Initiating call with data: $data');
@@ -986,6 +987,16 @@ class ApiService {
   }
 
   static Future<http.Response> getMeetingStatus(String meetingId) async {
+    final token = await SharedPrefs.getAccessToken();
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/meeting/status/$meetingId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
+  }
+
+  static Future<http.Response> getCurrentMeeting(String meetingId) async {
     final token = await SharedPrefs.getAccessToken();
     return authenticatedRequest(() => http.get(
           Uri.parse('$baseUrl/meeting/status/$meetingId'),

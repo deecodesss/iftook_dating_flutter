@@ -419,7 +419,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                 _buildInstaOption(
                   icon: Icons.chat_bubble_outline,
                   label: 'Chat',
-                  price: friend.earnings?.chatRate.toInt() ?? 150,
+                  price: friend.earnings?.live.toInt() ?? 150,
                   onTap: () {
                     Navigator.push(
                       context,
@@ -433,7 +433,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                 _buildInstaOption(
                   icon: Icons.call_outlined,
                   label: 'Call',
-                  price: friend.earnings?.voiceRate.toInt() ?? 300,
+                  price: friend.earnings?.live.toInt() ?? 300,
                   onTap: () {
                     Navigator.push(
                       context,
@@ -447,7 +447,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
                 _buildInstaOption(
                   icon: Icons.videocam_outlined,
                   label: 'Video',
-                  price: friend.earnings?.videoRate.toInt() ?? 450,
+                  price: friend.earnings?.live.toInt() ?? 450,
                   onTap: () {
                     Navigator.push(
                       context,

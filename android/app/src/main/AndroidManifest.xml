@@ -143,10 +143,12 @@
             android:name="com.hiennv.flutter_callkit_incoming.CallkitIncomingTelecomService"
             android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
             android:exported="true">
+
             <intent-filter>
                 <action android:name="android.telecom.ConnectionService" />
             </intent-filter>
         </service>
+
 
     </application>
     <!-- Required to query activities that can process text, see:

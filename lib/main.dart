@@ -343,18 +343,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Register handler for new intents (Android)
     if (Platform.isAndroid) {
       const channel = MethodChannel('com.iftook.app/intent');
       channel.setMethodCallHandler((call) async {
         if (call.method == 'onNewIntent') {
-          // Handle the intent here - the app was already running
           debugPrint('🚀 App received new intent while running');
 
-          // You might need to extract call data and handle navigation
           final args = call.arguments as Map<dynamic, dynamic>?;
           if (args != null && args.containsKey('call_id')) {
-            // Handle call intent
             debugPrint('📱 Call intent received: ${args['call_id']}');
           }
         }
@@ -370,11 +366,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Handle app lifecycle changes
     debugPrint('App lifecycle state changed to: $state');
 
     if (state == AppLifecycleState.resumed) {
-      // App came to foreground
       debugPrint('App resumed - checking for pending calls');
     }
   }

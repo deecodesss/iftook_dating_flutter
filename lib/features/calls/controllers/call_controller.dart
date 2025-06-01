@@ -236,8 +236,8 @@ class CallController extends GetxController {
       callType.value = type;
       isIncomingCall.value = false;
 
-      final response =
-          await ApiService.initiateCall(participantId, type, scheduleTime);
+      final response = await ApiService.initiateCall(
+          participantId, type, scheduleTime, isInstaTalk);
 
       print('Call Initiation Response: ${response.body}');
 
@@ -424,7 +424,8 @@ class CallController extends GetxController {
   }
 
   Future<void> initiateMeetingCall(
-      String participantId, String type, DateTime scheduleTime) async {
+      String participantId, String type, DateTime scheduleTime,
+      {bool isInstatalk = false}) async {
     try {
       updateCallState(CallState.initializing,
           message: 'Starting scheduled call...');
@@ -440,6 +441,7 @@ class CallController extends GetxController {
         participantId,
         type,
         scheduleTime,
+        isInstatalk,
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {

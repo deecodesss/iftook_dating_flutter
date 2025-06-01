@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -625,18 +626,12 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
 
       Map<String, dynamic> correctParticipantData;
 
-      // If the "participant" is actually the current user, we need to use the "user" as our actual participant
       if (participantId == currentUserId) {
-        print('PARTICIPANT SWAP: Using meeting user as the actual participant');
         correctParticipantData = userData;
         usedWrongParticipant = true;
       } else if (userId == currentUserId && participantId != currentUserId) {
-        // This is the correct scenario - currentUser is the "user" and participant is someone else
-        print('PARTICIPANT CORRECT: Current user is the meeting creator');
         correctParticipantData = participantData;
       } else {
-        // Default case - just use participantData as provided
-        print('PARTICIPANT DEFAULT: Using provided participant data');
         correctParticipantData = participantData;
       }
 
@@ -667,17 +662,25 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
 
         switch (type) {
           case 'voice':
-            // await Get.to(() => VoiceCallLoadingScreen(
-            //       participant: participant,
-            //       scheduleTime: scheduledTime,
-            //       type: "voice",
-            //       isInstaTalk: false,
-            //       meetingId: meetingId, // Ensure meetingId is passed
-            //       token: token,
-            //       channel: channelName,
-            //       instaTalkDuration: meeting['duration'] ?? 30,
-            //     ));
-            await _handleChatVoiceCall(participant);
+            final now = DateTime.now();
+            final scheduledTime = DateTime.parse(meeting['scheduledTime']);
+
+            final totalDuration = (meeting['duration'] is int)
+                ? meeting['duration'] as int
+                : int.tryParse('${meeting['duration']}') ?? 30;
+
+            final minutesElapsed = now.difference(scheduledTime).inMinutes;
+
+            final remainingTime =
+                math.max<int>(1, totalDuration - minutesElapsed);
+            print('remainingTime runtimeType: ${remainingTime.runtimeType}');
+
+            print(
+                'Remaining time for voice call: $remainingTime minutes (Total: $totalDuration minutes)');
+
+            await _handleChatVoiceCall(participant,
+                remainingTime: remainingTime);
+            // await _handleChatVoiceCall(participant);
             break;
 
           case 'video':
@@ -719,7 +722,24 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             //       isInstaTalk: false,
             //       meetingId: meetingId, // Add meetingId here
             //     ));
-            await _handleChatVoiceCall(participant);
+            final now = DateTime.now();
+            final scheduledTime = DateTime.parse(meeting['scheduledTime']);
+
+            final totalDuration = (meeting['duration'] is int)
+                ? meeting['duration'] as int
+                : int.tryParse('${meeting['duration']}') ?? 30;
+
+            final minutesElapsed = now.difference(scheduledTime).inMinutes;
+
+            final remainingTime =
+                math.max<int>(1, totalDuration - minutesElapsed);
+
+            print(
+                'Remaining time for voice call: $remainingTime minutes (Total: $totalDuration minutes)');
+
+            await _handleChatVoiceCall(participant,
+                remainingTime: remainingTime);
+            // await _handleChatVoiceCall(participant);
             break;
 
           case 'video':
@@ -800,15 +820,15 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     }
   }
 
-  _handleChatVoiceCall(participant) async {
+  _handleChatVoiceCall(participant, {remainingTime = 30.00}) async {
     try {
       Get.dialog(
         const Center(child: CircularProgressIndicator()),
         barrierDismissible: false,
       );
 
-      final callData =
-          await ChatCallService.initiateChatCall(participant.sId!, 'voice', 30);
+      final callData = await ChatCallService.initiateChatCall(
+          participant.sId!, 'voice', remainingTime.toDouble());
 
       Get.back(); // Close loading dialog
 

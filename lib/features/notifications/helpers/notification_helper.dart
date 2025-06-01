@@ -1,3 +1,5 @@
+// ignore_for_file: constant_identifier_names
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -70,7 +72,7 @@ class NotificationHelper {
               final meetingId = extra['meetingId'];
               final channelName = extra['channelName'];
               final token = extra['token'];
-              final callDuration = extra['callDuration'] ?? '30';
+              final callDuration = extra['duration'] ?? '30';
 
               // Navigate to appropriate call screen
               if (isVideo) {
@@ -376,7 +378,7 @@ class NotificationHelper {
     final bool isInstaTalk = payloadData['isInstaTalk'] == 'true';
     final String meetingType = payloadData['meetingType'] ?? 'regularMeeting';
     final String callDuration =
-        payloadData['duration'] ?? payloadData['callDuration'] ?? '30';
+        payloadData['duration'] ?? payloadData['duration'] ?? '30';
     final String callerId = payloadData['callerId'] ?? '';
 
     showCallSnackBar(
@@ -636,14 +638,14 @@ class NotificationHelper {
                   meetingId: meetingId,
                   channel: channelName,
                   token: token,
-                  initialTimer: int.parse(payload['callDuration'] ?? '30'),
+                  initialTimer: int.parse(payload['duration'] ?? '30'),
                 ));
           } else {
             await Get.to(() => VoiceCallScreen(
                   meetingId: meetingId,
                   channel: channelName,
                   token: token,
-                  initialTimer: int.parse(payload['callDuration'] ?? '30'),
+                  initialTimer: int.parse(payload['duration'] ?? '30'),
                 ));
           }
           break;
@@ -1010,18 +1012,32 @@ class NotificationHelper {
             message.notification?.title?.split(' ')[0] ??
             "Someone";
         String type = message.data['requestType'] ?? 'chat';
+        bool isTrial = message.data['isTrial'] == 'true';
 
-        // Show simple snackbar
+        // Color and message based on InstaTalk type
+        Color bgColor = isTrial
+            ? Colors.amber.withOpacity(0.9)
+            : AppColors.primaryColor.withOpacity(0.9);
+
+        String title =
+            isTrial ? 'InstaTalk Trial Request' : 'InstaTalk Request';
+
+        // Show simple snackbar with appropriate styling
         Get.snackbar(
-          'InstaTalk Request',
+          title,
           '$callerName wants to have a quick ${type.toLowerCase()} chat with you',
-          backgroundColor: AppColors.primaryColor.withOpacity(0.9),
+          backgroundColor: bgColor,
           colorText: Colors.white,
           duration: const Duration(seconds: 5),
           isDismissible: true,
           snackPosition: SnackPosition.TOP,
           margin: const EdgeInsets.all(8),
           borderRadius: 8,
+          icon: Icon(
+            isTrial ? Icons.new_releases : Icons.star,
+            color: Colors.white,
+            size: 24,
+          ),
         );
         return;
       }
@@ -1060,17 +1076,8 @@ class NotificationHelper {
     bool isInstaTalk = false,
     String meetingType = "regularMeeting",
   }) {
-    // Play ringtone at low volume
-    try {
-      FlutterRingtonePlayer().play(
-        android: AndroidSounds.ringtone,
-        ios: IosSounds.glass,
-        looping: true,
-        volume: 0.3,
-      );
-    } catch (e) {
-      debugPrint('Error playing ringtone: $e');
-    }
+    // Don't play custom ringtone - device sound already handles this
+    // Let system notification sound handle audio alerts
 
     // Show a persistent snackbar
     Get.snackbar(
@@ -1087,11 +1094,7 @@ class NotificationHelper {
       titleText: Container(),
       messageText: GestureDetector(
         onTap: () {
-          // Stop ringtone
-          FlutterRingtonePlayer().stop();
-
-          // Close the snackbar
-          Get.closeCurrentSnackbar();
+          // Close the snackbar (don't need to stop ringtone since we're not playing one)
 
           // Navigate to incoming call screen
           Get.to(() => IncomingCallScreen(
