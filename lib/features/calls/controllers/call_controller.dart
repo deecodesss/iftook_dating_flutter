@@ -257,7 +257,7 @@ class CallController extends GetxController {
             '\nChannel: ${channel.value}'
             '\nMeeting ID: ${meetingId.value}'
             '\nToken: ${token.value}'
-            '\nisInstaTalk: $isInstaTalk'
+            '\nisInstatalk: $isInstaTalk'
             '\nisTrial: $isTrial');
 
         if (channel.value.isEmpty || token.value.isEmpty) {

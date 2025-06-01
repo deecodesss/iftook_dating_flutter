@@ -10,7 +10,7 @@ import 'package:get/get.dart';
 import 'package:iftook/features/calls/controllers/call_controller.dart';
 import 'package:iftook/features/calls/presentation/screens/call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVideoCall.dart';
-import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoicelCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
 import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/missed_call_screen.dart';
@@ -126,7 +126,7 @@ class CallNotificationService {
       final bool isVideo = callType == 'video';
       final String meetingType =
           message.data['meetingType'] ?? 'regularMeeting';
-      final bool isInstaTalk = message.data['isInstaTalk'] == 'true';
+      final bool isInstaTalk = message.data['isInstatalk'] == 'true';
       final String callDuration =
           message.data['duration'] ?? message.data['duration'] ?? "30";
       final String callerImage = message.data['callerImage'] ??
@@ -180,7 +180,7 @@ class CallNotificationService {
           'duration': callDuration,
           'callRate': message.data['callRate'] ?? "0",
           'callerRating': message.data['callerRating'] ?? "0",
-          'isInstaTalk': isInstaTalk,
+          'isInstatalk': isInstaTalk,
           'meetingType': meetingType,
           'isVideo': isVideo,
           'callerName': callerName,
@@ -386,7 +386,7 @@ class CallNotificationService {
 
       // If this is a valid call, navigate to appropriate screen
       if (meetingId.isNotEmpty && channelName.isNotEmpty && token.isNotEmpty) {
-        if (isVideo) {
+        if (data['isInstatalk'] == false && isVideo) {
           Get.to(() => VideoCallScreen(
                 initialTimer: 30,
                 meetingId: meetingId,
@@ -395,8 +395,8 @@ class CallNotificationService {
                 participant: caller,
                 isIncomingCall: true,
               ));
-        } else {
-          Get.to(() => CallScreen(
+        } else if (data['isInstatalk'] == false && !isVideo) {
+          Get.to(() => NormalVoiceCallScreen(
                 meetingId: meetingId,
                 channel: channelName,
                 token: token,
@@ -407,7 +407,35 @@ class CallNotificationService {
                 initialTimer: data['duration'] != null
                     ? int.tryParse(data['duration'].toString()) ?? 30
                     : 30,
-                isInstaTalk: data['isInstaTalk'] == false ? false : true,
+                isInstaTalk: data['isInstatalk'] == false ? false : true,
+              ));
+        } else if (data['isInstatalk'] == true && !isVideo) {
+          Get.to(() => ITVoiceCallScreen(
+                meetingId: meetingId,
+                channel: channelName,
+                token: token,
+                participant: caller,
+                isIncomingCall: true,
+                callerName: callerName,
+                callerImage: data['callerImage'] ?? '',
+                // initialTimer: data['duration'] != null
+                //     ? int.tryParse(data['duration'].toString()) ?? 30
+                //     : 30,
+                // isInstaTalk: data['isInstaTalk'] == false ? false : true,
+              ));
+        } else {
+          Get.to(() => ITVideoCallScreen(
+                meetingId: meetingId,
+                channel: channelName,
+                token: token,
+                participant: caller,
+                isIncomingCall: true,
+                // callerName: callerName,
+                // callerImage: data['callerImage'] ?? '',
+                // initialTimer: data['duration'] != null
+                //     ? int.tryParse(data['duration'].toString()) ?? 30
+                //     : 30,
+                // isInstaTalk: data['isInstaTalk'] == false ? false : true,
               ));
         }
       }
@@ -597,7 +625,7 @@ class CallNotificationService {
       final String callerName =
           body['nameCaller']?.toString() ?? 'Unknown Caller';
       final String callerImage = body['avatar']?.toString() ?? '';
-      final bool isInstaTalk = extra['isInstaTalk'] as bool? ?? false;
+      final bool isInstaTalk = extra['isInstatalk'] as bool? ?? false;
       final String callDuration = extra['duration']?.toString() ?? '30';
 
       if (meetingId.isEmpty ||
@@ -938,7 +966,7 @@ class CallNotificationService {
       final callerName = body['nameCaller']?.toString() ?? 'Unknown Caller';
       final callerImage = body['avatar']?.toString() ?? '';
       final isVideo = extraData['isVideo'] as bool? ?? false;
-      final isInstaTalk = extraData['isInstaTalk'] as bool? ?? false;
+      final isInstaTalk = extraData['isInstatalk'] as bool? ?? false;
       final timestamp = extraData['timestamp'] as int? ??
           DateTime.now().millisecondsSinceEpoch;
 
@@ -1014,7 +1042,7 @@ class CallNotificationService {
                   extra: <String, dynamic>{
                     'callerId': data['callerId'] ?? '',
                     'isVideo': data['type'] == 'video',
-                    'isInstaTalk': data['isInstaTalk'] == true,
+                    'isInstatalk': data['isInstatalk'] == true,
                     'timestamp': DateTime.now().millisecondsSinceEpoch,
                   },
                 ),

@@ -13,6 +13,9 @@ import 'package:get/get.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/auth/controllers/auth_controller.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVideoCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
 import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
 import 'package:iftook/features/calls/services/call_notification_service.dart';
@@ -375,7 +378,7 @@ class NotificationHelper {
     final String callerName = payloadData['callerName'] ?? 'Unknown Caller';
     final String callerImage =
         payloadData['callerImage'] ?? payloadData['callerProfilePicture'] ?? '';
-    final bool isInstaTalk = payloadData['isInstaTalk'] == 'true';
+    final bool isInstaTalk = payloadData['isInstatalk'] == 'true';
     final String meetingType = payloadData['meetingType'] ?? 'regularMeeting';
     final String callDuration =
         payloadData['duration'] ?? payloadData['duration'] ?? '30';
@@ -408,7 +411,7 @@ class NotificationHelper {
 
       final String title = "${meetingType.capitalize} Renewed";
       final String body = message.notification?.body ??
-          "$callerName has renewed your $typeText ${message.data['isInstaTalk'] == 'true' ? 'InstaTalk' : 'Call'} session.";
+          "$callerName has renewed your $typeText ${message.data['isInstatalk'] == 'true' ? 'InstaTalk' : 'Call'} session.";
 
       // Use a regular notification instead of a call notification
       final AndroidNotificationDetails androidDetails =
@@ -631,17 +634,40 @@ class NotificationHelper {
 
           // Cancel the notification
           await _flutterLocalNotificationsPlugin.cancel(_callNotificationId);
-
+          final User caller = User(
+            sId: payload['callerId'] ?? '',
+            name: callerName,
+            photos: payload["callerProfilePicture"].isNotEmpty
+                ? payload["callerProfilePicture"]
+                : [],
+          );
           // Navigate to the appropriate call screen
-          if (isVideo) {
+          if (isVideo && payload['isInstatalk'] == 'true') {
+            await Get.to(() => ITVideoCallScreen(
+                  participant: caller,
+                  meetingId: meetingId,
+                  channel: channelName,
+                  token: token,
+                  // initialTimer: int.parse(payload['duration'] ?? '30'),
+                ));
+          } else if (!isVideo && payload['isInstatalk'] == 'true') {
+            await Get.to(() => ITVoiceCallScreen(
+                  participant: caller,
+                  meetingId: meetingId,
+                  channel: channelName,
+                  token: token,
+                ));
+          } else if (isVideo && payload['isInstatalk'] == 'false') {
             await Get.to(() => VideoCallScreen(
+                  participant: caller,
                   meetingId: meetingId,
                   channel: channelName,
                   token: token,
                   initialTimer: int.parse(payload['duration'] ?? '30'),
                 ));
           } else {
-            await Get.to(() => VoiceCallScreen(
+            await Get.to(() => NormalVoiceCallScreen(
+                  participant: caller,
                   meetingId: meetingId,
                   channel: channelName,
                   token: token,

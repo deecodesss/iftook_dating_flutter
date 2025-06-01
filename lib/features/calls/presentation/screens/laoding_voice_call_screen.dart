@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
 import 'package:iftook/features/calls/presentation/screens/voice_call_screen.dart';
 import 'package:iftook/features/calls/services/ringtone_service.dart'; // Import the new service
 import 'dart:async';
@@ -114,18 +116,33 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
             print('Is Trial: ${widget.isTrial}');
             print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
-            Get.to(
-                () => VoiceCallScreen(
-                      meetingId: widget.meetingId!,
-                      channel: widget.channel!,
-                      token: widget.token!,
-                      initialTimer: widget.instaTalkDuration,
-                      isTrial: widget.isTrial,
-                      isInstaTalk: widget.isInstaTalk,
-                      participant: widget.participant,
-                      onSessionEnd: widget.onSessionEnd,
-                    ),
-                arguments: {'participant': widget.participant});
+            if (widget.isInstaTalk) {
+              Get.to(
+                  () => ITVoiceCallScreen(
+                        meetingId: widget.meetingId!,
+                        channel: widget.channel!,
+                        token: widget.token!,
+                        // initialTimer: widget.instaTalkDuration,
+                        isTrial: widget.isTrial,
+                        // isInstaTalk: widget.isInstaTalk,
+                        participant: widget.participant,
+                        onSessionEnd: widget.onSessionEnd,
+                      ),
+                  arguments: {'participant': widget.participant});
+            } else {
+              Get.to(
+                  () => NormalVoiceCallScreen(
+                        meetingId: widget.meetingId!,
+                        channel: widget.channel!,
+                        token: widget.token!,
+                        initialTimer: widget.instaTalkDuration,
+                        isTrial: widget.isTrial,
+                        isInstaTalk: widget.isInstaTalk,
+                        participant: widget.participant,
+                        onSessionEnd: widget.onSessionEnd,
+                      ),
+                  arguments: {'participant': widget.participant});
+            }
           });
           return;
         }

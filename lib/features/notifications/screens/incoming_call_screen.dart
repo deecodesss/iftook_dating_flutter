@@ -4,6 +4,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVideoCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
+import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -176,8 +180,25 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
       };
 
       print('Navigating to call screen with params: $callParams');
-
-      if (widget.isVideo) {
+      final User caller = User(
+        sId: widget.callerId,
+        name: widget.callerName,
+        photos: widget.callerImage.isNotEmpty ? [widget.callerImage] : [],
+      );
+      if (widget.isVideo && widget.isInstaTalk) {
+        await Get.off(
+          () => ITVideoCallScreen(
+            participant: caller,
+            meetingId: widget.meetingId,
+            channel: widget.channelName,
+            token: widget.token,
+            // initialTimer: int.parse(widget.callDuration),
+            isIncomingCall: true,
+            // isInstaTalk: widget.isInstaTalk,
+          ),
+          transition: Transition.rightToLeftWithFade,
+        );
+      } else if (widget.isVideo && !widget.isInstaTalk) {
         await Get.off(
           () => VideoCallScreen(
             meetingId: widget.meetingId,
@@ -189,9 +210,23 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
           ),
           transition: Transition.rightToLeftWithFade,
         );
+      } else if (!widget.isVideo && widget.isInstaTalk) {
+        await Get.off(
+          () => ITVoiceCallScreen(
+            participant: caller,
+            meetingId: widget.meetingId,
+            channel: widget.channelName,
+            token: widget.token,
+            // initialTimer: int.parse(widget.callDuration),
+            isIncomingCall: true,
+            // isInstaTalk: widget.isInstaTalk,
+          ),
+          transition: Transition.rightToLeftWithFade,
+        );
       } else {
         await Get.off(
-          () => VoiceCallScreen(
+          () => NormalVoiceCallScreen(
+            participant: caller,
             meetingId: widget.meetingId,
             channel: widget.channelName,
             token: widget.token,
