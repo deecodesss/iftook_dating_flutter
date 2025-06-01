@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iftook/core/services/api_service.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
 import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
 import 'package:iftook/features/friend_requests/controller/friend_controller.dart';
@@ -428,9 +429,9 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
   }
 
   void _handleJoinMeeting(Map<String, dynamic> meeting) async {
-    final isInstaTalk = meeting['isInstaTalk'] ?? false;
+    final isInstatalk = meeting['isInstatalk'] ?? false;
 
-    if (isInstaTalk) {
+    if (isInstatalk) {
       _handleInstaTalkJoin(meeting);
     } else {
       _handleRegularMeetingJoin(meeting);
@@ -450,7 +451,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       final type = meeting['type'];
       final amount = (meeting['amount'] ?? 0).toDouble();
       final meetingId = meeting['_id'];
-      final isSender = controller.isInstaTalkSender(meeting);
+      final isSender = controller.isInstatalkSender(meeting);
       final int renewalCount = meeting['renewalCount'] ?? 0;
       final bool isTrial = renewalCount == 0;
 
@@ -529,6 +530,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         meetingId: meetingId,
         isUserOne: isSender,
       );
+      print('InstaTalk time usage updated: $success');
 
       if (!success) {
         Get.snackbar(
@@ -544,10 +546,10 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         case 'chat':
           await Get.to(() => ChatRoomScreen(
                 profile: participant,
-                isInstaTalk: true,
+                isInstatalk: true,
                 isTrial: isTrial,
                 duration: meeting['duration'],
-                isInstaTalkSender: isSender,
+                isInstatalkSender: isSender,
                 onSessionEnd: () =>
                     _showContinueSessionDialog(participant, amount, type),
               ));
@@ -558,20 +560,37 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 participant: participant,
                 scheduleTime: DateTime.now(),
                 type: "voice",
-                isInstaTalk: true,
+                isInstatalk: true,
                 isTrial: isTrial,
                 instaTalkDuration: meeting['duration'],
                 onSessionEnd: () =>
                     _showContinueSessionDialog(participant, amount, type),
+                remainingTime: meeting['duration']?.toDouble() ?? 30.0,
               ));
           break;
+        // case 'voice':
+        //   await Get.to(() => ITVoiceCallScreen(
+        //         meetingId: meetingId,
+        //         participant: participant,
+        //         token: meeting['token'],
+        //         channel: meeting['channelName'],
+
+        //         // scheduleTime: DateTime.now(),
+        //         // type: "voice",
+        //         // isInstatalk: true,
+        //         // isTrial: isTrial,
+        //         // instaTalkDuration: meeting['duration'],
+        //         onSessionEnd: () =>
+        //             _showContinueSessionDialog(participant, amount, type),
+        //       ));
+        //   break;
 
         case 'video':
           await Get.to(() => VideoCallLoadingScreen(
                 participant: participant,
                 scheduleTime: DateTime.now(),
                 type: "video",
-                isInstaTalk: true,
+                isInstatalk: true,
                 isTrial: isTrial,
                 instaTalkDuration: meeting['duration'],
                 onSessionEnd: () =>
@@ -688,7 +707,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             //       participant: participant,
             //       scheduleTime: scheduledTime,
             //       type: "video",
-            //       isInstaTalk: false,
+            //       isInstatalk: false,
             //       meetingId: meetingId, // Ensure meetingId is passed
             //       token: token,
             //       channel: channelName,
@@ -700,10 +719,10 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           case 'chat':
             await Get.to(() => ChatRoomScreen(
                   profile: participant,
-                  isInstaTalk: false,
+                  isInstatalk: false,
                   duration: meeting['duration'],
                   isFriend: false,
-                  isInstaTalkSender: controller.isInstaTalkSender(meeting),
+                  isInstatalkSender: controller.isInstatalkSender(meeting),
                   scheduledTime: DateTime.parse(meeting['scheduledTime']),
                 ));
             break;
@@ -719,7 +738,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             //       participant: participant,
             //       scheduleTime: scheduledTime,
             //       type: "voice",
-            //       isInstaTalk: false,
+            //       isInstatalk: false,
             //       meetingId: meetingId, // Add meetingId here
             //     ));
             final now = DateTime.now();
@@ -747,7 +766,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             //       participant: participant,
             //       scheduleTime: scheduledTime,
             //       type: "video",
-            //       isInstaTalk: false,
+            //       isInstatalk: false,
             //       meetingId: meetingId, // Add meetingId here
             //     ));
             await _handleChatVideoCall(participant);
@@ -756,10 +775,10 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           case 'chat':
             await Get.to(() => ChatRoomScreen(
                   profile: participant,
-                  isInstaTalk: false,
+                  isInstatalk: false,
                   duration: meeting['duration'],
                   isFriend: false,
-                  isInstaTalkSender: controller.isInstaTalkSender(meeting),
+                  isInstatalkSender: controller.isInstatalkSender(meeting),
                   scheduledTime: DateTime.parse(meeting['scheduledTime']),
                 ));
             break;
@@ -842,6 +861,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
               meetingId: callData['meetingId'],
               token: callData['token'],
               channel: callData['channelName'],
+              remainingTime: remainingTime.toDouble(),
             ));
       }
     } catch (e) {
@@ -957,10 +977,10 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           final currentUserId = await SharedPrefs.getUserIdSharedPreference();
           Get.off(() => ChatRoomScreen(
                 profile: participant,
-                isInstaTalk: true,
+                isInstatalk: true,
                 isTrial: false, // Set to false since it's a paid continuation
                 duration: 60,
-                isInstaTalkSender: controller.isInstaTalkSender({
+                isInstatalkSender: controller.isInstatalkSender({
                   'user': {
                     '_id': currentUserId,
                   },
@@ -975,11 +995,12 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 participant: participant,
                 scheduleTime: DateTime.now(),
                 type: "voice",
-                isInstaTalk: true,
+                isInstatalk: true,
                 isTrial: false, // Set to false since it's a paid continuation
                 instaTalkDuration: 30,
                 onSessionEnd: () =>
                     _showContinueSessionDialog(participant, amount, type),
+                remainingTime: 1.0, // Set remaining time for voice call
               ));
           break;
         case 'video':
@@ -987,7 +1008,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 participant: participant,
                 scheduleTime: DateTime.now(),
                 type: "video",
-                isInstaTalk: true,
+                isInstatalk: true,
                 isTrial: false, // Set to false since it's a paid continuation
                 instaTalkDuration: 30,
                 onSessionEnd: () =>
@@ -2069,7 +2090,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
         return widget.controller.fetchInstaTalkRequests();
       },
       child: Obx(() {
-        if (widget.controller.isInstaTalkLoading.value) {
+        if (widget.controller.isInstatalkLoading.value) {
           return const Center(child: CircularProgressIndicator());
         }
 
@@ -2153,7 +2174,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
   }
 
   Widget _buildInstaTalkCard(Map<String, dynamic> instaTalk) {
-    final bool isSender = widget.controller.isInstaTalkSender(instaTalk);
+    final bool isSender = widget.controller.isInstatalkSender(instaTalk);
     final bool canInteract =
         widget.controller.canInteractWithRequest(instaTalk);
     final String displayName =
@@ -2163,7 +2184,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
         ? instaTalk['userOneTimeUsed'] ?? false
         : instaTalk['userTwoTimeUsed'] ?? false;
     final bool isAccepted = instaTalk['acceptedByParticipant'] == true;
-    final bool isExpired = widget.controller.isInstaTalkExpired(instaTalk);
+    final bool isExpired = widget.controller.isInstatalkExpired(instaTalk);
     final bool isActive = !isExpired && instaTalk['status'] != 'completed';
 
     // Get the other user's ID for online status check
@@ -2810,7 +2831,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
       final String meetingId = instaTalk['_id'] ?? '';
       final String type = instaTalk['type'] ?? 'chat';
       final bool isAccepted = instaTalk['acceptedByParticipant'] == true;
-      final bool isSender = widget.controller.isInstaTalkSender(instaTalk);
+      final bool isSender = widget.controller.isInstatalkSender(instaTalk);
       final int renewalCount = instaTalk['renewalCount'] ?? 0;
       final bool isTrial = renewalCount == 0;
 
@@ -2888,11 +2909,11 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
         case 'chat':
           await Get.to(() => ChatRoomScreen(
                 profile: participant,
-                isInstaTalk: true,
+                isInstatalk: true,
                 isTrial: isTrial,
                 duration: instaTalk['duration'] ?? 30,
-                isInstaTalkSender:
-                    widget.controller.isInstaTalkSender(instaTalk),
+                isInstatalkSender:
+                    widget.controller.isInstatalkSender(instaTalk),
               ));
           break;
 
@@ -2901,7 +2922,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                 participant: participant,
                 scheduleTime: DateTime.now(),
                 type: "voice",
-                isInstaTalk: true,
+                isInstatalk: true,
                 isTrial: isTrial,
                 instaTalkDuration: instaTalk['duration'] ?? 30,
               ));
@@ -2912,7 +2933,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                 participant: participant,
                 scheduleTime: DateTime.now(),
                 type: "video",
-                isInstaTalk: true,
+                isInstatalk: true,
                 isTrial: isTrial,
                 instaTalkDuration: instaTalk['duration'] ?? 30,
               ));
@@ -2940,7 +2961,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
   void _showContinueInstaTalkDialog(Map<String, dynamic> instaTalk) async {
     try {
       // Get the user profile and their live rate
-      final isSender = widget.controller.isInstaTalkSender(instaTalk);
+      final isSender = widget.controller.isInstatalkSender(instaTalk);
       final userData = isSender ? instaTalk['participant'] : instaTalk['user'];
       final user = User.fromJson(userData);
       final liveRate = user.earnings?.liveRate ?? 500.0;

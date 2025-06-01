@@ -11,7 +11,7 @@ class VideoCallLoadingScreen extends StatefulWidget {
   final User participant;
   final String type;
   final DateTime scheduleTime;
-  final bool isInstaTalk;
+  final bool isInstatalk;
   final bool isTrial;
   final int instaTalkDuration;
   final Function? onSessionEnd;
@@ -25,7 +25,7 @@ class VideoCallLoadingScreen extends StatefulWidget {
     required this.participant,
     required this.type,
     required this.scheduleTime,
-    this.isInstaTalk = false,
+    this.isInstatalk = false,
     this.isTrial = false,
     this.instaTalkDuration = 30,
     this.onSessionEnd,
@@ -61,7 +61,7 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
           print('Meeting ID: ${widget.meetingId}');
           print('Channel: ${widget.channel}');
           print('Token: ${widget.token}');
-          print('Is InstaTalk: ${widget.isInstaTalk}');
+          print('Is InstaTalk: ${widget.isInstatalk}');
           print('Is Trial: ${widget.isTrial}');
           print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
@@ -75,7 +75,7 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
             if (!mounted || _callController.wasCallRejected.value) return;
 
             print('Navigating to VideoCallScreen with:');
-            print('Is InstaTalk: ${widget.isInstaTalk}');
+            print('Is InstaTalk: ${widget.isInstatalk}');
             print('Is Trial: ${widget.isTrial}');
             print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
@@ -87,7 +87,7 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
                       token: widget.token!,
                       initialTimer: widget.instaTalkDuration,
                       isTrial: widget.isTrial,
-                      isInstaTalk: widget.isInstaTalk,
+                      isInstatalk: widget.isInstatalk,
                       participant: widget.participant,
                       onSessionEnd: widget.onSessionEnd,
                     ),
@@ -100,14 +100,15 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
         print('Participant ID: ${widget.participant.sId}');
         print('Call Type: ${widget.type}');
         print('Schedule Time: ${widget.scheduleTime}');
-        print('Is InstaTalk: ${widget.isInstaTalk}');
+        print('Is InstaTalk: ${widget.isInstatalk}');
         print('Is Trial: ${widget.isTrial}');
         print('InstaTalk Duration: ${widget.instaTalkDuration}');
 
-        if (widget.isInstaTalk) {
+        if (widget.isInstatalk) {
           _callController.initiateInstaTalkCall(
             widget.participant.sId.toString(),
             widget.type,
+            widget.participant.name ?? 'Unknown',
             isTrial: widget.isTrial,
           );
         } else {

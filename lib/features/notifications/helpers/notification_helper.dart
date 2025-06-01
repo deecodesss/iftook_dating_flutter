@@ -378,7 +378,7 @@ class NotificationHelper {
     final String callerName = payloadData['callerName'] ?? 'Unknown Caller';
     final String callerImage =
         payloadData['callerImage'] ?? payloadData['callerProfilePicture'] ?? '';
-    final bool isInstaTalk = payloadData['isInstatalk'] == 'true';
+    final bool isInstatalk = payloadData['isInstatalk'] == 'true';
     final String meetingType = payloadData['meetingType'] ?? 'regularMeeting';
     final String callDuration =
         payloadData['duration'] ?? payloadData['duration'] ?? '30';
@@ -391,7 +391,7 @@ class NotificationHelper {
       meetingId: meetingId,
       channelName: channel,
       token: token,
-      isInstaTalk: isInstaTalk,
+      isInstatalk: isInstatalk,
       meetingType: meetingType,
       callDuration: callDuration,
       callerId: callerId,
@@ -928,7 +928,7 @@ class NotificationHelper {
       String body,
       String payload,
       FlutterLocalNotificationsPlugin fln,
-      bool isInstaTalk) async {
+      bool isInstatalk) async {
     BigTextStyleInformation bigTextStyleInformation = BigTextStyleInformation(
       body,
       htmlFormatBigText: true,
@@ -937,18 +937,18 @@ class NotificationHelper {
     );
     AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      isInstaTalk ? "insta_talk_channel" : "regular_channel",
-      isInstaTalk ? "InstaTalk Notifications" : "Regular Notifications",
+      isInstatalk ? "insta_talk_channel" : "regular_channel",
+      isInstatalk ? "InstaTalk Notifications" : "Regular Notifications",
       channelDescription: "description",
       importance: Importance.max,
       priority: Priority.high,
-      fullScreenIntent: isInstaTalk, // Wake the screen for InstaTalk
+      fullScreenIntent: isInstatalk, // Wake the screen for InstaTalk
       styleInformation: bigTextStyleInformation,
     );
     NotificationDetails platformChannelSpecifics =
         NotificationDetails(android: androidPlatformChannelSpecifics);
     await fln.show(
-        isInstaTalk ? 2 : 0, // Different ID for InstaTalk notifications
+        isInstatalk ? 2 : 0, // Different ID for InstaTalk notifications
         title,
         body,
         platformChannelSpecifics,
@@ -1099,7 +1099,7 @@ class NotificationHelper {
     String callRate = "0",
     String callDuration = "30",
     String callerId = "",
-    bool isInstaTalk = false,
+    bool isInstatalk = false,
     String meetingType = "regularMeeting",
   }) {
     // Don't play custom ringtone - device sound already handles this
@@ -1134,7 +1134,7 @@ class NotificationHelper {
                 callRate: callRate,
                 callDuration: callDuration,
                 callerId: callerId,
-                isInstaTalk: isInstaTalk,
+                isInstatalk: isInstatalk,
                 meetingType: meetingType,
               ));
         },
@@ -1181,7 +1181,7 @@ class NotificationHelper {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '${isVideo ? 'Video' : 'Voice'} ${isInstaTalk ? 'InstaTalk' : 'Call'}',
+                      '${isVideo ? 'Video' : 'Voice'} ${isInstatalk ? 'InstaTalk' : 'Call'}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,

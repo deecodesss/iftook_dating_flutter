@@ -513,7 +513,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
   //     case 'chat':
   //       Get.to(() => ChatRoomScreen(
   //             profile: friend,
-  //             isInstaTalk: true,
+  //             isInstatalk: true,
   //             instaTalkDuration: 30, // seconds
   //           ));
   //       break;
@@ -522,7 +522,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
   //             participant: friend,
   //             scheduleTime: DateTime.now(),
   //             type: "voice",
-  //             isInstaTalk: true,
+  //             isInstatalk: true,
   //             instaTalkDuration: 30, // seconds
   //           ));
   //       break;
@@ -531,7 +531,7 @@ class _FriendsListScreenState extends State<FriendsListScreen>
   //             participant: friend,
   //             scheduleTime: DateTime.now(),
   //             type: "video",
-  //             isInstaTalk: true,
+  //             isInstatalk: true,
   //             instaTalkDuration: 30, // seconds
   //           ));
   //       break;

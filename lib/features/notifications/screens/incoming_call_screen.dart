@@ -26,7 +26,7 @@ class IncomingCallScreen extends StatefulWidget {
   final String callRate;
   final String callDuration;
   final String callerId;
-  final bool isInstaTalk;
+  final bool isInstatalk;
   final String meetingType;
 
   const IncomingCallScreen({
@@ -41,7 +41,7 @@ class IncomingCallScreen extends StatefulWidget {
     this.callRate = "0",
     this.callDuration = "30",
     this.callerId = "",
-    this.isInstaTalk = false,
+    this.isInstatalk = false,
     this.meetingType = "regularMeeting",
   }) : super(key: key);
 
@@ -185,7 +185,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
         name: widget.callerName,
         photos: widget.callerImage.isNotEmpty ? [widget.callerImage] : [],
       );
-      if (widget.isVideo && widget.isInstaTalk) {
+      if (widget.isVideo && widget.isInstatalk) {
         await Get.off(
           () => ITVideoCallScreen(
             participant: caller,
@@ -194,11 +194,11 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
             token: widget.token,
             // initialTimer: int.parse(widget.callDuration),
             isIncomingCall: true,
-            // isInstaTalk: widget.isInstaTalk,
+            // isInstatalk: widget.isInstatalk,
           ),
           transition: Transition.rightToLeftWithFade,
         );
-      } else if (widget.isVideo && !widget.isInstaTalk) {
+      } else if (widget.isVideo && !widget.isInstatalk) {
         await Get.off(
           () => VideoCallScreen(
             meetingId: widget.meetingId,
@@ -206,11 +206,11 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
             token: widget.token,
             initialTimer: int.parse(widget.callDuration),
             isIncomingCall: true,
-            isInstaTalk: widget.isInstaTalk,
+            isInstatalk: widget.isInstatalk,
           ),
           transition: Transition.rightToLeftWithFade,
         );
-      } else if (!widget.isVideo && widget.isInstaTalk) {
+      } else if (!widget.isVideo && widget.isInstatalk) {
         await Get.off(
           () => ITVoiceCallScreen(
             participant: caller,
@@ -219,7 +219,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
             token: widget.token,
             // initialTimer: int.parse(widget.callDuration),
             isIncomingCall: true,
-            // isInstaTalk: widget.isInstaTalk,
+            // isInstatalk: widget.isInstatalk,
           ),
           transition: Transition.rightToLeftWithFade,
         );
@@ -232,7 +232,6 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
             token: widget.token,
             initialTimer: int.parse(widget.callDuration),
             isIncomingCall: true,
-            isInstaTalk: widget.isInstaTalk,
           ),
           transition: Transition.rightToLeftWithFade,
         );

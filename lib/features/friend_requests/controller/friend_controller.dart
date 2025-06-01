@@ -19,7 +19,7 @@ class FriendController extends GetxController {
   var meetings = <dynamic>[].obs;
   var errorMessage = ''.obs;
   var instaTalkRequests = <Map<String, dynamic>>[].obs;
-  var isInstaTalkLoading = false.obs;
+  var isInstatalkLoading = false.obs;
 
   // Add new observable for current time
   final currentTime = DateTime.now().obs;
@@ -144,7 +144,7 @@ class FriendController extends GetxController {
 
   Future<void> fetchInstaTalkRequests() async {
     try {
-      isInstaTalkLoading(true);
+      isInstatalkLoading(true);
       final userId = await SharedPrefs.getUserIdSharedPreference();
 
       print('🎯 [Controller] Fetching InstaTalks - UserID: $userId');
@@ -195,7 +195,7 @@ class FriendController extends GetxController {
       print('🎯 [Controller] Stack trace: $stackTrace');
       instaTalkRequests.clear();
     } finally {
-      isInstaTalkLoading(false);
+      isInstatalkLoading(false);
       print(
           '🎯 [Controller] Final InstaTalk count: ${instaTalkRequests.length}');
     }
@@ -426,14 +426,14 @@ class FriendController extends GetxController {
   }
 
   // Check if current user is sender (synchronous version)
-  bool isInstaTalkSender(Map<String, dynamic> instaTalk) {
+  bool isInstatalkSender(Map<String, dynamic> instaTalk) {
     final currentUserId = getCurrentUserId;
     if (currentUserId == null || instaTalk.isEmpty) return false;
 
     return instaTalk['user']?['_id'] == currentUserId;
   }
 
-  bool isInstaTalkExpired(Map<String, dynamic> instaTalk) {
+  bool isInstatalkExpired(Map<String, dynamic> instaTalk) {
     if (instaTalk['status'] == 'completed') return true;
 
     // Check if it's more than 30 minutes old

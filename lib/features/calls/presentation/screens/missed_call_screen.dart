@@ -9,14 +9,14 @@ class MissedCallScreen extends StatefulWidget {
   final User caller;
   final DateTime timestamp;
   final bool isVideo;
-  final bool isInstaTalk;
+  final bool isInstatalk;
 
   const MissedCallScreen({
     Key? key,
     required this.caller,
     required this.timestamp,
     this.isVideo = false,
-    this.isInstaTalk = false,
+    this.isInstatalk = false,
   }) : super(key: key);
 
   @override
@@ -34,11 +34,9 @@ class _MissedCallScreenState extends State<MissedCallScreen> {
 
   void _callBack() {
     // Initiate a call back to the caller
-    if (widget.isInstaTalk) {
-      _callController.initiateInstaTalkCall(
-        widget.caller.sId!,
-        widget.isVideo ? 'video' : 'voice',
-      );
+    if (widget.isInstatalk) {
+      _callController.initiateInstaTalkCall(widget.caller.sId!,
+          widget.isVideo ? 'video' : 'voice', widget.caller.name ?? 'Unknown');
     } else {
       _callController.initiateMeetingCall(
         widget.caller.sId!,
@@ -137,7 +135,7 @@ class _MissedCallScreenState extends State<MissedCallScreen> {
 
               // Call type
               Text(
-                '${widget.isVideo ? 'Video' : 'Voice'} ${widget.isInstaTalk ? 'InstaTalk' : 'Call'}',
+                '${widget.isVideo ? 'Video' : 'Voice'} ${widget.isInstatalk ? 'InstaTalk' : 'Call'}',
                 style: TextStyle(
                   fontSize: 18,
                   color: Colors.grey[400],

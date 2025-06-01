@@ -19,12 +19,12 @@ import '../../controllers/chat_controller.dart';
 class ChatRoomScreen extends StatefulWidget {
   final User profile;
   final bool isTrial;
-  final bool isInstaTalk;
+  final bool isInstatalk;
   final bool isFriend;
   final int duration;
   final String? existingChatRoomId;
   final Function? onSessionEnd;
-  final bool isInstaTalkSender;
+  final bool isInstatalkSender;
   final DateTime? scheduledTime;
 
   const ChatRoomScreen({
@@ -32,11 +32,11 @@ class ChatRoomScreen extends StatefulWidget {
     required this.profile,
     required this.duration,
     this.isTrial = false,
-    this.isInstaTalk = false,
+    this.isInstatalk = false,
     this.isFriend = false,
     this.existingChatRoomId,
     this.onSessionEnd,
-    this.isInstaTalkSender = false,
+    this.isInstatalkSender = false,
     this.scheduledTime,
   });
 
@@ -88,7 +88,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
     // Initialize meeting time tracking
     if (!widget.isFriend) {
-      if (widget.isInstaTalk) {
+      if (widget.isInstatalk) {
         // For InstaTalk
         if (widget.isTrial) {
           // Trial mode - use short timer (30 seconds)
@@ -179,7 +179,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
 
     // For InstaTalk, check liveRate
-    if (widget.isInstaTalk) {
+    if (widget.isInstatalk) {
       final liveRate = widget.profile.earnings?.liveRate;
       if (liveRate == null) {
         print('ChatRoomScreen: InstaTalk is free because liveRate is null');
@@ -254,7 +254,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         // For scheduled meetings, recalculate time from schedule
-        if (!widget.isInstaTalk && widget.scheduledTime != null) {
+        if (!widget.isInstatalk && widget.scheduledTime != null) {
           _updateRemainingTimeFromSchedule();
         } else {
           // For InstaTalk or unscheduled meetings, just decrement
@@ -277,9 +277,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             _showingPaymentPrompt = true;
 
             // For trial sessions, just show the session ended dialog
-            if (widget.isInstaTalk && widget.isTrial) {
+            if (widget.isInstatalk && widget.isTrial) {
               _showTrialEndedDialog();
-            } else if (widget.isInstaTalk) {
+            } else if (widget.isInstatalk) {
               _showInstaTalkEndedDialog();
             } else {
               _showMeetingEndedDialog();
@@ -308,7 +308,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
           try {
             // Get rate based on chat type
-            final rate = widget.isInstaTalk
+            final rate = widget.isInstatalk
                 ? widget.profile.earnings?.liveRate ?? 0.0
                 : widget.profile.earnings?.chatRate ?? 0.0;
 
@@ -488,7 +488,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               backgroundColor: AppColors.primaryColor,
               foregroundColor: Colors.white,
             ),
-            onPressed: () => _purchaseChat(minutes: 1, isInstaTalk: true),
+            onPressed: () => _purchaseChat(minutes: 1, isInstatalk: true),
             child: const Text('Continue (1 min)'),
           ),
         ],
@@ -549,7 +549,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               backgroundColor: AppColors.primaryColor,
               foregroundColor: Colors.white,
             ),
-            onPressed: () => _purchaseChat(minutes: 1, isInstaTalk: true),
+            onPressed: () => _purchaseChat(minutes: 1, isInstatalk: true),
             child: const Text('Continue (1 min)'),
           ),
         ],
@@ -611,7 +611,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               backgroundColor: AppColors.primaryColor,
               foregroundColor: Colors.white,
             ),
-            onPressed: () => _purchaseChat(minutes: 1, isInstaTalk: false),
+            onPressed: () => _purchaseChat(minutes: 1, isInstatalk: false),
             child: const Text('Continue (1 min)'),
           ),
         ],
@@ -619,14 +619,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     );
   }
 
-  void _purchaseChat({int minutes = 1, bool isInstaTalk = false}) async {
+  void _purchaseChat({int minutes = 1, bool isInstatalk = false}) async {
     // Use appropriate rate based on the chat type
-    final rate = isInstaTalk
+    final rate = isInstatalk
         ? widget.profile.earnings?.liveRate ?? 150.0
         : widget.profile.earnings?.chatRate ?? 150.0;
 
     final perMinuteRate =
-        isInstaTalk ? rate : _chatController.calculatePerMinuteRate(rate);
+        isInstatalk ? rate : _chatController.calculatePerMinuteRate(rate);
     final finalAmount = perMinuteRate * minutes;
 
     setState(() => _isRenewing = true);
@@ -649,7 +649,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           _isRenewing = false;
 
           // Update the meeting end time for scheduled meetings
-          if (!isInstaTalk && _meetingEndTime != null) {
+          if (!isInstatalk && _meetingEndTime != null) {
             _meetingEndTime = DateTime.now().add(Duration(minutes: minutes));
             _updateRemainingTimeFromSchedule();
           } else {
@@ -1039,7 +1039,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               token: callData['token'],
               channel: callData['channelName'],
               isTrial: widget.isTrial,
-              isInstaTalk: widget.isInstaTalk,
+              isInstatalk: widget.isInstatalk,
             ));
       }
     } catch (e) {
@@ -1088,7 +1088,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               token: callData['token'],
               channel: callData['channelName'],
               isTrial: widget.isTrial,
-              isInstaTalk: widget.isInstaTalk,
+              isInstatalk: widget.isInstatalk,
+              remainingTime: 60,
             ));
       }
     } catch (e) {
@@ -1250,7 +1251,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                             backgroundColor: AppColors.primaryColor,
                           ),
                           onPressed: () {
-                            if (widget.isInstaTalk) {
+                            if (widget.isInstatalk) {
                               _showInstaTalkEndedDialog();
                             } else {
                               _showMeetingEndedDialog();
@@ -1575,7 +1576,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   // Update banner display to show different timers based on chat type
   Widget _buildTimerBanner() {
     // For regular InstaTalk (not trial) - show growing timer
-    if (widget.isInstaTalk && !widget.isTrial && !_isFreeChatSession()) {
+    if (widget.isInstatalk && !widget.isTrial && !_isFreeChatSession()) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         color: Colors.green.withOpacity(0.2),
@@ -1621,7 +1622,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       );
     }
     // For trial InstaTalk - show countdown timer
-    else if (widget.isInstaTalk && widget.isTrial) {
+    else if (widget.isInstatalk && widget.isTrial) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         color: Colors.amber.withOpacity(0.2),

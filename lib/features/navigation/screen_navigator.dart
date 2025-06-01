@@ -10,7 +10,7 @@ class ScreenNavigator {
   static Future<void> navigateToVoiceCall({
     required User participant,
     required DateTime scheduleTime,
-    bool isInstaTalk = false,
+    bool isInstatalk = false,
     int instaTalkDuration = 30,
     Function? onSessionEnd,
   }) async {
@@ -18,7 +18,7 @@ class ScreenNavigator {
           participant: participant,
           scheduleTime: scheduleTime,
           type: "voice",
-          isInstaTalk: isInstaTalk,
+          isInstatalk: isInstatalk,
           instaTalkDuration: instaTalkDuration,
           onSessionEnd: onSessionEnd,
         ));
@@ -28,7 +28,7 @@ class ScreenNavigator {
   static Future<void> navigateToVideoCall({
     required User participant,
     required DateTime scheduleTime,
-    bool isInstaTalk = false,
+    bool isInstatalk = false,
     int instaTalkDuration = 30,
     Function? onSessionEnd,
   }) async {
@@ -36,7 +36,7 @@ class ScreenNavigator {
           participant: participant,
           scheduleTime: scheduleTime,
           type: "video",
-          isInstaTalk: isInstaTalk,
+          isInstatalk: isInstatalk,
           instaTalkDuration: instaTalkDuration,
           onSessionEnd: onSessionEnd,
         ));
@@ -45,19 +45,19 @@ class ScreenNavigator {
   // Navigate to Chat Room
   static Future<void> navigateToChatRoom({
     required User profile,
-    bool isInstaTalk = false,
+    bool isInstatalk = false,
     int duration = 30,
     bool isFriend = false,
-    bool isInstaTalkSender = false,
+    bool isInstatalkSender = false,
     DateTime? scheduledTime,
     Function? onSessionEnd,
   }) async {
     await Get.to(() => ChatRoomScreen(
           profile: profile,
-          isInstaTalk: isInstaTalk,
+          isInstatalk: isInstatalk,
           duration: duration,
           isFriend: isFriend,
-          isInstaTalkSender: isInstaTalkSender,
+          isInstatalkSender: isInstatalkSender,
           scheduledTime: scheduledTime,
           onSessionEnd: onSessionEnd,
         ));
@@ -68,7 +68,7 @@ class ScreenNavigator {
     required User participant,
     required String type,
     required DateTime scheduleTime,
-    bool isInstaTalk = false,
+    bool isInstatalk = false,
     int instaTalkDuration = 30,
     Function? onSessionEnd,
   }) async {
@@ -77,7 +77,7 @@ class ScreenNavigator {
         await navigateToVoiceCall(
           participant: participant,
           scheduleTime: scheduleTime,
-          isInstaTalk: isInstaTalk,
+          isInstatalk: isInstatalk,
           instaTalkDuration: instaTalkDuration,
           onSessionEnd: onSessionEnd,
         );
@@ -87,7 +87,7 @@ class ScreenNavigator {
         await navigateToVideoCall(
           participant: participant,
           scheduleTime: scheduleTime,
-          isInstaTalk: isInstaTalk,
+          isInstatalk: isInstatalk,
           instaTalkDuration: instaTalkDuration,
           onSessionEnd: onSessionEnd,
         );
@@ -96,9 +96,9 @@ class ScreenNavigator {
       case 'chat':
         await navigateToChatRoom(
           profile: participant,
-          isInstaTalk: isInstaTalk,
+          isInstatalk: isInstatalk,
           duration: instaTalkDuration,
-          isInstaTalkSender: false,
+          isInstatalkSender: false,
           scheduledTime: scheduleTime,
           onSessionEnd: onSessionEnd,
         );

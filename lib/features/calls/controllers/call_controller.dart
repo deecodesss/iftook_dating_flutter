@@ -7,8 +7,11 @@ import 'package:get/get.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/socket_service.dart';
 import 'package:iftook/features/calls/controllers/call_status_controller.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
 import 'package:iftook/features/calls/services/chat_call_service.dart';
 import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
+import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/notification_helper.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
@@ -227,7 +230,9 @@ class CallController extends GetxController {
 
   Future<void> initiateCall(
       String participantId, String type, DateTime scheduleTime,
-      {bool isInstaTalk = false, bool isTrial = false}) async {
+      {bool isInstatalk = false,
+      bool isTrial = false,
+      String pName = "Unknown"}) async {
     try {
       isJoining(true);
       updateCallState(CallState.initializing);
@@ -237,7 +242,7 @@ class CallController extends GetxController {
       isIncomingCall.value = false;
 
       final response = await ApiService.initiateCall(
-          participantId, type, scheduleTime, isInstaTalk);
+          participantId, type, scheduleTime, isInstatalk);
 
       print('Call Initiation Response: ${response.body}');
 
@@ -257,7 +262,7 @@ class CallController extends GetxController {
             '\nChannel: ${channel.value}'
             '\nMeeting ID: ${meetingId.value}'
             '\nToken: ${token.value}'
-            '\nisInstatalk: $isInstaTalk'
+            '\nisInstatalk: $isInstatalk'
             '\nisTrial: $isTrial');
 
         if (channel.value.isEmpty || token.value.isEmpty) {
@@ -274,18 +279,38 @@ class CallController extends GetxController {
         // Add delay to ensure other user has time to initialize
         await Future.delayed(const Duration(seconds: 2));
 
+        final User participant = User(
+          sId: participantId,
+          name: pName, // Replace with actual participant name
+          // profilePicture: 'https://example.com/profile.jpg', // Replace with actual URL
+        );
+
         if (type == 'voice') {
-          Get.off(
-            () => VoiceCallScreen(
-              channel: channel.value,
-              meetingId: meetingId.value,
-              token: token.value,
-              onSessionEnd: onSessionEnd,
-              isInstaTalk: isInstaTalk,
-              isTrial: isTrial,
-            ),
-            preventDuplicates: true,
-          );
+          if (isInstatalk) {
+            Get.off(
+              () => ITVoiceCallScreen(
+                participant: participant,
+                channel: channel.value,
+                meetingId: meetingId.value,
+                token: token.value,
+                onSessionEnd: onSessionEnd,
+                // isInstatalk: isInstatalk,
+                isTrial: isTrial,
+              ),
+              preventDuplicates: true,
+            );
+          } else {
+            Get.off(
+              () => NormalVoiceCallScreen(
+                participant: participant,
+                channel: channel.value,
+                meetingId: meetingId.value,
+                token: token.value,
+                onSessionEnd: onSessionEnd,
+              ),
+              preventDuplicates: true,
+            );
+          }
         } else {
           Get.off(
             () => VideoCallScreen(
@@ -294,7 +319,7 @@ class CallController extends GetxController {
               token: token.value,
               onSessionEnd: onSessionEnd,
               initialTimer: 30,
-              isInstaTalk: isInstaTalk,
+              isInstatalk: isInstatalk,
               isTrial: isTrial,
             ),
             preventDuplicates: true,
@@ -350,7 +375,7 @@ class CallController extends GetxController {
     required String userId2,
     required int durationInMinutes,
     required bool isTrial,
-    required bool isInstaTalk,
+    required bool isInstatalk,
     Function? onEnd,
   }) async {
     // Don't start timer for trial calls
@@ -415,12 +440,13 @@ class CallController extends GetxController {
   }
 
   // Different initiate methods for InstaTalk and regular meetings
-  Future<void> initiateInstaTalkCall(String participantId, String type,
+  Future<void> initiateInstaTalkCall(
+      String participantId, String type, String pName,
       {bool isTrial = false}) async {
     updateCallState(CallState.initializing,
         message: 'Starting InstaTalk call...');
     await initiateCall(participantId, type, DateTime.now(),
-        isInstaTalk: true, isTrial: isTrial);
+        isInstatalk: true, isTrial: isTrial, pName: pName);
   }
 
   Future<void> initiateMeetingCall(

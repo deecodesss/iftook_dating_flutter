@@ -18,7 +18,7 @@ class HomeController extends GetxController {
   var allProfiles = <User>[].obs;
   var wishlistUsers = <User>[].obs;
   var isWishlistLoading = false.obs;
-  var isInstaTalkLoading = false.obs;
+  var isInstatalkLoading = false.obs;
 
   @override
   void onInit() {

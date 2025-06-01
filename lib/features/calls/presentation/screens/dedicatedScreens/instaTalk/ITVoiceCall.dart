@@ -391,7 +391,7 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
         title: const Text(
-          'End Call Warning ITVC',
+          'End Call Warning',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: const Text(

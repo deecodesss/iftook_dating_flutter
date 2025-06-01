@@ -14,19 +14,19 @@ import 'package:iftook/features/friends/controllers/chat_controller.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 
-class VoiceCallScreen extends StatefulWidget {
+class VoiceCallScreenO extends StatefulWidget {
   final String meetingId;
   final String token;
   final String channel;
   final Function? onSessionEnd;
   final User? participant;
-  final bool isInstaTalk;
+  final bool isInstatalk;
   final bool isTrial;
   final int instaTalkDuration;
   final int initialTimer;
   final bool isIncomingCall;
 
-  const VoiceCallScreen({
+  const VoiceCallScreenO({
     Key? key,
     required this.meetingId,
     required this.token,
@@ -34,17 +34,17 @@ class VoiceCallScreen extends StatefulWidget {
     this.initialTimer = 30,
     this.onSessionEnd,
     this.participant,
-    this.isInstaTalk = false,
+    this.isInstatalk = false,
     this.isTrial = false,
     this.instaTalkDuration = 30,
     this.isIncomingCall = false,
   }) : super(key: key);
 
   @override
-  State<VoiceCallScreen> createState() => _VoiceCallScreenState();
+  State<VoiceCallScreenO> createState() => _VoiceCallScreenState();
 }
 
-class _VoiceCallScreenState extends State<VoiceCallScreen> {
+class _VoiceCallScreenState extends State<VoiceCallScreenO> {
   final String appId = "5da40b914dcf4a089e8bbee75a926178";
   int? _remoteUid;
   bool _isMuted = false;
@@ -109,7 +109,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     });
 
     print("Initializing Voice Call:");
-    print("Is InstaTalk: ${widget.isInstaTalk}");
+    print("Is InstaTalk: ${widget.isInstatalk}");
     print("Is Trial: ${widget.isTrial}");
     print("Initial Timer: ${widget.initialTimer}");
     print("Token: ${widget.token}, Channel: ${widget.channel}");
@@ -172,7 +172,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   // Initialize the timers based on call type
   void _startTimers() {
     print("Starting timers:");
-    print("Is InstaTalk: ${widget.isInstaTalk}");
+    print("Is InstaTalk: ${widget.isInstatalk}");
     print("Is Trial: ${widget.isTrial}");
     print("Is Incoming: ${widget.isIncomingCall}");
     print("Initial Timer: ${widget.initialTimer}");
@@ -181,7 +181,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
       _timerStarted = true;
     });
 
-    if (widget.isInstaTalk) {
+    if (widget.isInstatalk) {
       if (widget.isTrial) {
         // Trial InstaTalk - 30 seconds countdown, then end call
         print("Starting TRIAL countdown timer (30 seconds)");
@@ -251,10 +251,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   }
 
   // Auto-payment timer
-  void _startAutoPaymentTimer(bool isInstaTalk) {
+  void _startAutoPaymentTimer(bool isInstatalk) {
     // Calculate rate per minute based on call type
     double ratePerMinute;
-    if (isInstaTalk) {
+    if (isInstatalk) {
       // For InstaTalk, use instaTalk rate directly (already per minute)
       ratePerMinute = widget.participant?.earnings?.live.toDouble() ?? 0;
     } else {
@@ -427,7 +427,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
 
     if (widget.participant == null) return;
 
-    final prompt = widget.isInstaTalk && widget.isTrial
+    final prompt = widget.isInstatalk && widget.isTrial
         ? '30-second free voice call'
         : '30-minute voice call session';
 
@@ -551,14 +551,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
           _showingPaymentPrompt = false;
 
           // Reset session for continuing call
-          if (widget.isInstaTalk && !widget.isTrial) {
+          if (widget.isInstatalk && !widget.isTrial) {
             // For paid InstaTalk, continue growing timer
             // Don't reset _elapsedSeconds, just continue
             if (_sessionTimer == null || !_sessionTimer!.isActive) {
               _startGrowingTimer();
             }
             if (_autoPaymentTimer == null || !_autoPaymentTimer!.isActive) {
-              _startAutoPaymentTimer(widget.isInstaTalk);
+              _startAutoPaymentTimer(widget.isInstatalk);
             }
           } else {
             // For regular call or trial that got converted to paid
@@ -810,7 +810,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                                   horizontal: 14, vertical: 8),
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
-                                  colors: widget.isInstaTalk
+                                  colors: widget.isInstatalk
                                       ? [Colors.purple, Colors.deepPurple]
                                       : [Colors.blue, Colors.teal],
                                   begin: Alignment.topLeft,
@@ -819,7 +819,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                                 borderRadius: BorderRadius.circular(16),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: widget.isInstaTalk
+                                    color: widget.isInstatalk
                                         ? Colors.purple.withOpacity(0.3)
                                         : Colors.blue.withOpacity(0.3),
                                     blurRadius: 8,
@@ -831,7 +831,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    widget.isInstaTalk
+                                    widget.isInstatalk
                                         ? Icons.star
                                         : Icons.event,
                                     color: Colors.white,
@@ -839,7 +839,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
-                                    widget.isInstaTalk
+                                    widget.isInstatalk
                                         ? widget.isTrial
                                             ? "InstaTalk Trial"
                                             : "InstaTalk Premium"
@@ -912,14 +912,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: widget.isInstaTalk
+                                color: widget.isInstatalk
                                     ? Colors.purple
                                     : Colors.blue,
                                 width: 3,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: widget.isInstaTalk
+                                  color: widget.isInstatalk
                                       ? Colors.purple.withOpacity(0.2)
                                       : Colors.blue.withOpacity(0.2),
                                   blurRadius: 12,
@@ -988,7 +988,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                           color: Colors.black12,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: widget.isInstaTalk
+                            color: widget.isInstatalk
                                 ? Colors.purple.withOpacity(0.3)
                                 : Colors.blue.withOpacity(0.3),
                             width: 1,
@@ -1002,7 +1002,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                               children: [
                                 Icon(
                                   Icons.timer,
-                                  color: widget.isInstaTalk
+                                  color: widget.isInstatalk
                                       ? Colors.purple
                                       : Colors.blue,
                                   size: 20,
@@ -1021,7 +1021,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                             ),
 
                             // Only show trial countdown if it's a trial call
-                            if (widget.isInstaTalk && widget.isTrial)
+                            if (widget.isInstatalk && widget.isTrial)
                               Padding(
                                 padding: const EdgeInsets.only(top: 5),
                                 child: Text(
@@ -1037,7 +1037,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                             Padding(
                               padding: const EdgeInsets.only(top: 5),
                               child: Text(
-                                widget.isInstaTalk && widget.isTrial
+                                widget.isInstatalk && widget.isTrial
                                     ? 'Free Trial'
                                     : '₹${_ratePerMinute.toStringAsFixed(0)}/min',
                                 style: TextStyle(
@@ -1130,7 +1130,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
             children: [
               Icon(
                 Icons.timer,
-                color: widget.isInstaTalk ? Colors.purple : Colors.blue,
+                color: widget.isInstatalk ? Colors.purple : Colors.blue,
                 size: 22,
               ),
               const SizedBox(width: 10),
@@ -1147,7 +1147,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
           ),
 
           // Trial timer (only show for trial calls)
-          if (widget.isInstaTalk && widget.isTrial)
+          if (widget.isInstatalk && widget.isTrial)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
@@ -1164,7 +1164,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              widget.isInstaTalk && widget.isTrial
+              widget.isInstatalk && widget.isTrial
                   ? 'Trial Call (Free)'
                   : '₹${_ratePerMinute.toStringAsFixed(2)}/minute',
               style: TextStyle(

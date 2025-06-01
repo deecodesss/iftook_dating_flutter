@@ -20,7 +20,7 @@ class InstaTalkController extends GetxController {
   var allProfiles = <User>[].obs;
   var wishlistUsers = <User>[].obs;
   var isWishlistLoading = false.obs;
-  var isInstaTalkLoading = false.obs;
+  var isInstatalkLoading = false.obs;
   final apiService = ApiService();
   final ScrollController scrollController = ScrollController();
 
@@ -60,7 +60,7 @@ class InstaTalkController extends GetxController {
   Future<Map<String, dynamic>?> createInstaTalk(
       String participantId, String type) async {
     try {
-      isInstaTalkLoading(true);
+      isInstatalkLoading(true);
 
       // First check if InstaTalk was previously used
       final userId = await SharedPrefs.getUserIdSharedPreference();
@@ -97,7 +97,7 @@ class InstaTalkController extends GetxController {
       );
       return null;
     } finally {
-      isInstaTalkLoading(false);
+      isInstatalkLoading(false);
     }
   }
 

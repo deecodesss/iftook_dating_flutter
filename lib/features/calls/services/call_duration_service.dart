@@ -30,11 +30,11 @@ class CallDurationService extends GetxService {
   }
 
   // Get initial timer duration based on call type and friendship status
-  int getInitialTimerDuration(bool isInstaTalk, int defaultDuration) {
+  int getInitialTimerDuration(bool isInstatalk, int defaultDuration) {
     if (_isFriend.value) {
       return 0; // No timer for friends
     }
-    return isInstaTalk
+    return isInstatalk
         ? 30
         : defaultDuration; // 30 seconds for InstaTalk, default duration for regular calls
   }

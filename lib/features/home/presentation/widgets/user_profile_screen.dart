@@ -859,7 +859,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           style: TextStyle(color: AppColors.primaryColor),
         ),
         Obx(
-          () => _homeController.isInstaTalkLoading.value
+          () => _homeController.isInstatalkLoading.value
               ? SizedBox(
                   height: 24,
                   width: 24,
@@ -884,7 +884,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   }).toList(),
                   onChanged: (String? newValue) {
                     if (newValue != null &&
-                        !_homeController.isInstaTalkLoading.value) {
+                        !_homeController.isInstatalkLoading.value) {
                       setState(() => _selectedTrialOption = newValue);
                       _startInstaTalk(newValue);
                     }

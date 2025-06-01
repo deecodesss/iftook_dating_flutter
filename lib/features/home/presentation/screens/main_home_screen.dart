@@ -817,7 +817,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
           style: TextStyle(color: AppColors.primaryColor),
         ),
         Obx(
-          () => _homeController.isInstaTalkLoading.value
+          () => _homeController.isInstatalkLoading.value
               ? SizedBox(
                   height: 24,
                   width: 24,
@@ -845,7 +845,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
                   }).toList(),
                   onChanged: (String? newValue) {
                     if (newValue != null &&
-                        !_homeController.isInstaTalkLoading.value) {
+                        !_homeController.isInstatalkLoading.value) {
                       // Only update the selected option, don't trigger setState
                       _selectedTrialOption = newValue;
                       MeetingType value = newValue == 'Chat'

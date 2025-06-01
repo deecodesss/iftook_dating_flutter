@@ -126,7 +126,7 @@ class CallNotificationService {
       final bool isVideo = callType == 'video';
       final String meetingType =
           message.data['meetingType'] ?? 'regularMeeting';
-      final bool isInstaTalk = message.data['isInstatalk'] == 'true';
+      final bool isInstatalk = message.data['isInstatalk'] == 'true';
       final String callDuration =
           message.data['duration'] ?? message.data['duration'] ?? "30";
       final String callerImage = message.data['callerImage'] ??
@@ -180,7 +180,7 @@ class CallNotificationService {
           'duration': callDuration,
           'callRate': message.data['callRate'] ?? "0",
           'callerRating': message.data['callerRating'] ?? "0",
-          'isInstatalk': isInstaTalk,
+          'isInstatalk': isInstatalk,
           'meetingType': meetingType,
           'isVideo': isVideo,
           'callerName': callerName,
@@ -407,7 +407,7 @@ class CallNotificationService {
                 initialTimer: data['duration'] != null
                     ? int.tryParse(data['duration'].toString()) ?? 30
                     : 30,
-                isInstaTalk: data['isInstatalk'] == false ? false : true,
+                // isInstatalk: data['isInstatalk'] == false ? false : true,
               ));
         } else if (data['isInstatalk'] == true && !isVideo) {
           Get.to(() => ITVoiceCallScreen(
@@ -421,7 +421,7 @@ class CallNotificationService {
                 // initialTimer: data['duration'] != null
                 //     ? int.tryParse(data['duration'].toString()) ?? 30
                 //     : 30,
-                // isInstaTalk: data['isInstaTalk'] == false ? false : true,
+                // isInstatalk: data['isInstatalk'] == false ? false : true,
               ));
         } else {
           Get.to(() => ITVideoCallScreen(
@@ -435,7 +435,7 @@ class CallNotificationService {
                 // initialTimer: data['duration'] != null
                 //     ? int.tryParse(data['duration'].toString()) ?? 30
                 //     : 30,
-                // isInstaTalk: data['isInstaTalk'] == false ? false : true,
+                // isInstatalk: data['isInstatalk'] == false ? false : true,
               ));
         }
       }
@@ -625,7 +625,7 @@ class CallNotificationService {
       final String callerName =
           body['nameCaller']?.toString() ?? 'Unknown Caller';
       final String callerImage = body['avatar']?.toString() ?? '';
-      final bool isInstaTalk = extra['isInstatalk'] as bool? ?? false;
+      final bool isInstatalk = extra['isInstatalk'] as bool? ?? false;
       final String callDuration = extra['duration']?.toString() ?? '30';
 
       if (meetingId.isEmpty ||
@@ -660,40 +660,40 @@ class CallNotificationService {
       // Check if app is already running
       if (Get.context != null) {
         // App is already running - use existing instance
-        if (!isInstaTalk && isVideoCall) {
+        if (!isInstatalk && isVideoCall) {
           Get.to(() => VideoCallScreen(
                 key: ValueKey(meetingId),
                 meetingId: meetingId,
                 channel: channelName,
                 token: token,
                 participant: caller,
-                isInstaTalk: isInstaTalk,
+                isInstatalk: isInstatalk,
                 initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
                 isTrial: extra['isTrial'] as bool? ?? false,
                 instaTalkDuration: parsedInitialTimer,
               ));
-        } else if (!isInstaTalk && !isVideoCall) {
+        } else if (!isInstatalk && !isVideoCall) {
           Get.to(() => NormalVoiceCallScreen(
                 key: ValueKey(meetingId),
                 meetingId: meetingId,
                 channel: channelName,
                 token: token,
                 participant: caller,
-                isInstaTalk: isInstaTalk,
+                // isInstatalk: isInstatalk,
                 initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
                 callerName: callerName,
                 callerImage: callerImage,
               ));
-        } else if (isInstaTalk && !isVideoCall) {
+        } else if (isInstatalk && !isVideoCall) {
           await Get.to(() => ITVoiceCallScreen(
                 key: ValueKey(meetingId),
                 meetingId: meetingId,
                 channel: channelName,
                 token: token,
                 participant: caller,
-                // isInstaTalk: isInstaTalk,
+                // isInstatalk: isInstatalk,
                 // initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
                 callerName: callerName,
@@ -706,7 +706,7 @@ class CallNotificationService {
                 channel: channelName,
                 token: token,
                 participant: caller,
-                // isInstaTalk: isInstaTalk,
+                // isInstatalk: isInstatalk,
                 // initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
                 // callerName: callerName,
@@ -719,40 +719,40 @@ class CallNotificationService {
         await Future.delayed(Duration(
             milliseconds: 500)); // Small delay to ensure GetX is initialized
 
-        if (!isInstaTalk && isVideoCall) {
+        if (!isInstatalk && isVideoCall) {
           Get.offAll(() => VideoCallScreen(
                 key: ValueKey(meetingId),
                 meetingId: meetingId,
                 channel: channelName,
                 token: token,
                 participant: caller,
-                isInstaTalk: isInstaTalk,
+                isInstatalk: isInstatalk,
                 initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
                 isTrial: extra['isTrial'] as bool? ?? false,
                 instaTalkDuration: parsedInitialTimer,
               ));
-        } else if (!isInstaTalk && !isVideoCall) {
+        } else if (!isInstatalk && !isVideoCall) {
           Get.offAll(() => NormalVoiceCallScreen(
                 key: ValueKey(meetingId),
                 meetingId: meetingId,
                 channel: channelName,
                 token: token,
                 participant: caller,
-                isInstaTalk: isInstaTalk,
+                // isInstatalk: isInstatalk,
                 initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
                 callerName: callerName,
                 callerImage: callerImage,
               ));
-        } else if (isInstaTalk && !isVideoCall) {
+        } else if (isInstatalk && !isVideoCall) {
           await Get.offAll(() => ITVoiceCallScreen(
                 key: ValueKey(meetingId),
                 meetingId: meetingId,
                 channel: channelName,
                 token: token,
                 participant: caller,
-                // isInstaTalk: isInstaTalk,
+                // isInstatalk: isInstatalk,
                 // initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
                 callerName: callerName,
@@ -765,7 +765,7 @@ class CallNotificationService {
                 channel: channelName,
                 token: token,
                 participant: caller,
-                // isInstaTalk: isInstaTalk,
+                // isInstatalk: isInstatalk,
                 // initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
                 // callerName: callerName,
@@ -966,7 +966,7 @@ class CallNotificationService {
       final callerName = body['nameCaller']?.toString() ?? 'Unknown Caller';
       final callerImage = body['avatar']?.toString() ?? '';
       final isVideo = extraData['isVideo'] as bool? ?? false;
-      final isInstaTalk = extraData['isInstatalk'] as bool? ?? false;
+      final isInstatalk = extraData['isInstatalk'] as bool? ?? false;
       final timestamp = extraData['timestamp'] as int? ??
           DateTime.now().millisecondsSinceEpoch;
 
@@ -991,7 +991,7 @@ class CallNotificationService {
             caller: userData,
             timestamp: DateTime.fromMillisecondsSinceEpoch(timestamp),
             isVideo: isVideo,
-            isInstaTalk: isInstaTalk,
+            isInstatalk: isInstatalk,
           ));
     } catch (e) {
       debugPrint('❌ Error handling missed call callback: $e');

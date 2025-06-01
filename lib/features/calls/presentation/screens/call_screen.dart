@@ -20,7 +20,7 @@ class CallScreen extends StatefulWidget {
   final String channel;
   final Function? onSessionEnd;
   final User participant;
-  final bool isInstaTalk;
+  final bool isInstatalk;
   final bool isTrial;
   final int instaTalkDuration;
   final int initialTimer;
@@ -36,7 +36,7 @@ class CallScreen extends StatefulWidget {
     required this.participant,
     this.initialTimer = 30,
     this.onSessionEnd,
-    this.isInstaTalk = false,
+    this.isInstatalk = false,
     this.isTrial = false,
     this.instaTalkDuration = 30,
     this.isIncomingCall = false,
@@ -244,7 +244,7 @@ class _CallScreenState extends State<CallScreen> {
   // Update the startTimers method to match VoiceCallScreen
   void _startTimers() {
     print("Starting timers:");
-    print("Is InstaTalk: ${widget.isInstaTalk}");
+    print("Is InstaTalk: ${widget.isInstatalk}");
     print("Is Trial: ${widget.isTrial}");
     print("Initial Timer: ${widget.initialTimer}");
 
@@ -252,7 +252,7 @@ class _CallScreenState extends State<CallScreen> {
       _timerStarted = true;
     });
 
-    if (widget.isInstaTalk) {
+    if (widget.isInstatalk) {
       if (widget.isTrial) {
         // Trial InstaTalk - 30 seconds countdown, then end call
         print("Starting TRIAL countdown timer (30 seconds)");
@@ -337,10 +337,10 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   // Update auto-payment timer to take a parameter
-  void _startAutoPaymentTimer([bool isInstaTalk = false]) {
+  void _startAutoPaymentTimer([bool isInstatalk = false]) {
     // Calculate rate per minute based on call type
     double ratePerMinute;
-    if (isInstaTalk) {
+    if (isInstatalk) {
       // For InstaTalk, use instaTalk rate directly (already per minute)
       ratePerMinute = widget.participant.earnings?.live?.toDouble() ?? 0;
     } else {
@@ -543,7 +543,7 @@ class _CallScreenState extends State<CallScreen> {
                               horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: widget.isInstaTalk
+                              colors: widget.isInstatalk
                                   ? [Colors.purple, Colors.deepPurple]
                                   : [Colors.blue, Colors.teal],
                               begin: Alignment.topLeft,
@@ -552,7 +552,7 @@ class _CallScreenState extends State<CallScreen> {
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: widget.isInstaTalk
+                                color: widget.isInstatalk
                                     ? Colors.purple.withOpacity(0.3)
                                     : Colors.blue.withOpacity(0.3),
                                 blurRadius: 8,
@@ -564,13 +564,13 @@ class _CallScreenState extends State<CallScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                widget.isInstaTalk ? Icons.star : Icons.event,
+                                widget.isInstatalk ? Icons.star : Icons.event,
                                 color: Colors.white,
                                 size: 16,
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                widget.isInstaTalk
+                                widget.isInstatalk
                                     ? widget.isTrial
                                         ? "InstaTalk Trial"
                                         : "InstaTalk"
@@ -643,14 +643,14 @@ class _CallScreenState extends State<CallScreen> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: widget.isInstaTalk
+                            color: widget.isInstatalk
                                 ? Colors.purple
                                 : Colors.blue,
                             width: 3,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: widget.isInstaTalk
+                              color: widget.isInstatalk
                                   ? Colors.purple.withOpacity(0.2)
                                   : Colors.blue.withOpacity(0.2),
                               blurRadius: 12,
@@ -771,7 +771,7 @@ class _CallScreenState extends State<CallScreen> {
         color: Colors.black12,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: widget.isInstaTalk
+          color: widget.isInstatalk
               ? Colors.purple.withOpacity(0.3)
               : Colors.blue.withOpacity(0.3),
           width: 1,
@@ -785,7 +785,7 @@ class _CallScreenState extends State<CallScreen> {
             children: [
               Icon(
                 Icons.timer,
-                color: widget.isInstaTalk ? Colors.purple : Colors.blue,
+                color: widget.isInstatalk ? Colors.purple : Colors.blue,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -802,7 +802,7 @@ class _CallScreenState extends State<CallScreen> {
           ),
 
           // Only show trial countdown if it's a trial call
-          if (widget.isInstaTalk && widget.isTrial)
+          if (widget.isInstatalk && widget.isTrial)
             Padding(
               padding: const EdgeInsets.only(top: 5),
               child: Text(
@@ -818,7 +818,7 @@ class _CallScreenState extends State<CallScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 5),
             child: Text(
-              widget.isInstaTalk && widget.isTrial
+              widget.isInstatalk && widget.isTrial
                   ? 'Free Trial'
                   : '₹${_ratePerMinute.toStringAsFixed(0)}/min',
               style: TextStyle(
@@ -993,7 +993,7 @@ class _CallScreenState extends State<CallScreen> {
           _showingPaymentPrompt = false;
           _elapsedSeconds = 0; // Reset elapsed time counter for new session
 
-          if (widget.isInstaTalk && !widget.isTrial) {
+          if (widget.isInstatalk && !widget.isTrial) {
             if (_sessionTimer == null || !_sessionTimer!.isActive) {
               _startGrowingTimer();
             }
@@ -1108,14 +1108,14 @@ class _CallScreenState extends State<CallScreen> {
   void _showContinueCallPrompt() {
     _showingPaymentPrompt = true;
 
-    if (widget.onSessionEnd != null && !widget.isInstaTalk) {
+    if (widget.onSessionEnd != null && !widget.isInstatalk) {
       widget.onSessionEnd!();
       return;
     }
 
     if (widget.participant == null) return;
 
-    final prompt = widget.isInstaTalk && widget.isTrial
+    final prompt = widget.isInstatalk && widget.isTrial
         ? '30-second free voice call'
         : '${widget.initialTimer}-minute voice call session';
 

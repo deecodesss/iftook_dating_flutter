@@ -17,7 +17,7 @@ class VideoCallScreen extends StatefulWidget {
   final String channel;
   final Function? onSessionEnd;
   final User? participant;
-  final bool isInstaTalk;
+  final bool isInstatalk;
   final bool isTrial;
   final int instaTalkDuration;
   final int initialTimer;
@@ -31,7 +31,7 @@ class VideoCallScreen extends StatefulWidget {
     required this.channel,
     this.onSessionEnd,
     this.participant,
-    this.isInstaTalk = false,
+    this.isInstatalk = false,
     this.isTrial = false,
     this.instaTalkDuration = 30, // Default value if not provided
     required this.initialTimer,
@@ -146,7 +146,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   // Initialize the timers based on call type
   void _startTimers() {
     print("Starting video call timers:");
-    print("Is InstaTalk: ${widget.isInstaTalk}");
+    print("Is InstaTalk: ${widget.isInstatalk}");
     print("Is Trial: ${widget.isTrial}");
     print("Initial Timer: ${widget.initialTimer}");
 
@@ -154,7 +154,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       _timerStarted = true;
     });
 
-    if (widget.isInstaTalk) {
+    if (widget.isInstatalk) {
       if (widget.isTrial) {
         // Trial InstaTalk - 30 seconds countdown
         print("Starting TRIAL countdown timer (30 seconds)");
@@ -367,7 +367,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              widget.isInstaTalk && widget.isTrial
+              widget.isInstatalk && widget.isTrial
                   ? 'Your 30-second free video call has ended.'
                   : 'Your video call session has ended.',
               style: const TextStyle(color: Colors.white70),
@@ -436,7 +436,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
           _showingPaymentPrompt = false;
 
           // Reset session for continuing call
-          if (widget.isInstaTalk && !widget.isTrial) {
+          if (widget.isInstatalk && !widget.isTrial) {
             // For paid InstaTalk, continue growing timer
             // Don't reset _elapsedSeconds, just continue
             if (_sessionTimer == null || !_sessionTimer!.isActive) {
@@ -761,7 +761,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                             const SizedBox(height: 8),
                             // Call type
                             Text(
-                              widget.isInstaTalk
+                              widget.isInstatalk
                                   ? 'InstaTalk Video Call'
                                   : 'Video Call',
                               style: TextStyle(
@@ -894,7 +894,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     }
 
     // For paid InstaTalk, show growing timer with payment info and wallet balance
-    if (widget.isInstaTalk && !widget.isTrial) {
+    if (widget.isInstatalk && !widget.isTrial) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
         decoration: BoxDecoration(
@@ -989,7 +989,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       decoration: BoxDecoration(
-        color: widget.isInstaTalk
+        color: widget.isInstatalk
             ? Colors.amber.withOpacity(0.3)
             : Colors.blueGrey.withOpacity(0.3),
         borderRadius: BorderRadius.circular(8),
