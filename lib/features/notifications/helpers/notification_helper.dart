@@ -15,6 +15,7 @@ import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/auth/controllers/auth_controller.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
 import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
@@ -658,7 +659,7 @@ class NotificationHelper {
                   token: token,
                 ));
           } else if (isVideo && payload['isInstatalk'] == 'false') {
-            await Get.to(() => VideoCallScreen(
+            await Get.to(() => NormalVideoCallScreen(
                   participant: caller,
                   meetingId: meetingId,
                   channel: channelName,

@@ -7,7 +7,9 @@ import 'package:get/get.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/socket_service.dart';
 import 'package:iftook/features/calls/controllers/call_status_controller.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
 import 'package:iftook/features/calls/services/chat_call_service.dart';
 import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
@@ -312,8 +314,22 @@ class CallController extends GetxController {
             );
           }
         } else {
+          if (isInstatalk) {
+            Get.off(
+              () => ITVideoCallScreen(
+                participant: participant,
+                channel: channel.value,
+                meetingId: meetingId.value,
+                token: token.value,
+                onSessionEnd: onSessionEnd,
+                // isInstatalk: isInstatalk,
+                isTrial: isTrial,
+              ),
+              preventDuplicates: true,
+            );
+          }
           Get.off(
-            () => VideoCallScreen(
+            () => NormalVideoCallScreen(
               channel: channel.value,
               meetingId: meetingId.value,
               token: token.value,
@@ -534,7 +550,8 @@ class CallController extends GetxController {
 
           // If we're in loading screen, navigate to main call screen
           if (Get.currentRoute.contains('loading')) {
-            Get.off(() => VideoCallScreen(
+            // Get.off(() => VideoCallScreen(
+            Get.off(() => VideoCallScreen0(
                   meetingId: meetingId.value,
                   channel: channel.value,
                   token: token.value,

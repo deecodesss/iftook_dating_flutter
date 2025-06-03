@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iftook/features/calls/controllers/call_controller.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVideoCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
@@ -18,6 +20,7 @@ class VideoCallLoadingScreen extends StatefulWidget {
   final String? meetingId;
   final String? token;
   final String? channel;
+  final double? remainingTime;
   final bool isFriend;
 
   const VideoCallLoadingScreen({
@@ -33,6 +36,7 @@ class VideoCallLoadingScreen extends StatefulWidget {
     this.token,
     this.channel,
     this.isFriend = false,
+    this.remainingTime,
   }) : super(key: key);
 
   @override
@@ -51,72 +55,128 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
     // Initialize CallController if not already initialized
     _callController = Get.put(CallController());
 
+    // We'll use a simple state check instead of a stream listener
+    // This works with the existing CallController implementation
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
-        // If we already have meeting details, skip API call
+        // Add debug logs for incoming parameters
+        print('VideoCallLoadingScreen - Parameters:');
+        print(
+            'isInstatalk: ${widget.isInstatalk} (Type: ${widget.isInstatalk.runtimeType})');
+        print('meetingId: ${widget.meetingId}');
+        print('token: ${widget.token != null ? "Provided" : "NULL"}');
+        print('channel: ${widget.channel}');
+        print('isTrial: ${widget.isTrial}');
+        print('type: ${widget.type}');
+        print('instaTalkDuration: ${widget.instaTalkDuration}');
+
+        // Check if we already have meeting details
         if (widget.meetingId != null &&
             widget.token != null &&
             widget.channel != null) {
-          print('Using provided meeting details:');
-          print('Meeting ID: ${widget.meetingId}');
-          print('Channel: ${widget.channel}');
-          print('Token: ${widget.token}');
-          print('Is InstaTalk: ${widget.isInstatalk}');
-          print('Is Trial: ${widget.isTrial}');
-          print('InstaTalk Duration: ${widget.instaTalkDuration}');
-
+          print('VideoCallLoadingScreen - Using existing meeting details');
           // Start call rejection listener for outgoing calls
           _callController.startCallRejectionListener(widget.meetingId!);
 
           // Navigate directly to call screen after a short delay
           // to give the rejection listener time to initialize
-          Future.delayed(Duration(milliseconds: 500), () {
+          Future.delayed(Duration(milliseconds: 1000), () {
             // Don't navigate if component is unmounted or call was rejected
             if (!mounted || _callController.wasCallRejected.value) return;
 
-            print('Navigating to VideoCallScreen with:');
-            print('Is InstaTalk: ${widget.isInstatalk}');
-            print('Is Trial: ${widget.isTrial}');
-            print('InstaTalk Duration: ${widget.instaTalkDuration}');
+            print('VideoCallLoadingScreen - Direct navigation with:');
+            print(
+                'isInstatalk = ${widget.isInstatalk} (${widget.isInstatalk.runtimeType})');
+            print(
+                'FINAL DECISION - Using direct isInstaTalk: ${widget.isInstatalk}');
 
-            // Navigate to call screen only if call hasn't been rejected
-            Get.to(
-                () => VideoCallScreen(
-                      meetingId: widget.meetingId!,
-                      channel: widget.channel!,
-                      token: widget.token!,
-                      initialTimer: widget.instaTalkDuration,
-                      isTrial: widget.isTrial,
-                      isInstatalk: widget.isInstatalk,
-                      participant: widget.participant,
-                      onSessionEnd: widget.onSessionEnd,
-                    ),
-                arguments: {'participant': widget.participant});
+            // Use STRICT equality check to ensure correct routing
+            if (widget.isInstatalk == true) {
+              print('⭐⭐⭐ Direct navigation to ITVideoCallScreen');
+              Get.to(
+                () => ITVideoCallScreen(
+                  meetingId: widget.meetingId!,
+                  channel: widget.channel!,
+                  token: widget.token!,
+                  isTrial: widget.isTrial,
+                  participant: widget.participant,
+                  onSessionEnd: widget.onSessionEnd,
+                  instaTalkDuration: widget.instaTalkDuration,
+                ),
+                arguments: {'participant': widget.participant},
+              );
+            } else {
+              print('⭐⭐⭐ Direct navigation to NormalVideoCallScreen');
+              Get.to(
+                () => NormalVideoCallScreen(
+                  meetingId: widget.meetingId!,
+                  channel: widget.channel!,
+                  token: widget.token!,
+                  initialTimer: widget.remainingTime != null
+                      ? widget.remainingTime!.toInt()
+                      : 30,
+                  isTrial: widget.isTrial,
+                  isInstatalk: false,
+                  participant: widget.participant,
+                  onSessionEnd: widget.onSessionEnd,
+                ),
+                arguments: {'participant': widget.participant},
+              );
+            }
           });
-          return;
-        }
-
-        print('Initializing video call...');
-        print('Participant ID: ${widget.participant.sId}');
-        print('Call Type: ${widget.type}');
-        print('Schedule Time: ${widget.scheduleTime}');
-        print('Is InstaTalk: ${widget.isInstatalk}');
-        print('Is Trial: ${widget.isTrial}');
-        print('InstaTalk Duration: ${widget.instaTalkDuration}');
-
-        if (widget.isInstatalk) {
-          _callController.initiateInstaTalkCall(
-            widget.participant.sId.toString(),
-            widget.type,
-            widget.participant.name ?? 'Unknown',
-            isTrial: widget.isTrial,
-          );
         } else {
-          _callController.initiateMeetingCall(
-            widget.participant.sId.toString(),
-            widget.type,
-            widget.scheduleTime,
-          );
+          print('VideoCallLoadingScreen - Initiating new call');
+          print('Participant ID: ${widget.participant.sId}');
+          print('Type: ${widget.type}');
+          print('isInstatalk: ${widget.isInstatalk}');
+
+          // Here is the critical fix - we save the isInstatalk flag from widget
+          // so it can be used later when the call is initialized
+          final bool isThisInstaTalk = widget.isInstatalk == true;
+          print('SAVED isInstaTalk for callback: $isThisInstaTalk');
+
+          // Initiate a new call if we don't have meeting details
+          if (isThisInstaTalk) {
+            print('VideoCallLoadingScreen - Initiating InstaTalk video call');
+
+            // For InstaTalk calls, we need to override the navigation in the controller
+            // by providing a custom callback function
+            _callController.initiateInstaTalkCall(
+              widget.participant.sId.toString(),
+              widget.type,
+              widget.participant.name ?? 'Unknown',
+              isTrial: widget.isTrial,
+              //     onSuccess: (meetingId, channelName, token) {
+              //   if (!mounted) return;
+
+              //   print(
+              //       '⭐⭐⭐ Custom callback for InstaTalk - Navigating to ITVideoCallScreen');
+              //   print('MeetingID: $meetingId, Channel: $channelName');
+              //   print('isInstatalk from widget: ${widget.isInstatalk}');
+
+              //   Get.to(
+              //     () => ITVideoCallScreen(
+              //       meetingId: meetingId,
+              //       channel: channelName,
+              //       token: token,
+              //       isTrial: widget.isTrial,
+              //       participant: widget.participant,
+              //       onSessionEnd: widget.onSessionEnd,
+              //       instaTalkDuration: widget.instaTalkDuration,
+              //     ),
+              //     arguments: {'participant': widget.participant},
+              //   );
+              // }
+            );
+          } else {
+            print(
+                'VideoCallLoadingScreen - Initiating regular meeting video call');
+            _callController.initiateMeetingCall(
+              widget.participant.sId.toString(),
+              widget.type,
+              widget.scheduleTime,
+            );
+          }
         }
       } catch (e) {
         print('Error initializing video call: $e');

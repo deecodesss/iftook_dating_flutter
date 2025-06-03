@@ -14,7 +14,7 @@ import 'package:iftook/features/friends/controllers/chat_controller.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 
-class CallScreen extends StatefulWidget {
+class CallScreen0 extends StatefulWidget {
   final String meetingId;
   final String token;
   final String channel;
@@ -28,7 +28,7 @@ class CallScreen extends StatefulWidget {
   final String? callerName;
   final String? callerImage;
 
-  const CallScreen({
+  const CallScreen0({
     Key? key,
     required this.meetingId,
     required this.token,
@@ -45,10 +45,10 @@ class CallScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<CallScreen> createState() => _CallScreenState();
+  State<CallScreen0> createState() => _CallScreenState();
 }
 
-class _CallScreenState extends State<CallScreen> {
+class _CallScreenState extends State<CallScreen0> {
   final String appId = "5da40b914dcf4a089e8bbee75a926178";
   int? _remoteUid;
   bool _isMuted = false;

@@ -119,22 +119,6 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
     }
   }
 
-  Future<void> _playCallRingtone() async {
-    try {
-      // Ensure any previous ringtone is stopped before playing a new one.
-      await FlutterRingtonePlayer().stop();
-      await FlutterRingtonePlayer().play(
-        android: AndroidSounds.ringtone,
-        ios: IosSounds.electronic,
-        looping: true,
-        volume: 1.0,
-        asAlarm: true,
-      );
-    } catch (e) {
-      debugPrint('Error playing call ringtone: $e');
-    }
-  }
-
   Future<void> _stopCallRingtone() async {
     try {
       await FlutterRingtonePlayer().stop();

@@ -20,6 +20,8 @@ class ITVideoCallScreen extends StatefulWidget {
   final bool isTrial;
   final int instaTalkDuration;
   final bool isIncomingCall;
+  final String? callerName;
+  final String? callerImage;
 
   const ITVideoCallScreen({
     Key? key,
@@ -31,6 +33,8 @@ class ITVideoCallScreen extends StatefulWidget {
     this.isTrial = false,
     this.instaTalkDuration = 30,
     this.isIncomingCall = false,
+    this.callerName,
+    this.callerImage,
   }) : super(key: key);
 
   @override
@@ -71,6 +75,10 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen> {
 
   // Get Agora app ID from environment or config
   final String appId = "5da40b914dcf4a089e8bbee75a926178";
+
+  // Add draggable timer variables
+  Offset _timerPosition = Offset(20, 80); // Default position for floating timer
+  bool _isDraggingTimer = false;
 
   @override
   void initState() {
@@ -439,7 +447,7 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen> {
     await _noScreenshot.stopScreenshotListening();
   }
 
-  // Initialize Agora SDK for InstaTalk
+  // Initialize Agora SDK for InstaTalk - Improved with better error handling
   Future<void> _initializeCall() async {
     try {
       connectionStatus('Checking permissions...');
@@ -447,91 +455,135 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen> {
 
       connectionStatus('Initializing engine...');
       _engine = createAgoraRtcEngine();
-      await _engine.initialize(RtcEngineContext(appId: appId));
+
+      // Fix 1: Add channelProfile to initialization
+      await _engine.initialize(RtcEngineContext(
+        appId: appId,
+        channelProfile: ChannelProfileType.channelProfileCommunication,
+      ));
 
       connectionStatus('Setting up video...');
       await _engine.enableVideo();
+
+      // Fix 2: Explicitly set client role before setting up event handlers
+      await _engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
+
       _setupEventHandlers();
 
       print('Joining channel: ${widget.channel} with token: ${widget.token}');
       connectionStatus('Joining channel...');
 
+      // Fix 3: Simplified options for better compatibility
       await _engine.joinChannel(
         token: widget.token,
         channelId: widget.channel,
         uid: 0,
         options: const ChannelMediaOptions(
-          autoSubscribeVideo: true,
-          autoSubscribeAudio: true,
+          clientRoleType: ClientRoleType.clientRoleBroadcaster,
           publishCameraTrack: true,
           publishMicrophoneTrack: true,
-          clientRoleType: ClientRoleType.clientRoleBroadcaster,
         ),
       );
     } catch (e) {
-      print("Error in InstaTalk video call: $e");
-      connectionStatus('Failed to initialize');
+      print("Error in InstaTalk video call initialization: $e");
+      connectionStatus('Failed to initialize: $e');
       Get.snackbar(
         'Error',
-        'Failed to initialize InstaTalk video call',
+        'Failed to initialize InstaTalk video call. Please try again.',
         backgroundColor: Colors.red,
         colorText: Colors.white,
+        duration: const Duration(seconds: 5),
       );
     }
   }
 
-  // Set up event handlers for Agora RTC
+  // Set up event handlers for Agora RTC with improved error handling
   void _setupEventHandlers() {
-    _engine.registerEventHandler(
-      RtcEngineEventHandler(
-        onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
-          print("Local user ${connection.localUid} joined successfully");
-          setState(() {
-            _localUserJoined = true;
-            connectionStatus('Waiting for other participant...');
-          });
-        },
-        onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
-          print("Remote user $remoteUid joined successfully");
-          setState(() {
-            _remoteUid = remoteUid;
-            isConnecting.value = false;
-            connectionStatus('Connected');
-
-            // Start timers when remote user joins
-            if (!_timerStarted) {
-              _startTimers();
+    try {
+      _engine.registerEventHandler(
+        RtcEngineEventHandler(
+          onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
+            print("Local user ${connection.localUid} joined successfully");
+            if (mounted) {
+              setState(() {
+                _localUserJoined = true;
+                connectionStatus('Waiting for other participant...');
+              });
             }
-          });
-        },
-        onUserOffline: (RtcConnection connection, int remoteUid,
-            UserOfflineReasonType reason) {
-          print("Remote user $remoteUid left channel");
-          setState(() {
-            _remoteUid = null;
-            connectionStatus('Call Ended');
-            _callEnded = true;
+          },
+          onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
+            print("Remote user $remoteUid joined successfully");
+            if (mounted) {
+              setState(() {
+                _remoteUid = remoteUid;
+                isConnecting.value = false;
+                connectionStatus('Connected');
 
-            // Cancel timers when remote user disconnects
-            _sessionTimer?.cancel();
-            _autoPaymentTimer?.cancel();
-          });
-        },
-        onError: (ErrorCodeType err, String msg) {
-          print("Agora error: $err - $msg");
-          connectionStatus('Connection error: $err');
-        },
-      ),
-    );
+                // Start timers when remote user joins
+                if (!_timerStarted) {
+                  _startTimers();
+                }
+              });
+            }
+          },
+          onUserOffline: (RtcConnection connection, int remoteUid,
+              UserOfflineReasonType reason) {
+            print("Remote user $remoteUid left channel");
+            if (mounted) {
+              setState(() {
+                _remoteUid = null;
+                connectionStatus('Call Ended');
+                _callEnded = true;
+
+                // Cancel timers when remote user disconnects
+                _sessionTimer?.cancel();
+                _autoPaymentTimer?.cancel();
+              });
+            }
+          },
+          onError: (ErrorCodeType err, String msg) {
+            print("Agora error: $err - $msg");
+            connectionStatus('Connection error: $err - $msg');
+          },
+          onConnectionStateChanged: (RtcConnection connection,
+              ConnectionStateType state, ConnectionChangedReasonType reason) {
+            print("Connection state changed: $state, reason: $reason");
+
+            if (state == ConnectionStateType.connectionStateConnected) {
+              connectionStatus('Connected to channel');
+            } else if (state == ConnectionStateType.connectionStateConnecting) {
+              connectionStatus('Connecting to channel...');
+            } else if (state == ConnectionStateType.connectionStateFailed) {
+              connectionStatus('Connection failed: $reason');
+            }
+          },
+        ),
+      );
+    } catch (e) {
+      print("Error setting up event handlers: $e");
+    }
   }
 
-  // Request camera and microphone permissions
+  // Request camera and microphone permissions with better error handling
   Future<void> _requestPermissions() async {
-    final cameraStatus = await Permission.camera.request();
-    final micStatus = await Permission.microphone.request();
+    try {
+      final cameraStatus = await Permission.camera.request();
+      final micStatus = await Permission.microphone.request();
 
-    if (!cameraStatus.isGranted || !micStatus.isGranted) {
-      _showPermissionDeniedDialog();
+      if (!cameraStatus.isGranted || !micStatus.isGranted) {
+        print("Permission denied - Camera: $cameraStatus, Mic: $micStatus");
+        _showPermissionDeniedDialog();
+      } else {
+        print("Permissions granted - Camera: $cameraStatus, Mic: $micStatus");
+      }
+    } catch (e) {
+      print("Error requesting permissions: $e");
+      Get.snackbar(
+        'Error',
+        'Failed to request camera and microphone permissions',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -891,87 +943,213 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen> {
     );
   }
 
+  // Add draggable timer widget
+  Widget _buildDraggableTimer() {
+    // For InstaTalk, we show elapsed time for paid calls or remaining time for trial
+    String timeDisplay;
+    double progressPercentage;
+
+    if (widget.isTrial) {
+      timeDisplay = _formatTime(_remainingSeconds);
+      progressPercentage =
+          (_remainingSeconds / 30).clamp(0.0, 1.0); // 30 seconds trial
+    } else {
+      timeDisplay = _formatTime(_elapsedSeconds);
+      progressPercentage =
+          1.0; // For paid InstaTalk, no progress indicator needed
+    }
+
+    // Calculate per-minute rate
+    final perMinuteRate = widget.participant.earnings?.live?.toDouble() ?? 10.0;
+
+    return Positioned(
+      left: _timerPosition.dx,
+      top: _timerPosition.dy,
+      child: GestureDetector(
+        onPanStart: (details) {
+          setState(() {
+            _isDraggingTimer = true;
+          });
+        },
+        onPanUpdate: (details) {
+          setState(() {
+            _timerPosition = Offset(
+              (_timerPosition.dx + details.delta.dx)
+                  .clamp(0, MediaQuery.of(context).size.width - 130),
+              (_timerPosition.dy + details.delta.dy)
+                  .clamp(50, MediaQuery.of(context).size.height - 100),
+            );
+          });
+        },
+        onPanEnd: (details) {
+          setState(() {
+            _isDraggingTimer = false;
+          });
+        },
+        child: Container(
+          width: 130,
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+          decoration: BoxDecoration(
+            color: Colors.black54,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _isDraggingTimer
+                  ? Colors.purple.withOpacity(0.8) // Purple for InstaTalk
+                  : Colors.purple.withOpacity(0.3),
+              width: _isDraggingTimer ? 2 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 4,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Timer display
+              Text(
+                timeDisplay,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
+              ),
+
+              const SizedBox(height: 4),
+
+              // Progress indicator (only for trial)
+              if (widget.isTrial)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progressPercentage,
+                    backgroundColor: Colors.grey[800],
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.purple), // Purple for InstaTalk
+                    minHeight: 4,
+                  ),
+                ),
+
+              // Rate display
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '₹${perMinuteRate.toStringAsFixed(2)}/min',
+                  style: TextStyle(
+                    color: Colors.grey[300],
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+
+              // Add InstaTalk badge
+              Container(
+                margin: const EdgeInsets.only(top: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'InstaTalk',
+                  style: TextStyle(
+                    color: Colors.purple,
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Show call ended UI when the remote user disconnects
+          // Full screen remote video or waiting UI
           if (_callEnded)
             _buildCallEndedUI()
           else
-            Center(
-              child: _remoteUid != null
-                  ? AgoraVideoView(
-                      controller: VideoViewController.remote(
-                        rtcEngine: _engine,
-                        canvas: VideoCanvas(uid: _remoteUid),
-                        connection: RtcConnection(channelId: widget.channel),
-                      ),
-                    )
-                  : Container(
-                      color: Colors.black,
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Caller photo
-                            CircleAvatar(
-                              radius: 70,
-                              backgroundImage:
-                                  widget.participant.photos?.isNotEmpty == true
-                                      ? NetworkImage(
-                                          widget.participant.photos!.first)
-                                      : null,
-                              child: widget.participant.photos?.isEmpty ?? true
-                                  ? const Icon(Icons.person,
-                                      size: 70, color: Colors.white54)
-                                  : null,
+            _remoteUid != null
+                ? AgoraVideoView(
+                    controller: VideoViewController.remote(
+                      rtcEngine: _engine,
+                      canvas: VideoCanvas(uid: _remoteUid),
+                      connection: RtcConnection(channelId: widget.channel),
+                    ),
+                  )
+                : Container(
+                    color: Colors.black,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Caller photo
+                          CircleAvatar(
+                            radius: 70,
+                            backgroundImage: widget
+                                        .participant.photos?.isNotEmpty ==
+                                    true
+                                ? NetworkImage(widget.participant.photos!.first)
+                                : null,
+                            child: widget.participant.photos?.isEmpty ?? true
+                                ? const Icon(Icons.person,
+                                    size: 70, color: Colors.white54)
+                                : null,
+                          ),
+                          const SizedBox(height: 20),
+                          // Caller name
+                          Text(
+                            widget.participant.name ?? 'Unknown User',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
-                            const SizedBox(height: 20),
-                            // Caller name
-                            Text(
-                              widget.participant.name ?? 'Unknown User',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Call type
+                          Text(
+                            widget.isTrial
+                                ? 'InstaTalk Trial Video Call'
+                                : 'InstaTalk Video Call',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[400],
                             ),
-                            const SizedBox(height: 8),
-                            // Call type
-                            Text(
-                              widget.isTrial
-                                  ? 'InstaTalk Trial Video Call'
-                                  : 'InstaTalk Video Call',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey[400],
-                              ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Connection status
+                          Text(
+                            connectionStatus.value,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: isConnecting.value
+                                  ? Colors.amber
+                                  : Colors.green,
                             ),
-                            const SizedBox(height: 8),
-                            // Connection status
-                            Obx(() => Text(
-                                  connectionStatus.value,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: isConnecting.value
-                                        ? Colors.amber
-                                        : Colors.green,
-                                  ),
-                                )),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-            ),
+                  ),
 
-          // Local video (only shown if video is enabled and call is active)
+          // Local video preview
           if (_isVideoEnabled && !_callEnded)
             Container(
-              margin: const EdgeInsets.only(top: 40, left: 24),
+              margin: const EdgeInsets.only(top: 40, right: 16),
               child: Align(
-                alignment: Alignment.topLeft,
+                alignment: Alignment.topRight,
                 child: SizedBox(
                   width: 120,
                   height: 180,
@@ -985,69 +1163,133 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen> {
                             ),
                           ),
                         )
-                      : const CircularProgressIndicator(),
+                      : Container(),
                 ),
               ),
             ),
 
-          // Timer display at the top (only shown when call is active)
-          if (_timerStarted && !_callEnded)
+          // Participant name
+          if (!_callEnded && _remoteUid != null)
             Positioned(
-              top: 0,
+              top: 16,
+              left: 16,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.person,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      widget.participant.name ?? 'Unknown User',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Incoming/outgoing indicator
+          if (!_callEnded)
+            Positioned(
+              top: 16,
+              right: 16,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: widget.isIncomingCall
+                      ? Colors.green.withOpacity(0.6)
+                      : Colors.purple.withOpacity(0.6), // Purple for InstaTalk
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      widget.isIncomingCall
+                          ? Icons.call_received
+                          : Icons.call_made,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      widget.isIncomingCall ? 'Incoming' : 'InstaTalk',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Draggable floating timer
+          if (_timerStarted && !_callEnded) _buildDraggableTimer(),
+
+          // Call controls
+          if (!_callEnded)
+            Positioned(
+              bottom: 0,
               left: 0,
               right: 0,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                color: Colors.black.withOpacity(0.7),
-                child: SafeArea(
-                  bottom: false,
-                  child: _buildTimerDisplay(),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.8),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
-              ),
-            ),
-
-          // Call controls (only shown when call is active)
-          if (!_callEnded)
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    // Mute button
                     _buildCallButton(
                       icon: _isMuted ? Icons.mic_off : Icons.mic,
                       color: Colors.white,
-                      backgroundColor: _isMuted ? Colors.red : Colors.blue,
+                      backgroundColor:
+                          _isMuted ? Colors.red : Colors.grey[800]!,
                       onPressed: _toggleMute,
                     ),
-                    const SizedBox(width: 20),
-                    // Video toggle button
                     _buildCallButton(
                       icon:
                           _isVideoEnabled ? Icons.videocam : Icons.videocam_off,
                       color: Colors.white,
                       backgroundColor:
-                          _isVideoEnabled ? Colors.blue : Colors.red,
+                          _isVideoEnabled ? Colors.grey[800]! : Colors.red,
                       onPressed: _toggleVideo,
                     ),
-                    const SizedBox(width: 20),
-                    // Switch camera button
-                    _buildCallButton(
-                      icon: Icons.cameraswitch,
-                      color: Colors.white,
-                      backgroundColor: Colors.blue,
-                      onPressed: _switchCamera,
-                    ),
-                    const SizedBox(width: 20),
-                    // End call button
                     _buildCallButton(
                       icon: Icons.call_end,
                       color: Colors.white,
                       backgroundColor: Colors.red,
                       onPressed: _endCall,
+                      size: 65,
+                    ),
+                    _buildCallButton(
+                      icon: Icons.cameraswitch,
+                      color: Colors.white,
+                      backgroundColor: Colors.grey[800]!,
+                      onPressed: _switchCamera,
                     ),
                   ],
                 ),

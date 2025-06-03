@@ -369,7 +369,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     if (minutesDifference >= -30 && minutesDifference <= 30) {
       if (currentStatus == 'completed') return 'Completed';
       if (currentStatus == 'cancelled') return 'Cancelled';
-      return 'Join Now';
+      return 'Live';
     }
 
     return 'Scheduled';
@@ -713,7 +713,24 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             //       channel: channelName,
             //       instaTalkDuration: meeting['duration'] ?? 30,
             //     ));
-            await _handleChatVideoCall(participant);
+            final now = DateTime.now();
+            final scheduledTime = DateTime.parse(meeting['scheduledTime']);
+
+            final totalDuration = (meeting['duration'] is int)
+                ? meeting['duration'] as int
+                : int.tryParse('${meeting['duration']}') ?? 30;
+
+            final minutesElapsed = now.difference(scheduledTime).inMinutes;
+
+            final remainingTime =
+                math.max<int>(1, totalDuration - minutesElapsed);
+            print('remainingTime runtimeType: ${remainingTime.runtimeType}');
+
+            print(
+                'Remaining time for video call: $remainingTime minutes (Total: $totalDuration minutes)');
+
+            await _handleChatVideoCall(participant,
+                remainingTime: remainingTime);
             break;
 
           case 'chat':
@@ -795,15 +812,15 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     }
   }
 
-  _handleChatVideoCall(participant) async {
+  _handleChatVideoCall(participant, {remainingTime = 30.00}) async {
     try {
       Get.dialog(
         const Center(child: CircularProgressIndicator()),
         barrierDismissible: false,
       );
 
-      final callData =
-          await ChatCallService.initiateChatCall(participant.sId!, 'video', 30);
+      final callData = await ChatCallService.initiateChatCall(
+          participant.sId!, 'video', remainingTime.toDouble());
 
       Get.back(); // Close loading dialog
 
@@ -817,6 +834,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
               meetingId: callData['meetingId'],
               token: callData['token'],
               channel: callData['channelName'],
+              remainingTime: remainingTime.toDouble(),
             ));
       }
     } catch (e) {
@@ -2820,9 +2838,7 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
 
   void _acceptInstaTalk(String meetingId) async {
     final result = await widget.controller.acceptInstaTalk(meetingId);
-    // if (result != null) {
-    //   _joinInstaTalk(result);
-    // }
+
     print('InstaTalk accepted: $result');
   }
 
@@ -2904,6 +2920,8 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
       final participant = User.fromJson(
           isSender ? instaTalk['participant'] : instaTalk['user']);
       final liveRate = participant.earnings?.live ?? 0.0;
+      print(
+          'Redirecting Part starts now. Joining InstaTalk with participant: ${participant.name}, liveRate: $liveRate, type: $type, isTrial: $isTrial');
 
       switch (type) {
         case 'chat':

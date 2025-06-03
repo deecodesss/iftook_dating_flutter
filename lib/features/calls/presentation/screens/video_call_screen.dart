@@ -11,7 +11,7 @@ import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/calls/services/call_duration_service.dart';
 import 'package:iftook/features/friends/controllers/chat_controller.dart';
 
-class VideoCallScreen extends StatefulWidget {
+class VideoCallScreen0 extends StatefulWidget {
   final String meetingId;
   final String token;
   final String channel;
@@ -24,7 +24,7 @@ class VideoCallScreen extends StatefulWidget {
   final bool fromChat;
   final bool isIncomingCall;
 
-  const VideoCallScreen({
+  const VideoCallScreen0({
     Key? key, // Add Key? key here
     required this.meetingId,
     required this.token,
@@ -40,10 +40,10 @@ class VideoCallScreen extends StatefulWidget {
   }) : super(key: key); // Pass key to super
 
   @override
-  State<VideoCallScreen> createState() => _VideoCallScreenState();
+  State<VideoCallScreen0> createState() => _VideoCallScreenState();
 }
 
-class _VideoCallScreenState extends State<VideoCallScreen> {
+class _VideoCallScreenState extends State<VideoCallScreen0> {
   int? _remoteUid; // Stores remote user ID
   bool _isMuted = false;
   bool _isVideoEnabled = true;

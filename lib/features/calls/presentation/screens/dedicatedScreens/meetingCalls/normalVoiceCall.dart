@@ -66,9 +66,11 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
   bool _hasRenewedSession = false;
   bool _isRenewing = false;
   bool _callEnded = false;
+  bool _hasSentLastMinutePayment =
+      false; // Flag to track if payment was sent for current timer cycle
 
   // Payment variables
-  static const int AUTO_PAYMENT_INTERVAL = 60;
+  // static const int AUTO_PAYMENT_INTERVAL = 60;
   double _ratePerMinute = 0;
   bool _autoPaymentEnabled = false;
 
@@ -272,6 +274,8 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
       _remainingSeconds =
           widget.initialTimer * 60; // Convert minutes to seconds
       _elapsedSeconds = 0; // Reset elapsed time
+      _hasSentLastMinutePayment =
+          false; // Reset payment flag when starting a new timer
     });
 
     // Create a timer for the countdown
@@ -285,6 +289,15 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
         if (_remainingSeconds > 0) {
           _remainingSeconds--;
           _elapsedSeconds++; // Also track elapsed time for billing
+
+          // Check if we need to send last-minute payment for incoming calls
+          if (widget.isIncomingCall &&
+              _remainingSeconds <= 60 &&
+              _remainingSeconds >=
+                  59 && // Only trigger once at exactly 60 seconds remaining
+              !_hasSentLastMinutePayment) {
+            _sendLastMinutePayment();
+          }
         } else {
           timer.cancel();
           if (!_showingPaymentPrompt) {
@@ -295,8 +308,8 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
               // For incoming calls, just restart the timer without payment
               _restartTimerForIncomingCall();
             } else {
-              // For outgoing calls, show the payment prompt
-              _showContinueCallPrompt();
+              // For outgoing calls, show meeting ended popup and end call
+              _showMeetingEndedPopup();
             }
           }
         }
@@ -304,7 +317,77 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
     });
   }
 
-  // New method to restart timer for incoming calls without payment
+  // Add a new method to show meeting ended popup
+  void _showMeetingEndedPopup() {
+    _showingPaymentPrompt = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Meeting Time Ended',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Your ${widget.initialTimer}-minute voice call session with ${widget.participant.name ?? "User"} has ended.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              _performEndCall();
+            },
+            child: const Text('End Call'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Add new method to send payment when timer hits last minute
+  void _sendLastMinutePayment() async {
+    if (!widget.isIncomingCall) return;
+
+    try {
+      // Mark as paid to prevent duplicate payments
+      _hasSentLastMinutePayment = true;
+
+      // Get the call rate
+      final voiceRate = widget.participant.earnings?.voice ?? 300.0;
+
+      print('Sending last-minute payment to participant: ₹$voiceRate');
+
+      // Call sendMoney method from chat controller
+      final success = await _chatController.sendMoney(
+        widget.participant.sId!, // Recipient ID
+        voiceRate.toDouble(), // Amount to send
+      );
+
+      if (success) {
+        print('Last minute payment sent successfully');
+        Get.snackbar(
+          'Payment Sent',
+          'Call payment of ₹${voiceRate.toStringAsFixed(0)} sent to ${widget.participant.name}',
+          backgroundColor: Colors.green.withOpacity(0.7),
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+      } else {
+        print('Failed to send last minute payment');
+      }
+    } catch (e) {
+      print('Error sending last minute payment: $e');
+    }
+  }
+
+  // Update restart timer method to reset payment flag
   void _restartTimerForIncomingCall() {
     print("Restarting timer for incoming call without payment");
     setState(() {
@@ -312,6 +395,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
       _elapsedSeconds = 0;
       _remainingSeconds =
           widget.initialTimer * 60; // Reset to initial timer value
+      _hasSentLastMinutePayment = false; // Reset payment flag for next cycle
     });
 
     // Start the timer again
@@ -429,6 +513,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
     } else {
       // Navigate directly to home screen instead of using multiple Get.back()
       Get.offAllNamed('/');
+      // Get.off(());
     }
   }
 
@@ -956,53 +1041,16 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
     );
   }
 
-  // Update purchase call method to start auto-payment after continuation
-  void _purchaseCall() async {
-    setState(() => _isRenewing = true);
+  // Replace the _showContinueCallPrompt method to use the meeting ended popup
+  void _showContinueCallPrompt() {
+    // This is now replaced with the simple meeting ended popup
+    _showMeetingEndedPopup();
+  }
 
-    try {
-      final callRate = widget.participant.earnings?.voiceRate ?? 300.0;
-      final success = await _callController.purchaseCallSession(
-        widget.participant.sId!,
-        callRate,
-        'voice',
-        minutes: 30,
-      );
-
-      if (success) {
-        setState(() {
-          _sessionExpired = false;
-          _hasRenewedSession = true;
-          _isRenewing = false;
-          _showingPaymentPrompt = false;
-          _elapsedSeconds = 0; // Reset elapsed time counter for new session
-          _remainingSeconds = 30 * 60; // New 30-minute session
-
-          // Start timers for the continued session
-          _startRegularTimer();
-
-          // Start auto-payment for the continued session
-          _startAutoPaymentTimer();
-        });
-
-        Get.snackbar(
-          'Success',
-          'Voice call session purchased',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-      } else {
-        throw Exception('Failed to purchase session');
-      }
-    } catch (e) {
-      setState(() => _isRenewing = false);
-      Get.snackbar(
-        'Error',
-        'Failed to purchase call session',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
+  // Remove _purchaseCall functionality - comment it out or replace with stub
+  void _purchaseCall() {
+    // Simply end the call instead of renewing
+    _performEndCall();
   }
 
   String _formatTime(int seconds) {
@@ -1076,81 +1124,6 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
               _endCall();
             },
             child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showContinueCallPrompt() {
-    // Only show payment prompt for outgoing calls
-    // For incoming calls, this should never be called as we're using _restartTimerForIncomingCall()
-    _showingPaymentPrompt = true;
-
-    if (widget.onSessionEnd != null) {
-      widget.onSessionEnd!();
-      return;
-    }
-
-    // Calculate per-minute rate
-    final voiceRate = widget.participant.earnings?.voice ?? 300;
-    final perMinuteRate = voiceRate / 30;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text(
-          'Session Time Ended',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Your ${widget.initialTimer}-minute voice call session with ${widget.participant.name ?? "User"} has ended.',
-              style: const TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Would you like to continue this call?',
-              style: TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'If you continue, your wallet will be charged per minute.',
-              style: TextStyle(color: Colors.amber, fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Rate: ₹${perMinuteRate.toStringAsFixed(2)}/minute',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _performEndCall();
-            },
-            child:
-                const Text('End Call', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              _purchaseCall();
-            },
-            child: const Text('Continue'),
           ),
         ],
       ),

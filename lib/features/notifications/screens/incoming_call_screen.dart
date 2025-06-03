@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/helpers/app_colors.dart';
@@ -200,7 +201,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
         );
       } else if (widget.isVideo && !widget.isInstatalk) {
         await Get.off(
-          () => VideoCallScreen(
+          () => NormalVideoCallScreen(
             meetingId: widget.meetingId,
             channel: widget.channelName,
             token: widget.token,
