@@ -13,7 +13,7 @@ import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/inst
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
-import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
+import 'package:iftook/features/calls/presentation/screens/loading_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/missed_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
 import 'package:iftook/features/calls/services/ringtone_service.dart'; // Import the new service
@@ -158,11 +158,12 @@ class CallNotificationService {
         avatar: callerImage,
         handle: callerId,
         type: isVideo ? 1 : 0,
-        duration: int.parse(callDuration) * 1000,
+        // Fix decimal duration parsing by converting to integer milliseconds
+        duration: ((double.tryParse(callDuration) ?? 30.0) * 1000).toInt(),
         textAccept: 'Accept',
         textDecline: 'Decline',
         missedCallNotification: NotificationParams(
-          showNotification: true,
+          showNotification: false,
           isShowCallback: true,
           subtitle: 'Missed call from $callerName',
           callbackText: 'Call back',
@@ -406,7 +407,7 @@ class CallNotificationService {
                 callerName: callerName,
                 callerImage: data['callerImage'] ?? '',
                 initialTimer: data['duration'] != null
-                    ? int.tryParse(data['duration'].toString()) ?? 30
+                    ? double.tryParse(data['duration'].toString()) ?? 30
                     : 30,
                 // isInstatalk: data['isInstatalk'] == false ? false : true,
               ));
@@ -651,7 +652,7 @@ class CallNotificationService {
       debugPrint('✅ Ended CallKit UI for accepted call $acceptedCallId');
 
       // Parse duration to int
-      int parsedInitialTimer = int.tryParse(callDuration) ?? 30;
+      double parsedInitialTimer = double.tryParse(callDuration) ?? 30;
 
       // Navigate to appropriate call screen using offAll instead of to
       // This ensures we use the existing app instance
@@ -668,11 +669,8 @@ class CallNotificationService {
                 channel: channelName,
                 token: token,
                 participant: caller,
-                isInstatalk: isInstatalk,
                 initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
-                isTrial: extra['isTrial'] as bool? ?? false,
-                instaTalkDuration: parsedInitialTimer,
               ));
         } else if (!isInstatalk && !isVideoCall) {
           Get.to(() => NormalVoiceCallScreen(
@@ -694,8 +692,6 @@ class CallNotificationService {
                 channel: channelName,
                 token: token,
                 participant: caller,
-                // isInstatalk: isInstatalk,
-                // initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
                 callerName: callerName,
                 callerImage: callerImage,
@@ -707,11 +703,7 @@ class CallNotificationService {
                 channel: channelName,
                 token: token,
                 participant: caller,
-                // isInstatalk: isInstatalk,
-                // initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
-                // callerName: callerName,
-                // callerImage: callerImage,
               ));
         }
       } else {
@@ -727,11 +719,8 @@ class CallNotificationService {
                 channel: channelName,
                 token: token,
                 participant: caller,
-                isInstatalk: isInstatalk,
                 initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
-                isTrial: extra['isTrial'] as bool? ?? false,
-                instaTalkDuration: parsedInitialTimer,
               ));
         } else if (!isInstatalk && !isVideoCall) {
           Get.off(() => NormalVoiceCallScreen(
@@ -753,8 +742,6 @@ class CallNotificationService {
                 channel: channelName,
                 token: token,
                 participant: caller,
-                // isInstatalk: isInstatalk,
-                // initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
                 callerName: callerName,
                 callerImage: callerImage,

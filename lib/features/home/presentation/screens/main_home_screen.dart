@@ -23,7 +23,7 @@ import 'package:iftook/features/home/data/enums/meeting_type.dart';
 import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 import 'package:iftook/helpers/permissions_controller.dart';
 
-import '../../../calls/presentation/screens/laoding_voice_call_screen.dart';
+import '../../../calls/presentation/screens/loading_voice_call_screen.dart';
 import '../../../calls/presentation/screens/loading_video_call_screen.dart';
 import '../../../friends/presentation/screens/chat_room_screen.dart';
 import '../../../live/screens/viewer_screen.dart';

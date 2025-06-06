@@ -8,7 +8,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
-import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
+import 'package:iftook/features/calls/presentation/screens/loading_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
 import 'package:iftook/features/friend_requests/controller/friend_controller.dart';
 import 'package:iftook/features/friend_requests/data/models/friend_request.dart';
@@ -688,31 +688,23 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 ? meeting['duration'] as int
                 : int.tryParse('${meeting['duration']}') ?? 30;
 
-            final minutesElapsed = now.difference(scheduledTime).inMinutes;
+            // Calculate seconds elapsed for more precision
+            final secondsElapsed = now.difference(scheduledTime).inSeconds;
+            final totalSeconds = totalDuration * 60;
+            final remainingSeconds =
+                math.max(60, totalSeconds - secondsElapsed);
 
-            final remainingTime =
-                math.max<int>(1, totalDuration - minutesElapsed);
-            print('remainingTime runtimeType: ${remainingTime.runtimeType}');
+            // Convert to minutes with decimal part
+            final remainingTime = remainingSeconds / 60.0;
 
             print(
                 'Remaining time for voice call: $remainingTime minutes (Total: $totalDuration minutes)');
 
-            await _handleChatVoiceCall(participant,
+            await _handleChatVoiceCall(participant, meetingId,
                 remainingTime: remainingTime);
-            // await _handleChatVoiceCall(participant);
             break;
 
           case 'video':
-            // await Get.to(() => VideoCallLoadingScreen(
-            //       participant: participant,
-            //       scheduleTime: scheduledTime,
-            //       type: "video",
-            //       isInstatalk: false,
-            //       meetingId: meetingId, // Ensure meetingId is passed
-            //       token: token,
-            //       channel: channelName,
-            //       instaTalkDuration: meeting['duration'] ?? 30,
-            //     ));
             final now = DateTime.now();
             final scheduledTime = DateTime.parse(meeting['scheduledTime']);
 
@@ -720,19 +712,21 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 ? meeting['duration'] as int
                 : int.tryParse('${meeting['duration']}') ?? 30;
 
-            final minutesElapsed = now.difference(scheduledTime).inMinutes;
+            // Calculate seconds elapsed for more precision
+            final secondsElapsed = now.difference(scheduledTime).inSeconds;
+            final totalSeconds = totalDuration * 60;
+            final remainingSeconds =
+                math.max(60, totalSeconds - secondsElapsed);
 
-            final remainingTime =
-                math.max<int>(1, totalDuration - minutesElapsed);
-            print('remainingTime runtimeType: ${remainingTime.runtimeType}');
+            // Convert to minutes with decimal part
+            final remainingTime = remainingSeconds / 60.0;
 
             print(
-                'Remaining time for video call: $remainingTime minutes (Total: $totalDuration minutes)');
+                'remainingTime: $remainingTime minutes (Total: $totalDuration minutes)');
 
-            await _handleChatVideoCall(participant,
+            await _handleNormalMeetingVideoCall(participant, meetingId,
                 remainingTime: remainingTime);
             break;
-
           case 'chat':
             await Get.to(() => ChatRoomScreen(
                   profile: participant,
@@ -748,16 +742,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         print(
             'WARNING: No Agora credentials found in meeting data. Initiating new call with meetingId: $meetingId');
 
-        // Critical fix: Always pass the meetingId parameter even when token/channel aren't available
         switch (type) {
           case 'voice':
-            // await Get.to(() => VoiceCallLoadingScreen(
-            //       participant: participant,
-            //       scheduleTime: scheduledTime,
-            //       type: "voice",
-            //       isInstatalk: false,
-            //       meetingId: meetingId, // Add meetingId here
-            //     ));
             final now = DateTime.now();
             final scheduledTime = DateTime.parse(meeting['scheduledTime']);
 
@@ -773,20 +759,32 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             print(
                 'Remaining time for voice call: $remainingTime minutes (Total: $totalDuration minutes)');
 
-            await _handleChatVoiceCall(participant,
+            await _handleChatVoiceCall(participant, meetingId,
                 remainingTime: remainingTime);
-            // await _handleChatVoiceCall(participant);
             break;
 
           case 'video':
-            // await Get.to(() => VideoCallLoadingScreen(
-            //       participant: participant,
-            //       scheduleTime: scheduledTime,
-            //       type: "video",
-            //       isInstatalk: false,
-            //       meetingId: meetingId, // Add meetingId here
-            //     ));
-            await _handleChatVideoCall(participant);
+            final now = DateTime.now();
+            final scheduledTime = DateTime.parse(meeting['scheduledTime']);
+
+            final totalDuration = (meeting['duration'] is int)
+                ? meeting['duration'] as int
+                : int.tryParse('${meeting['duration']}') ?? 30;
+
+            // Calculate seconds elapsed for more precision
+            final secondsElapsed = now.difference(scheduledTime).inSeconds;
+            final totalSeconds = totalDuration * 60;
+            final remainingSeconds =
+                math.max(60, totalSeconds - secondsElapsed);
+
+            // Convert to minutes with decimal part
+            final remainingTime = remainingSeconds / 60.0;
+
+            print(
+                'remainingTime: $remainingTime minutes (Total: $totalDuration minutes)');
+
+            await _handleNormalMeetingVideoCall(participant, meetingId,
+                remainingTime: remainingTime);
             break;
 
           case 'chat':
@@ -812,15 +810,16 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     }
   }
 
-  _handleChatVideoCall(participant, {remainingTime = 30.00}) async {
+  _handleNormalMeetingVideoCall(participant, meetingId,
+      {remainingTime = 30.00}) async {
     try {
       Get.dialog(
         const Center(child: CircularProgressIndicator()),
         barrierDismissible: false,
       );
 
-      final callData = await ChatCallService.initiateChatCall(
-          participant.sId!, 'video', remainingTime.toDouble());
+      final callData = await ChatCallService.initiateNormalMeetingCall(
+          participant.sId!, 'video', remainingTime.toDouble(), meetingId);
 
       Get.back(); // Close loading dialog
 
@@ -857,15 +856,15 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     }
   }
 
-  _handleChatVoiceCall(participant, {remainingTime = 30.00}) async {
+  _handleChatVoiceCall(participant, meetingId, {remainingTime = 30.00}) async {
     try {
       Get.dialog(
         const Center(child: CircularProgressIndicator()),
         barrierDismissible: false,
       );
 
-      final callData = await ChatCallService.initiateChatCall(
-          participant.sId!, 'voice', remainingTime.toDouble());
+      final callData = await ChatCallService.initiateNormalMeetingCall(
+          participant.sId!, 'voice', remainingTime.toDouble(), meetingId);
 
       Get.back(); // Close loading dialog
 

@@ -283,8 +283,7 @@ class CallController extends GetxController {
 
         final User participant = User(
           sId: participantId,
-          name: pName, // Replace with actual participant name
-          // profilePicture: 'https://example.com/profile.jpg', // Replace with actual URL
+          name: pName,
         );
 
         if (type == 'voice') {
@@ -329,13 +328,14 @@ class CallController extends GetxController {
             );
           }
           Get.off(
-            () => NormalVideoCallScreen(
+            () => ITVideoCallScreen(
+              participant: participant,
               channel: channel.value,
               meetingId: meetingId.value,
               token: token.value,
               onSessionEnd: onSessionEnd,
-              initialTimer: 30,
-              isInstatalk: isInstatalk,
+              // initialTimer: 30,
+              // isInstatalk: isInstatalk,
               isTrial: isTrial,
             ),
             preventDuplicates: true,

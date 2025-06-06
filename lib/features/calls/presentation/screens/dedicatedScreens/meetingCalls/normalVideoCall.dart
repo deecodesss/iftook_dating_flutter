@@ -17,10 +17,7 @@ class NormalVideoCallScreen extends StatefulWidget {
   final String channel;
   final Function? onSessionEnd;
   final User? participant;
-  final bool isInstatalk;
-  final bool isTrial;
-  final int instaTalkDuration;
-  final int initialTimer;
+  final double initialTimer;
   final bool fromChat;
   final bool isIncomingCall;
 
@@ -31,9 +28,6 @@ class NormalVideoCallScreen extends StatefulWidget {
     required this.channel,
     this.onSessionEnd,
     this.participant,
-    this.isInstatalk = false,
-    this.isTrial = false,
-    this.instaTalkDuration = 30, // Default value if not provided
     required this.initialTimer,
     this.fromChat = false,
     this.isIncomingCall = false,
@@ -151,118 +145,21 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
   // Initialize the timers based on call type
   void _startTimers() {
     print("Starting video call timers:");
-    print("Is InstaTalk: ${widget.isInstatalk}");
-    print("Is Trial: ${widget.isTrial}");
     print("Initial Timer: ${widget.initialTimer}");
 
     setState(() {
       _timerStarted = true;
     });
 
-    if (widget.isInstatalk) {
-      if (widget.isTrial) {
-        // Trial InstaTalk - use initialTimer instead of hardcoded 30 seconds
-        print(
-            "Starting TRIAL countdown timer (${widget.initialTimer} minutes)");
-        _startTrialCountdownTimer();
-      } else {
-        // Paid InstaTalk - growing timer with auto-payment
-        print("Starting PAID InstaTalk growing timer with auto-payment");
-        _startGrowingTimer();
-        _startAutoPaymentTimer();
-      }
-    } else {
-      // Regular meeting - standard timer based on session duration
-      print(
-          "Starting REGULAR meeting countdown timer (${widget.initialTimer} minutes)");
-      _startRegularTimer();
-    }
+    print(
+        "Starting REGULAR meeting countdown timer (${widget.initialTimer} minutes)");
+    _startRegularTimer();
   }
 
-  // Trial countdown timer - use initialTimer instead of hardcoded 30 seconds
-  void _startTrialCountdownTimer() {
-    setState(() {
-      _remainingSeconds =
-          widget.initialTimer * 60; // Convert minutes to seconds
-    });
-
-    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (_remainingSeconds > 0) {
-          _remainingSeconds--;
-        } else {
-          _sessionTimer?.cancel();
-          if (!_showingPaymentPrompt) {
-            _sessionExpired = true;
-            _showMeetingEndedPopup(); // Use the simple meeting ended popup
-          }
-        }
-      });
-    });
-  }
-
-  // Growing timer for paid InstaTalk
-  void _startGrowingTimer() {
-    setState(() {
-      _elapsedSeconds = 0;
-    });
-
-    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        _elapsedSeconds++;
-      });
-    });
-  }
-
-  // Auto-payment timer for paid InstaTalk
-  void _startAutoPaymentTimer() {
-    if (_ratePerMinute <= 0) return;
-
-    _autoPaymentEnabled = true;
-    const paymentIntervalSeconds = AUTO_PAYMENT_INTERVAL;
-
-    _autoPaymentTimer = Timer.periodic(
-        Duration(seconds: paymentIntervalSeconds), (timer) async {
-      if (!_autoPaymentEnabled) return;
-
-      try {
-        // Calculate cost for the interval
-        final minutesFraction = paymentIntervalSeconds / 60;
-        final cost = _ratePerMinute * minutesFraction;
-
-        // Get chat controller to process payment
-        final chatController = Get.find<ChatController>();
-
-        // Check if user has enough balance
-        await chatController.fetchWalletBalance();
-        if (chatController.userWalletBalance.value < cost) {
-          // Stop timer and show insufficient balance message
-          _autoPaymentTimer?.cancel();
-          _showInsufficientBalanceDialog();
-          return;
-        }
-
-        // Silently process payment
-        final success = await chatController.purchaseChatSession(
-            widget.participant!.sId!, cost,
-            minutes: 1, silent: true);
-
-        if (!success) {
-          throw Exception('Payment failed');
-        }
-      } catch (e) {
-        print('Auto-payment error: $e');
-        _autoPaymentTimer?.cancel();
-        _showPaymentErrorDialog();
-      }
-    });
-  }
-
-  // Regular countdown timer for scheduled meetings
   void _startRegularTimer() {
     setState(() {
-      _remainingSeconds =
-          widget.initialTimer * 60; // Convert minutes to seconds
+      _remainingSeconds = (widget.initialTimer * 60)
+          .toInt(); // Convert minutes to seconds and ensure int type
       _hasSentLastMinutePayment = false; // Reset payment flag
     });
 
@@ -344,8 +241,8 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
     print("Restarting timer for incoming call without payment");
     setState(() {
       _sessionExpired = false;
-      _remainingSeconds =
-          widget.initialTimer * 60; // Reset to initial timer value
+      _remainingSeconds = (widget.initialTimer * 60)
+          .toInt(); // Reset to initial timer value with proper conversion
       _hasSentLastMinutePayment = false; // Reset payment flag for next cycle
     });
 
@@ -376,7 +273,7 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: Text(
-          'Your ${widget.initialTimer}-minute video call session with ${widget.participant?.name ?? "User"} has ended.',
+          'Your ${widget.initialTimer.toStringAsFixed(1)}-minute video call session with ${widget.participant?.name ?? "User"} has ended.',
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -394,11 +291,6 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
         ],
       ),
     );
-  }
-
-  // Remove _purchaseCall functionality and replace with a stub that just ends the call
-  void _purchaseCall() {
-    _endCall();
   }
 
   // Prevent screenshots using the no_screenshot package
@@ -688,9 +580,7 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
                           const SizedBox(height: 8),
                           // Call type
                           Text(
-                            widget.isInstatalk
-                                ? 'InstaTalk Video Call'
-                                : 'Video Call',
+                            'Video Call',
                             style: TextStyle(
                               fontSize: 16,
                               color: Colors.grey[400],
@@ -796,9 +686,7 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      widget.isIncomingCall
-                          ? 'Incoming'
-                          : 'Outgoing Normal New',
+                      widget.isIncomingCall ? 'Incoming' : 'Outgoing',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,

@@ -17,7 +17,7 @@ import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/inst
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
-import 'package:iftook/features/calls/presentation/screens/laoding_voice_call_screen.dart';
+import 'package:iftook/features/calls/presentation/screens/loading_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
 import 'package:iftook/features/calls/services/call_notification_service.dart';
 import 'package:iftook/features/friends/controllers/instaTalkController.dart';
@@ -664,7 +664,7 @@ class NotificationHelper {
                   meetingId: meetingId,
                   channel: channelName,
                   token: token,
-                  initialTimer: int.parse(payload['duration'] ?? '30'),
+                  initialTimer: double.parse(payload['duration'] ?? '30'),
                 ));
           } else {
             await Get.to(() => NormalVoiceCallScreen(
@@ -672,7 +672,7 @@ class NotificationHelper {
                   meetingId: meetingId,
                   channel: channelName,
                   token: token,
-                  initialTimer: int.parse(payload['duration'] ?? '30'),
+                  initialTimer: double.parse(payload['duration'] ?? '30'),
                 ));
           }
           break;

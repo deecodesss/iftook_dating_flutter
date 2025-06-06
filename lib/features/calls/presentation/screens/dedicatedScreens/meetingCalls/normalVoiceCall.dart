@@ -20,7 +20,7 @@ class NormalVoiceCallScreen extends StatefulWidget {
   final String channel;
   final Function? onSessionEnd;
   final User participant;
-  final int initialTimer;
+  final double initialTimer;
   final bool isIncomingCall;
   final String? callerName;
   final String? callerImage;
@@ -270,9 +270,9 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
   // Regular timer to countdown from initialTimer
   void _startRegularTimer() {
     setState(() {
-      // Use initialTimer from widget parameter
+      // Use initialTimer from widget parameter and convert to seconds (as int)
       _remainingSeconds =
-          widget.initialTimer * 60; // Convert minutes to seconds
+          (widget.initialTimer * 60).toInt(); // Convert minutes to seconds
       _elapsedSeconds = 0; // Reset elapsed time
       _hasSentLastMinutePayment =
           false; // Reset payment flag when starting a new timer
@@ -331,7 +331,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: Text(
-          'Your ${widget.initialTimer}-minute voice call session with ${widget.participant.name ?? "User"} has ended.',
+          'Your ${widget.initialTimer.toStringAsFixed(1)}-minute voice call session with ${widget.participant.name ?? "User"} has ended.',
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -394,7 +394,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
       _sessionExpired = false;
       _elapsedSeconds = 0;
       _remainingSeconds =
-          widget.initialTimer * 60; // Reset to initial timer value
+          (widget.initialTimer * 60).toInt(); // Convert to int properly
       _hasSentLastMinutePayment = false; // Reset payment flag for next cycle
     });
 
@@ -504,17 +504,18 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
     if (widget.onSessionEnd != null) {
       widget.onSessionEnd!();
     }
+    Get.back(); // Navigate back to previous screen
 
     // Improved navigation - directly return to home screen
-    if (_hasRenewedSession) {
-      Get.off(() => AddReviewScreen(
-            userId: widget.participant.sId ?? '',
-          ));
-    } else {
-      // Navigate directly to home screen instead of using multiple Get.back()
-      Get.offAllNamed('/');
-      // Get.off(());
-    }
+    // if (_hasRenewedSession) {
+    //   Get.off(() => AddReviewScreen(
+    //         userId: widget.participant.sId ?? '',
+    //       ));
+    // } else {
+    //   // Navigate directly to home screen instead of using multiple Get.back()
+    //   Get.offAllNamed('/');
+    //   // Get.off(());
+    // }
   }
 
   // New method to show warning dialog for incoming calls
@@ -636,7 +637,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
                               const SizedBox(width: 6),
                               Text(
                                 widget.isIncomingCall
-                                    ? "Incoming Call"
+                                    ? "Voice Call"
                                     : "Voice Call",
                                 style: const TextStyle(
                                   color: Colors.white,
@@ -887,16 +888,16 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
             ),
 
             // Rate display - always show per-minute rate
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                '₹${perMinuteRate.toStringAsFixed(2)}/min',
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 12,
-                ),
-              ),
-            ),
+            // Padding(
+            //   padding: const EdgeInsets.only(top: 6),
+            //   child: Text(
+            //     '₹${perMinuteRate.toStringAsFixed(2)}/min',
+            //     style: TextStyle(
+            //       color: Colors.grey[400],
+            //       fontSize: 12,
+            //     ),
+            //   ),
+            // ),
           ],
         ),
       ),
@@ -1008,7 +1009,8 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
               FlutterCallkitIncoming.endAllCalls();
 
               // Navigate to home
-              Get.offAllNamed('/');
+              // Get.offAllNamed('/');
+              Get.back(); // Navigate back to previous screen
 
               // Alternative if the above doesn't work
               if (Get.currentRoute != '/') {

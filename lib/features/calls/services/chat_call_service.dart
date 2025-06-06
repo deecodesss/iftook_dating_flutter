@@ -52,6 +52,48 @@ class ChatCallService {
     }
   }
 
+  static Future<Map<String, dynamic>?> initiateNormalMeetingCall(
+    String participantId,
+    String type,
+    double duration,
+    String meetingId,
+  ) async {
+    if (_isRequestInProgress) {
+      throw Exception('A call request is already in progress');
+    }
+
+    try {
+      _isRequestInProgress = true;
+      final response = await ApiService.initiateNormalMeetingCall(
+          participantId, type, DateTime.now(), meetingId, duration);
+
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        final meetingData = data['data']['meeting'];
+        final token = data['data']['token'];
+        final channelName = data['data']['channelName'];
+
+        return {
+          'meetingId': meetingData['_id'],
+          'token': token,
+          'channelName': channelName,
+        };
+      } else {
+        throw Exception('Failed to initiate call');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error initiating chat call: $e');
+      }
+      rethrow;
+    } finally {
+      // Reset after a short delay to prevent accidental double-taps
+      Future.delayed(const Duration(seconds: 2), () {
+        _isRequestInProgress = false;
+      });
+    }
+  }
+
   static Future<bool> rejectCall(String meetingId) async {
     try {
       final userId = await SharedPrefs.getUserIdSharedPreference();

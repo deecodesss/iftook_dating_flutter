@@ -13,7 +13,7 @@ import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/features/shared/controllers/user_online_controller.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
-import '../../../calls/presentation/screens/laoding_voice_call_screen.dart';
+import '../../../calls/presentation/screens/loading_voice_call_screen.dart';
 import '../../../calls/presentation/screens/loading_video_call_screen.dart';
 import '../../../friend_requests/controller/friend_controller.dart';
 import 'chat_room_screen.dart';

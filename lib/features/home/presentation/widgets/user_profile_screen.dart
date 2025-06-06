@@ -16,7 +16,7 @@ import 'package:iftook/features/live/screens/viewer_screen.dart';
 import 'package:iftook/features/wallet/controllers/wallet_controller.dart';
 import 'package:iftook/features/instatalk/presentation/instatalk_schedule.dart';
 
-import '../../../calls/presentation/screens/laoding_voice_call_screen.dart';
+import '../../../calls/presentation/screens/loading_voice_call_screen.dart';
 import '../../../calls/presentation/screens/loading_video_call_screen.dart';
 import '../../../friends/presentation/screens/chat_room_screen.dart';
 import '../../controllers/home_controller.dart';

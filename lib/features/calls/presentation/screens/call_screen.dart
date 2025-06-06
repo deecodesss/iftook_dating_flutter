@@ -436,16 +436,17 @@ class _CallScreenState extends State<CallScreen0> {
     if (widget.onSessionEnd != null) {
       widget.onSessionEnd!();
     }
+    Get.back(); // Navigate back to previous screen
 
-    // Improved navigation - directly return to home screen
-    if (_hasRenewedSession) {
-      Get.off(() => AddReviewScreen(
-            userId: widget.participant.sId ?? '',
-          ));
-    } else {
-      // Navigate directly to home screen instead of using multiple Get.back()
-      Get.offAllNamed('/');
-    }
+    // // Improved navigation - directly return to home screen
+    // if (_hasRenewedSession) {
+    //   Get.off(() => AddReviewScreen(
+    //         userId: widget.participant.sId ?? '',
+    //       ));
+    // } else {
+    //   // Navigate directly to home screen instead of using multiple Get.back()
+    //   Get.offAllNamed('/');
+    // }
   }
 
   // New method to show warning dialog for incoming calls
@@ -815,18 +816,18 @@ class _CallScreenState extends State<CallScreen0> {
             ),
 
           // Rate display
-          Padding(
-            padding: const EdgeInsets.only(top: 5),
-            child: Text(
-              widget.isInstatalk && widget.isTrial
-                  ? 'Free Trial'
-                  : '₹${_ratePerMinute.toStringAsFixed(0)}/min',
-              style: TextStyle(
-                color: Colors.grey[400],
-                fontSize: 13,
-              ),
-            ),
-          ),
+          // Padding(
+          //   padding: const EdgeInsets.only(top: 5),
+          //   child: Text(
+          //     widget.isInstatalk && widget.isTrial
+          //         ? 'Free Trial'
+          //         : '₹${_ratePerMinute.toStringAsFixed(0)}/min',
+          //     style: TextStyle(
+          //       color: Colors.grey[400],
+          //       fontSize: 13,
+          //     ),
+          //   ),
+          // ),
         ],
       ),
     );
@@ -937,7 +938,8 @@ class _CallScreenState extends State<CallScreen0> {
               FlutterCallkitIncoming.endAllCalls();
 
               // Navigate to home
-              Get.offAllNamed('/');
+              // Get.offAllNamed('/');
+              Get.back(); // Navigate back to previous screen
 
               // Alternative if the above doesn't work
               if (Get.currentRoute != '/') {

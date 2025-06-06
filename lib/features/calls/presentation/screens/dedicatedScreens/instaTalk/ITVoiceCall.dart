@@ -355,16 +355,16 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
     if (widget.onSessionEnd != null) {
       widget.onSessionEnd!();
     }
-
+    Get.back(); // Navigate back to previous screen
     // Improved navigation - directly return to home screen
-    if (_hasRenewedSession) {
-      Get.off(() => AddReviewScreen(
-            userId: widget.participant.sId ?? '',
-          ));
-    } else {
-      // Navigate directly to home screen instead of using multiple Get.back()
-      Get.offAllNamed('/');
-    }
+    // if (_hasRenewedSession) {
+    //   Get.off(() => AddReviewScreen(
+    //         userId: widget.participant.sId ?? '',
+    //       ));
+    // } else {
+    //   // Navigate directly to home screen instead of using multiple Get.back()
+    //   Get.offAllNamed('/');
+    // }
   }
 
   // New method to show warning dialog for incoming calls
@@ -842,7 +842,8 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
               FlutterCallkitIncoming.endAllCalls();
 
               // Navigate to home
-              Get.offAllNamed('/');
+              // Get.offAllNamed('/');
+              Get.back(); // Navigate back to previous screen
 
               // Alternative if the above doesn't work
               if (Get.currentRoute != '/') {
