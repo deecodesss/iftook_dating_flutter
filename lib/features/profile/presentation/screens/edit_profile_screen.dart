@@ -46,6 +46,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool isLoading = true;
   User? currentUser;
 
+  // Add this property to track photos
+  List<String> userPhotos = [];
+
   // Country list
   final List<String> countries = [
     'India',
@@ -90,6 +93,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         currentUser = User.fromJson(data['user']);
+
+        // Initialize photos array
+        userPhotos = List<String>.from(currentUser?.photos ?? []);
 
         // Set initial values
         // _phoneController.text = currentUser?.phone ?? '';
@@ -154,6 +160,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  // Add this method to handle photo deletion
+  void _deletePhoto(int index) {
+    setState(() {
+      userPhotos.removeAt(index);
+    });
+  }
+
+  // Add this method to handle photo reordering
+  void _onReorderPhotos(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) {
+        newIndex -= 1;
+      }
+      final String item = userPhotos.removeAt(oldIndex);
+      userPhotos.insert(newIndex, item);
+    });
+  }
+
   Future<void> _saveProfile() async {
     try {
       // Show loading indicator
@@ -161,6 +185,45 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         const Center(child: CircularProgressIndicator()),
         barrierDismissible: false,
       );
+
+      // Upload images first if selected
+      String? profileImageUrl;
+      String? panImageUrl;
+
+      if (profileImagePath != null) {
+        // Verify file exists before uploading
+        final profileFile = File(profileImagePath!);
+        if (!profileFile.existsSync()) {
+          throw Exception('Profile image file not found');
+        }
+
+        print('Uploading profile image: $profileImagePath');
+        final result = await ApiService.uploadImage(profileFile);
+        if (result['success']) {
+          profileImageUrl = result['imageUrl'];
+          print('Profile image uploaded successfully: $profileImageUrl');
+        } else {
+          throw Exception(
+              'Failed to upload profile image: ${result['message']}');
+        }
+      }
+
+      if (panImagePath != null) {
+        // Verify file exists before uploading
+        final panFile = File(panImagePath!);
+        if (!panFile.existsSync()) {
+          throw Exception('ID document file not found');
+        }
+
+        print('Uploading ID document: $panImagePath');
+        final result = await ApiService.uploadImage(panFile);
+        if (result['success']) {
+          panImageUrl = result['imageUrl'];
+          print('ID document uploaded successfully: $panImageUrl');
+        } else {
+          throw Exception('Failed to upload ID document: ${result['message']}');
+        }
+      }
 
       // Prepare the data
       Map<String, dynamic> updateData = {
@@ -196,21 +259,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             _routingNumberController.text;
       }
 
-      // Add profile image if selected
-      if (profileImagePath != null) {
-        final bytes = await File(profileImagePath!).readAsBytes();
-        final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-        updateData['image'] = base64Image;
+      // Create or update photos array with new profile image URL
+      if (profileImageUrl != null) {
+        // Add the new photo to our tracked photos array
+        if (!userPhotos.contains(profileImageUrl)) {
+          userPhotos.insert(0, profileImageUrl);
+        }
       }
 
-      // Add PAN/Government ID image if selected
-      if (panImagePath != null) {
-        final bytes = await File(panImagePath!).readAsBytes();
-        final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-        updateData['panDetails']['panImage'] = base64Image;
+      // Use the user's reordered photos array
+      updateData['photos'] = userPhotos;
+
+      // Set the first photo as the profile image for compatibility
+      if (userPhotos.isNotEmpty) {
+        updateData['image'] = userPhotos[0];
       }
 
+      // Add PAN/Government ID image URL if uploaded
+      if (panImageUrl != null) {
+        updateData['panDetails']['panImage'] = panImageUrl;
+      }
+
+      print('Sending profile update data: $updateData');
       final response = await ApiService.updateProfile(updateData);
+      print(
+          'Profile update response: ${response.statusCode} - ${response.body}');
 
       // Remove loading dialog
       Get.back();
@@ -222,9 +295,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           backgroundColor: Colors.green,
           colorText: Colors.white,
         );
+
+        // Reload profile data to show updated information
+        await _loadCurrentProfile();
+
         Get.back(); // Go back to previous screen
       } else {
-        throw Exception(jsonDecode(response.body)['message']);
+        throw Exception(
+            jsonDecode(response.body)['message'] ?? 'Failed to update profile');
       }
     } catch (e) {
       Get.back(); // Remove loading dialog
@@ -285,6 +363,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               children: [
                 // Profile Header
                 _buildProfileHeader(),
+
+                // Photos Gallery
+                _buildPhotoGallery(),
 
                 // Form Content
                 Padding(
@@ -375,6 +456,130 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  // Add this new method to build the photo gallery
+  Widget _buildPhotoGallery() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'My Photos',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Drag to reorder. First photo will be your profile picture.',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            height: 120,
+            child: userPhotos.isEmpty
+                ? Center(
+                    child: Text(
+                      'No photos yet. Add some photos!',
+                      style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                    ),
+                  )
+                : ReorderableListView(
+                    scrollDirection: Axis.horizontal,
+                    onReorder: _onReorderPhotos,
+                    children: List.generate(userPhotos.length, (index) {
+                      return Container(
+                        key: Key('photo-$index'),
+                        margin: const EdgeInsets.only(right: 12),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                userPhotos[index],
+                                width: 100,
+                                height: 120,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 100,
+                                    height: 120,
+                                    color: Colors.grey[800],
+                                    child: const Icon(
+                                      Icons.error_outline,
+                                      color: Colors.white,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.6),
+                                  borderRadius: BorderRadius.only(
+                                    bottomLeft: Radius.circular(8),
+                                  ),
+                                ),
+                                child: IconButton(
+                                  icon: Icon(Icons.delete,
+                                      color: Colors.white, size: 18),
+                                  padding: EdgeInsets.all(4),
+                                  constraints: BoxConstraints(),
+                                  onPressed: () => _deletePhoto(index),
+                                ),
+                              ),
+                            ),
+                            if (index == 0)
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: Container(
+                                  padding: EdgeInsets.symmetric(vertical: 4),
+                                  color:
+                                      AppColors.primaryColor.withOpacity(0.8),
+                                  child: Text(
+                                    'Profile Photo',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ),
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: OutlinedButton.icon(
+              onPressed: () => _pickImage(true),
+              icon: const Icon(Icons.add_photo_alternate),
+              label: Text('Add New Photo'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: BorderSide(color: AppColors.primaryColor),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProfileHeader() {
     return Container(
       width: double.infinity,
@@ -393,12 +598,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         children: [
           Stack(
             children: [
+              // Show local image preview if available, otherwise show first photo from the reordered list
               CircleAvatar(
                 radius: 50,
-                backgroundImage: currentUser?.photos?.isNotEmpty == true
-                    ? NetworkImage(currentUser!.photos!.first)
-                    : null,
-                child: currentUser?.photos?.isEmpty ?? true
+                backgroundImage: profileImagePath != null
+                    ? FileImage(File(profileImagePath!))
+                    : (userPhotos.isNotEmpty
+                        ? NetworkImage(userPhotos[0])
+                        : null),
+                child: (profileImagePath == null && userPhotos.isEmpty)
                     ? const Icon(Icons.person, size: 50)
                     : null,
               ),

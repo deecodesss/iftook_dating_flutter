@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/friends/data/chatroom.dart';
 import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
@@ -1193,6 +1194,88 @@ class ApiService {
     } catch (e) {
       print('Error getting all users in calls: $e');
       return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> uploadImage(File imageFile) async {
+    try {
+      final token = await SharedPrefs.getAccessToken();
+
+      // Check if file exists and is readable
+      if (!imageFile.existsSync()) {
+        print('Error: Image file does not exist: ${imageFile.path}');
+        return {'success': false, 'message': 'Image file does not exist'};
+      }
+
+      final fileSize = await imageFile.length();
+      final fileExtension = imageFile.path.split('.').last.toLowerCase();
+
+      print('Uploading image: ${imageFile.path}');
+      print('File size: ${fileSize ~/ 1024} KB');
+      print('File extension: $fileExtension');
+
+      // Validate file extension
+      final validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+      if (!validExtensions.contains(fileExtension)) {
+        print('Error: Invalid file extension: $fileExtension');
+        return {
+          'success': false,
+          'message': 'Invalid file type. Only images are allowed.'
+        };
+      }
+
+      // Create multipart request
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/upload/image'),
+      );
+
+      // Add authorization header
+      request.headers.addAll({
+        'Authorization': 'Bearer $token',
+      });
+
+      // Add file to request with explicit mimetype
+      final mimeType = 'image/$fileExtension'.replaceAll('jpg', 'jpeg');
+
+      final multipartFile = await http.MultipartFile.fromPath(
+        'image',
+        imageFile.path,
+        filename: imageFile.path.split('/').last,
+        contentType: MediaType.parse(mimeType),
+      );
+
+      request.files.add(multipartFile);
+
+      // Send the request
+      print('Sending image upload request with mimetype: $mimeType');
+      final streamedResponse = await request.send();
+
+      // Get the response
+      final response = await http.Response.fromStream(streamedResponse);
+      print('Image upload response status: ${response.statusCode}');
+      print('Image upload response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return {
+          'success': true,
+          'imageUrl': responseData['imageUrl'],
+          'filename': responseData['filename'],
+        };
+      } else {
+        print('Error uploading image: ${response.statusCode} ${response.body}');
+        return {
+          'success': false,
+          'message': 'Failed to upload image: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('Exception during image upload: $e');
+      return {
+        'success': false,
+        'message': e.toString(),
+      };
     }
   }
 }

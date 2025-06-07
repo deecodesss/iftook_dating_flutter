@@ -254,19 +254,6 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
     // _startAutoPaymentTimer() will be called after the user chooses to continue
   }
 
-  // Update growing timer to track elapsed time (keep for billing purposes)
-  void _startGrowingTimer() {
-    setState(() {
-      _elapsedSeconds = 0;
-    });
-
-    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        _elapsedSeconds++;
-      });
-    });
-  }
-
   // Regular timer to countdown from initialTimer
   void _startRegularTimer() {
     setState(() {
@@ -297,6 +284,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
                   59 && // Only trigger once at exactly 60 seconds remaining
               !_hasSentLastMinutePayment) {
             _sendLastMinutePayment();
+            _showPaymentAnimation(); // Show animation when payment is triggered
           }
         } else {
           timer.cancel();
@@ -325,30 +313,135 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text(
-          'Meeting Time Ended',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Your ${widget.initialTimer.toStringAsFixed(1)}-minute voice call session with ${widget.participant.name ?? "User"} has ended.',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              _performEndCall();
-            },
-            child: const Text('End Call'),
+          backgroundColor: const Color(0xFF1A1A1A),
+          title: const Text(
+            'Meeting Time Ended',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
-        ],
+          content: Text(
+            'Your ${widget.initialTimer.toStringAsFixed(1)}-minute voice call session with ${widget.participant.name ?? "User"} has ended.',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _performEndCall();
+              },
+              child: const Text('End Call'),
+            ),
+          ]),
+    );
+
+    // Insert the overlay entry
+    // overlayState.insert(overlayEntry);
+  }
+
+  // Add new method to show payment animation
+  void _showPaymentAnimation() {
+    // Create an overlay that shows a payment animation
+    OverlayState? overlayState = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        child: Material(
+          color: Colors.transparent,
+          child: Center(
+            child: TweenAnimationBuilder(
+              tween: Tween<double>(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 700),
+              builder: (context, double value, child) {
+                return Transform.scale(
+                  scale: 1.0 + (0.3 * (value < 0.5 ? value : 1.0 - value) * 2),
+                  child: Opacity(
+                    opacity: value < 0.8 ? value * 1.25 : (1.0 - value) * 5,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppColors.primaryColor,
+                          width: 2,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                widget.isIncomingCall
+                                    ? Icons.call_received
+                                    : Icons.call_made,
+                                color: widget.isIncomingCall
+                                    ? Colors.green
+                                    : Colors.red,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                widget.isIncomingCall
+                                    ? "Payment Received"
+                                    : "Payment Sent",
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          // Show the coin animation
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.currency_rupee,
+                                color: Colors.amber,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                widget.participant.earnings?.voice.toString() ??
+                                    "300",
+                                style: const TextStyle(
+                                  color: Colors.amber,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 20,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+              onEnd: () {
+                overlayEntry.remove();
+              },
+            ),
+          ),
+        ),
       ),
     );
+
+    // Insert the overlay entry
+    overlayState.insert(overlayEntry);
   }
 
   // Add new method to send payment when timer hits last minute
@@ -372,15 +465,17 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
 
       if (success) {
         print('Last minute payment sent successfully');
+        // Payment notification now handled by animation
+      } else {
+        print('Failed to send last minute payment');
+        // Still show a snackbar for errors
         Get.snackbar(
-          'Payment Sent',
-          'Call payment of ₹${voiceRate.toStringAsFixed(0)} sent to ${widget.participant.name}',
-          backgroundColor: Colors.green.withOpacity(0.7),
+          'Payment Failed',
+          'Failed to send payment. Please check your balance.',
+          backgroundColor: Colors.red.withOpacity(0.7),
           colorText: Colors.white,
           duration: const Duration(seconds: 2),
         );
-      } else {
-        print('Failed to send last minute payment');
       }
     } catch (e) {
       print('Error sending last minute payment: $e');
@@ -650,16 +745,14 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
                         ),
 
                         // Show wallet balance only for outgoing calls
-                        widget.isIncomingCall
-                            ? Container() // Empty container for incoming calls
-                            : Obx(() => Text(
-                                  '₹${_chatController.userWalletBalance.value.toStringAsFixed(0)}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 14,
-                                  ),
-                                )),
+                        Obx(() => Text(
+                              '₹${_chatController.userWalletBalance.value.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                                fontSize: 14,
+                              ),
+                            )),
                       ],
                     ),
                   ),
@@ -1032,7 +1125,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
                 const Icon(Icons.home, size: 20),
                 const SizedBox(width: 8),
                 const Text(
-                  'Return to Home',
+                  'Exit',
                   style: TextStyle(fontSize: 16),
                 ),
               ],
