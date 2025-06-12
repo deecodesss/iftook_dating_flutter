@@ -56,7 +56,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Timer? _sessionTimer;
   Timer? _autoPaymentTimer;
   int _remainingSeconds = 0;
-  int _elapsedSeconds = 0; // Add elapsed seconds counter for growing timer
+  int _elapsedSeconds = 0;
   bool _sessionExpired = false;
   bool _showingPaymentPrompt = false;
 

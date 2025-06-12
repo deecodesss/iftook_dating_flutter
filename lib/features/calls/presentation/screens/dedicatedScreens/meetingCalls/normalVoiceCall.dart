@@ -599,18 +599,10 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
     if (widget.onSessionEnd != null) {
       widget.onSessionEnd!();
     }
-    Get.back(); // Navigate back to previous screen
-
-    // Improved navigation - directly return to home screen
-    // if (_hasRenewedSession) {
-    //   Get.off(() => AddReviewScreen(
-    //         userId: widget.participant.sId ?? '',
-    //       ));
-    // } else {
-    //   // Navigate directly to home screen instead of using multiple Get.back()
-    //   Get.offAllNamed('/');
-    //   // Get.off(());
-    // }
+    Get.off(() => AddReviewScreen(
+          userId: widget.participant.sId ?? '',
+        ));
+    // Get.back();
   }
 
   // New method to show warning dialog for incoming calls
@@ -1101,14 +1093,10 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
               // End any call notifications
               FlutterCallkitIncoming.endAllCalls();
 
-              // Navigate to home
-              // Get.offAllNamed('/');
-              Get.back(); // Navigate back to previous screen
-
-              // Alternative if the above doesn't work
-              if (Get.currentRoute != '/') {
-                Get.until((route) => route.isFirst);
-              }
+              // Get.back();
+              Get.off(() => AddReviewScreen(
+                    userId: widget.participant.sId ?? '',
+                  ));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryColor,

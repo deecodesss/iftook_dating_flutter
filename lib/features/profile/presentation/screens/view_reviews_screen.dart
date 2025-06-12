@@ -94,23 +94,23 @@ class _ViewReviewsScreenState extends State<ViewReviewsScreen> {
     return Scaffold(
       appBar: AppBar(
           title: Text('Ratings & Reviews', style: GoogleFonts.manrope())),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AddReviewScreen(userId: widget.userId),
-            ),
-          );
+      // floatingActionButton: FloatingActionButton(
+      //   onPressed: () async {
+      //     final result = await Navigator.push(
+      //       context,
+      //       MaterialPageRoute(
+      //         builder: (context) => AddReviewScreen(userId: widget.userId),
+      //       ),
+      //     );
 
-          if (result == true) {
-            // Refresh reviews if a new review was added
-            await _fetchUserRatings();
-          }
-        },
-        child: const Icon(Icons.rate_review),
-        backgroundColor: AppColors.primaryColor,
-      ),
+      //     if (result == true) {
+      //       // Refresh reviews if a new review was added
+      //       await _fetchUserRatings();
+      //     }
+      //   },
+      //   child: const Icon(Icons.rate_review),
+      //   backgroundColor: AppColors.primaryColor,
+      // ),
       body: SingleChildScrollView(
         child: Column(
           children: [

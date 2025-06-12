@@ -688,7 +688,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             color: AppColors.primaryColor,
             backgroundColor: Colors.transparent,
             onPressed: () {
-              Get.to(() => ActivityScreen());
+              if (widget.profile.sId != null) {
+                Get.to(
+                    () => ActivityScreen(viewingUserId: widget.profile.sId!));
+              }
             },
           ),
           _buildActionButtonWithLabel(

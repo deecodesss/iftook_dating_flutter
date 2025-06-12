@@ -701,7 +701,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 'Remaining time for voice call: $remainingTime minutes (Total: $totalDuration minutes)');
 
             await _handleChatVoiceCall(participant, meetingId,
-                remainingTime: remainingTime);
+                remainingTime: remainingTime + 1);
             break;
 
           case 'video':
@@ -725,7 +725,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 'remainingTime: $remainingTime minutes (Total: $totalDuration minutes)');
 
             await _handleNormalMeetingVideoCall(participant, meetingId,
-                remainingTime: remainingTime);
+                remainingTime: remainingTime + 1);
             break;
           case 'chat':
             await Get.to(() => ChatRoomScreen(
@@ -760,7 +760,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 'Remaining time for voice call: $remainingTime minutes (Total: $totalDuration minutes)');
 
             await _handleChatVoiceCall(participant, meetingId,
-                remainingTime: remainingTime);
+                remainingTime: remainingTime + 1);
             break;
 
           case 'video':
@@ -784,7 +784,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 'remainingTime: $remainingTime minutes (Total: $totalDuration minutes)');
 
             await _handleNormalMeetingVideoCall(participant, meetingId,
-                remainingTime: remainingTime);
+                remainingTime: remainingTime + 1);
             break;
 
           case 'chat':
@@ -1193,52 +1193,112 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                               InkWell(
                                 onTap: () {
                                   try {
-                                    final safeProfile = User(
-                                      sId: participant['_id']?.toString() ?? '',
-                                      name: participant['name']?.toString() ??
-                                          'Unknown',
-                                      email: participant['email']?.toString() ??
-                                          '',
-                                      dob: participant['dob']?.toString() ?? '',
-                                      gender:
-                                          participant['gender']?.toString() ??
-                                              '',
-                                      profession: participant['profession']
-                                              ?.toString() ??
-                                          'Not specified',
-                                      about: participant['about']?.toString() ??
-                                          'No information available',
-                                      interestedIn: participant['interestedIn']
-                                              ?.toString() ??
-                                          '',
-                                      photos: participant['photos'] is List
-                                          ? List<String>.from(
-                                              participant['photos'])
-                                          : [],
-                                      location: participant['location'] is Map
-                                          ? Location(
-                                              city: participant['location']
-                                                          ['city']
-                                                      ?.toString() ??
-                                                  'Unknown',
-                                              state: participant['location']
-                                                          ['state']
-                                                      ?.toString() ??
-                                                  '',
-                                              country: participant['location']
-                                                          ['country']
-                                                      ?.toString() ??
-                                                  '',
-                                            )
-                                          : Location(
-                                              city: 'Unknown',
-                                              state: '',
-                                              country: ''),
-                                      walletBalance: 0,
-                                      earnings: Earnings(),
-                                      isOnline:
-                                          participant['isOnline'] ?? false,
-                                    );
+                                    final safeProfile = isCreator
+                                        ? User(
+                                            sId: participant['_id']
+                                                    ?.toString() ??
+                                                '',
+                                            name: participant['name']
+                                                    ?.toString() ??
+                                                'Unknown',
+                                            email: participant['email']
+                                                    ?.toString() ??
+                                                '',
+                                            dob: participant['dob']
+                                                    ?.toString() ??
+                                                '',
+                                            gender: participant['gender']
+                                                    ?.toString() ??
+                                                '',
+                                            profession:
+                                                participant['profession']
+                                                        ?.toString() ??
+                                                    'Not specified',
+                                            about: participant['about']
+                                                    ?.toString() ??
+                                                'No information available',
+                                            interestedIn:
+                                                participant['interestedIn']
+                                                        ?.toString() ??
+                                                    '',
+                                            photos:
+                                                participant['photos'] is List
+                                                    ? List<String>.from(
+                                                        participant['photos'])
+                                                    : [],
+                                            location: participant['location']
+                                                    is Map
+                                                ? Location(
+                                                    city:
+                                                        participant['location']
+                                                                    ['city']
+                                                                ?.toString() ??
+                                                            'Unknown',
+                                                    state:
+                                                        participant['location']
+                                                                    ['state']
+                                                                ?.toString() ??
+                                                            '',
+                                                    country:
+                                                        participant['location']
+                                                                    ['country']
+                                                                ?.toString() ??
+                                                            '',
+                                                  )
+                                                : Location(
+                                                    city: 'Unknown',
+                                                    state: '',
+                                                    country: ''),
+                                            walletBalance: 0,
+                                            earnings: Earnings(),
+                                            isOnline: participant['isOnline'] ??
+                                                false,
+                                          )
+                                        : User(
+                                            sId: user['_id']?.toString() ?? '',
+                                            name: user['name']?.toString() ??
+                                                'Unknown',
+                                            email:
+                                                user['email']?.toString() ?? '',
+                                            dob: user['dob']?.toString() ?? '',
+                                            gender:
+                                                user['gender']?.toString() ??
+                                                    '',
+                                            profession: user['profession']
+                                                    ?.toString() ??
+                                                'Not specified',
+                                            about: user['about']?.toString() ??
+                                                'No information available',
+                                            interestedIn: user['interestedIn']
+                                                    ?.toString() ??
+                                                '',
+                                            photos: user['photos'] is List
+                                                ? List<String>.from(
+                                                    user['photos'])
+                                                : [],
+                                            location: user['location'] is Map
+                                                ? Location(
+                                                    city: user['location']
+                                                                ['city']
+                                                            ?.toString() ??
+                                                        'Unknown',
+                                                    state: user['location']
+                                                                ['state']
+                                                            ?.toString() ??
+                                                        '',
+                                                    country: user['location']
+                                                                ['country']
+                                                            ?.toString() ??
+                                                        '',
+                                                  )
+                                                : Location(
+                                                    city: 'Unknown',
+                                                    state: '',
+                                                    country: ''),
+                                            walletBalance: 0,
+                                            earnings: Earnings(),
+                                            isOnline: user['isOnline'] ?? false,
+                                          );
 
                                     Get.to(() => UserProfileScreen(
                                         profile: safeProfile));
@@ -1252,19 +1312,35 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                                     );
                                   }
                                 },
-                                child: CircleAvatar(
-                                  radius: 30,
-                                  backgroundImage: participant['photos'] !=
-                                              null &&
-                                          participant['photos'].isNotEmpty
-                                      ? NetworkImage(participant['photos'][0])
-                                      : null,
-                                  child: participant['photos'] == null ||
-                                          participant['photos'].isEmpty
-                                      ? const Icon(Icons.person,
-                                          color: Colors.white70, size: 30)
-                                      : null,
-                                ),
+                                child: isCreator
+                                    ? CircleAvatar(
+                                        radius: 30,
+                                        backgroundImage:
+                                            participant['photos'] != null &&
+                                                    participant['photos']
+                                                        .isNotEmpty
+                                                ? NetworkImage(
+                                                    participant['photos'][0])
+                                                : null,
+                                        child: participant['photos'] == null ||
+                                                participant['photos'].isEmpty
+                                            ? const Icon(Icons.person,
+                                                color: Colors.white70, size: 30)
+                                            : null,
+                                      )
+                                    : CircleAvatar(
+                                        radius: 30,
+                                        backgroundImage: user['photos'] !=
+                                                    null &&
+                                                user['photos'].isNotEmpty
+                                            ? NetworkImage(user['photos'][0])
+                                            : null,
+                                        child: user['photos'] == null ||
+                                                user['photos'].isEmpty
+                                            ? const Icon(Icons.person,
+                                                color: Colors.white70, size: 30)
+                                            : null,
+                                      ),
                               ),
                               const SizedBox(width: 16),
                               Expanded(
@@ -1418,7 +1494,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  isCreator ? 'Sent' : 'Received',
+                                  isCreator ? 'Sent' : 'Receivedd',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,

@@ -69,6 +69,54 @@ class FriendController extends GetxController {
     }
   }
 
+  // history screen
+  List<Map<String, dynamic>> get historicalItems {
+    // 1. We ONLY use the `meetings` list as the source.
+    final allMeetings = [...meetings];
+
+    // 2. Filter this list. The result `filteredList` is of type List<dynamic>.
+    final filteredList = allMeetings.where((meeting) {
+      // We need to be careful with types here since `meeting` is dynamic
+      if (meeting is! Map) return false;
+
+      final status = (meeting['status'] as String? ?? '').toLowerCase();
+      final scheduledTimeStr = meeting['scheduledTime'] as String?;
+
+      if (scheduledTimeStr == null) return false;
+
+      if (['completed', 'cancelled', 'expired', 'declined', 'missed']
+          .contains(status)) {
+        return true;
+      }
+
+      final scheduledTime = DateTime.tryParse(scheduledTimeStr);
+      if (scheduledTime == null) return false;
+
+      final now = DateTime.now();
+      final difference = now.difference(scheduledTime);
+
+      if (difference.inMinutes > 30) {
+        return true;
+      }
+
+      return false;
+    }).toList();
+
+    // 3. THE FIX: Explicitly convert the List<dynamic> to List<Map<String, dynamic>>.
+    final typedList = List<Map<String, dynamic>>.from(filteredList);
+
+    // 4. Sort the correctly-typed list.
+    typedList.sort((a, b) {
+      final timeA =
+          DateTime.tryParse(a['scheduledTime'] ?? '') ?? DateTime(1970);
+      final timeB =
+          DateTime.tryParse(b['scheduledTime'] ?? '') ?? DateTime(1970);
+      return timeB.compareTo(timeA);
+    });
+
+    return typedList;
+  }
+
   Future<void> fetchFriends() async {
     try {
       print('request....');

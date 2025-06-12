@@ -602,7 +602,12 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
             color: AppColors.primaryColor,
             backgroundColor: Colors.transparent,
             onPressed: () {
-              Get.to(() => ActivityScreen());
+              if (_homeController.profiles.isNotEmpty) {
+                final currentProfile =
+                    _homeController.profiles[_currentProfileIndex];
+                Get.to(
+                    () => ActivityScreen(viewingUserId: currentProfile.sId!));
+              }
             },
           ),
           _buildActionButtonWithLiveStatus(

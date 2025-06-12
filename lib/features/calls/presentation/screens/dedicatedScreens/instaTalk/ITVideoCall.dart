@@ -1,5 +1,6 @@
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
+import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:no_screenshot/no_screenshot.dart';
 import 'package:get/get.dart';
@@ -924,7 +925,10 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen> {
 
           // Return to home button
           ElevatedButton(
-            onPressed: () => Get.back(),
+            // onPressed: () => Get.back(),
+            onPressed: () => Get.off(() => AddReviewScreen(
+                  userId: widget.participant.sId ?? '',
+                )),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryColor,
               foregroundColor: Colors.white,
@@ -1037,13 +1041,21 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen> {
               // Rate display
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  '₹${perMinuteRate.toStringAsFixed(2)}/min',
-                  style: TextStyle(
-                    color: Colors.grey[300],
-                    fontSize: 10,
-                  ),
-                ),
+                child: widget.isIncomingCall
+                    ? Text(
+                        '+ ₹${perMinuteRate.toStringAsFixed(2)}/min',
+                        style: TextStyle(
+                          color: Colors.grey[300],
+                          fontSize: 10,
+                        ),
+                      )
+                    : Text(
+                        '- ₹${perMinuteRate.toStringAsFixed(2)}/min',
+                        style: TextStyle(
+                          color: Colors.grey[300],
+                          fontSize: 10,
+                        ),
+                      ),
               ),
 
               // Add InstaTalk badge

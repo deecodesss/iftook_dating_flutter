@@ -220,8 +220,8 @@ class ProfileScreen extends StatelessWidget {
                   icon: Icons.history,
                   title: 'My Activity',
                   onTap: () {
-                    Get.to(() => const ActivityScreen(
-                          isCurrentUser: true,
+                    Get.to(() => ActivityScreen(
+                          viewingUserId: user.sId!,
                         ));
                   },
                 ),

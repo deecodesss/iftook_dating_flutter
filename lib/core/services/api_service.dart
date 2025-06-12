@@ -1278,4 +1278,116 @@ class ApiService {
       };
     }
   }
+
+  // Post (Activity) API methods
+
+  static Future<http.Response> createPost({
+    required String photoUrl,
+    String? caption,
+  }) async {
+    final token = await SharedPrefs.getAccessToken();
+    final body = {
+      'photo': photoUrl,
+      if (caption != null) 'caption': caption,
+    };
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/posts'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(body),
+        ));
+  }
+
+  static Future<http.Response> getPosts({int page = 1}) async {
+    final token = await SharedPrefs.getAccessToken();
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/posts?pageNumber=$page'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
+  }
+
+  static Future<http.Response> getPostById(String postId) async {
+    final token = await SharedPrefs.getAccessToken();
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/posts/$postId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
+  }
+
+  static Future<http.Response> updatePost(String postId,
+      {String? caption}) async {
+    final token = await SharedPrefs.getAccessToken();
+    final body = {
+      if (caption != null) 'caption': caption,
+      // Add other updatable fields if necessary
+    };
+    return authenticatedRequest(() => http.put(
+          Uri.parse('$baseUrl/posts/$postId'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(body),
+        ));
+  }
+
+  static Future<http.Response> deletePost(String postId) async {
+    final token = await SharedPrefs.getAccessToken();
+    return authenticatedRequest(() => http.delete(
+          Uri.parse('$baseUrl/posts/$postId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
+  }
+
+  static Future<http.Response> likePost(String postId) async {
+    final token = await SharedPrefs.getAccessToken();
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/posts/$postId/like'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
+  }
+
+  static Future<http.Response> unlikePost(String postId) async {
+    final token = await SharedPrefs.getAccessToken();
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/posts/$postId/unlike'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
+  }
+
+  static Future<http.Response> addComment(String postId, String text) async {
+    final token = await SharedPrefs.getAccessToken();
+    final body = {'text': text};
+    return authenticatedRequest(() => http.post(
+          Uri.parse('$baseUrl/posts/$postId/comments'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(body),
+        ));
+  }
+
+  static Future<http.Response> deleteComment(
+      String postId, String commentId) async {
+    final token = await SharedPrefs.getAccessToken();
+    return authenticatedRequest(() => http.delete(
+          Uri.parse('$baseUrl/posts/$postId/comments/$commentId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ));
+  }
 }

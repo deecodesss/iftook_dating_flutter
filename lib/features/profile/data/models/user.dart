@@ -76,11 +76,11 @@ class User {
         : null;
     bankDetails = json['bankDetails'] != null
         ? new BankDetails.fromJson(json['bankDetails'])
-        : null; // Added bank details parsing
+        : null;
     earnings = json['earnings'] != null
         ? Earnings.fromJson(json['earnings'])
         : Earnings(
-            chat: 150, // Default values
+            chat: 150,
             voice: 300,
             video: 450,
             live: 5,
@@ -96,10 +96,24 @@ class User {
     about = json['about'];
     profession = json['profession'];
     height = json['height'];
-    languages = json['languages'].cast<String>();
-    photos = json['photos'].cast<String>();
-    wishlist = json['wishlist'].cast<String>();
-    interests = json['interests'].cast<String>();
+
+    // More robust list parsing
+    languages = (json['languages'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+    photos =
+        (json['photos'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
+            [];
+    wishlist = (json['wishlist'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+    interests = (json['interests'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+
     isOnline = json['isOnline'];
     role = json['role'];
     createdAt = json['createdAt'];
