@@ -12,10 +12,7 @@ class ChatCallService {
   static bool _isRequestInProgress = false;
 
   static Future<Map<String, dynamic>?> initiateChatCall(
-    String participantId,
-    String type,
-    double duration,
-  ) async {
+      String participantId, String type, double duration, bool isFriend) async {
     if (_isRequestInProgress) {
       throw Exception('A call request is already in progress');
     }
@@ -23,7 +20,7 @@ class ChatCallService {
     try {
       _isRequestInProgress = true;
       final response = await ApiService.createMeeting(
-          participantId, type, DateTime.now(), duration);
+          participantId, type, DateTime.now(), duration, isFriend);
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);

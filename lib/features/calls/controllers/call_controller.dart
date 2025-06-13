@@ -9,31 +9,26 @@ import 'package:iftook/core/services/socket_service.dart';
 import 'package:iftook/features/calls/controllers/call_status_controller.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
-import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
-import 'package:iftook/features/calls/services/chat_call_service.dart';
 import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
-import 'package:iftook/helpers/notification_helper.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 
-import '../presentation/screens/voice_call_screen.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 
-// Define call states for better state management
 enum CallState {
-  idle, // No active call
-  initializing, // Setting up call
-  outgoing, // Outgoing call, waiting for remote user
-  incoming, // Incoming call
-  connecting, // Connecting to call server
-  connected, // Call connected
-  disconnected, // Call ended normally
-  rejected, // Call rejected by callee
-  missed, // Call missed/timed out
-  failed, // Call failed to connect
-  busy // Remote user is busy
+  idle,
+  initializing,
+  outgoing,
+  incoming,
+  connecting,
+  connected,
+  disconnected,
+  rejected,
+  missed,
+  failed,
+  busy
 }
 
 class CallController extends GetxController {

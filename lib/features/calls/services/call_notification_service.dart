@@ -138,6 +138,7 @@ class CallNotificationService {
           message.data['callerId'] ?? message.data['senderId'] ?? "";
       final String channelName = message.data['channelName'] ?? "";
       final String token = message.data['token'] ?? "";
+      final bool isFriend = message.data['isFriend'] == 'true';
 
       debugPrint('📞 Call details:');
       debugPrint('- Caller: $callerName');
@@ -187,6 +188,7 @@ class CallNotificationService {
           'isVideo': isVideo,
           'callerName': callerName,
           'callerImage': callerImage,
+          'isFriend': isFriend,
           'timestamp': DateTime.now().millisecondsSinceEpoch
         },
         headers: <String, dynamic>{
@@ -379,6 +381,7 @@ class CallNotificationService {
       final String callerId = data['callerId'] ?? '';
       final String duration = data['duration'] ?? '30';
       final String callerName = data['callerName'] ?? 'Unknown Caller';
+      final bool isFriend = data['isFriend'] == true;
 
       // Create a User object for caller
       final caller = User(
@@ -396,6 +399,7 @@ class CallNotificationService {
                 token: token,
                 participant: caller,
                 isIncomingCall: true,
+                isFriend: isFriend,
               ));
         } else if (data['isInstatalk'] == false && !isVideo) {
           Get.to(() => NormalVoiceCallScreen(
@@ -406,6 +410,7 @@ class CallNotificationService {
                 isIncomingCall: true,
                 callerName: callerName,
                 callerImage: data['callerImage'] ?? '',
+                isFriend: isFriend,
                 initialTimer: data['duration'] != null
                     ? double.tryParse(data['duration'].toString()) ?? 30
                     : 30,
@@ -629,6 +634,7 @@ class CallNotificationService {
       final String callerImage = body['avatar']?.toString() ?? '';
       final bool isInstatalk = extra['isInstatalk'] as bool? ?? false;
       final String callDuration = extra['duration']?.toString() ?? '30';
+      final bool isFriend = extra['isFriend'] as bool? ?? false;
 
       if (meetingId.isEmpty ||
           channelName.isEmpty ||
@@ -664,27 +670,27 @@ class CallNotificationService {
         // App is already running - use existing instance
         if (!isInstatalk && isVideoCall) {
           Get.to(() => NormalVideoCallScreen(
-                key: ValueKey(meetingId),
-                meetingId: meetingId,
-                channel: channelName,
-                token: token,
-                participant: caller,
-                initialTimer: parsedInitialTimer,
-                isIncomingCall: true,
-              ));
+              key: ValueKey(meetingId),
+              meetingId: meetingId,
+              channel: channelName,
+              token: token,
+              participant: caller,
+              initialTimer: parsedInitialTimer,
+              isIncomingCall: true,
+              isFriend: isFriend));
         } else if (!isInstatalk && !isVideoCall) {
           Get.to(() => NormalVoiceCallScreen(
-                key: ValueKey(meetingId),
-                meetingId: meetingId,
-                channel: channelName,
-                token: token,
-                participant: caller,
-                // isInstatalk: isInstatalk,
-                initialTimer: parsedInitialTimer,
-                isIncomingCall: true,
-                callerName: callerName,
-                callerImage: callerImage,
-              ));
+              key: ValueKey(meetingId),
+              meetingId: meetingId,
+              channel: channelName,
+              token: token,
+              participant: caller,
+              // isInstatalk: isInstatalk,
+              initialTimer: parsedInitialTimer,
+              isIncomingCall: true,
+              callerName: callerName,
+              callerImage: callerImage,
+              isFriend: isFriend));
         } else if (isInstatalk && !isVideoCall) {
           await Get.to(() => ITVoiceCallScreen(
                 key: ValueKey(meetingId),
@@ -721,6 +727,7 @@ class CallNotificationService {
                 participant: caller,
                 initialTimer: parsedInitialTimer,
                 isIncomingCall: true,
+                isFriend: isFriend,
               ));
         } else if (!isInstatalk && !isVideoCall) {
           Get.off(() => NormalVoiceCallScreen(
@@ -734,6 +741,7 @@ class CallNotificationService {
                 isIncomingCall: true,
                 callerName: callerName,
                 callerImage: callerImage,
+                isFriend: isFriend,
               ));
         } else if (isInstatalk && !isVideoCall) {
           await Get.off(() => ITVoiceCallScreen(

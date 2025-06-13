@@ -116,6 +116,7 @@ class _VideoCallLoadingScreenState extends State<VideoCallLoadingScreen> {
                       widget.remainingTime != null ? widget.remainingTime! : 30,
                   participant: widget.participant,
                   onSessionEnd: widget.onSessionEnd,
+                  isFriend: widget.isFriend,
                 ),
                 arguments: {'participant': widget.participant},
               );

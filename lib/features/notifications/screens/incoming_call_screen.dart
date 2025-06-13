@@ -29,6 +29,7 @@ class IncomingCallScreen extends StatefulWidget {
   final String callerId;
   final bool isInstatalk;
   final String meetingType;
+  final bool isFriend;
 
   const IncomingCallScreen({
     Key? key,
@@ -44,6 +45,7 @@ class IncomingCallScreen extends StatefulWidget {
     this.callerId = "",
     this.isInstatalk = false,
     this.meetingType = "regularMeeting",
+    this.isFriend = false,
   }) : super(key: key);
 
   @override
@@ -207,6 +209,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
             token: widget.token,
             initialTimer: double.parse(widget.callDuration),
             isIncomingCall: true,
+            isFriend: widget.isFriend,
           ),
           transition: Transition.rightToLeftWithFade,
         );
@@ -232,6 +235,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
             token: widget.token,
             initialTimer: double.parse(widget.callDuration),
             isIncomingCall: true,
+            isFriend: widget.isFriend,
           ),
           transition: Transition.rightToLeftWithFade,
         );

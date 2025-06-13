@@ -1024,6 +1024,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         widget.profile.sId!,
         'video',
         60,
+        true,
       );
 
       Get.back(); // Close loading dialog
@@ -1040,6 +1041,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               channel: callData['channelName'],
               isTrial: widget.isTrial,
               isInstatalk: widget.isInstatalk,
+              isFriend: true,
             ));
       }
     } catch (e) {
@@ -1073,6 +1075,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         widget.profile.sId!,
         'voice',
         60,
+        true,
       );
 
       Get.back(); // Close loading dialog
@@ -1090,6 +1093,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               isTrial: widget.isTrial,
               isInstatalk: widget.isInstatalk,
               remainingTime: 60,
+              isFriend: true,
             ));
       }
     } catch (e) {

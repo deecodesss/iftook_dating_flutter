@@ -21,6 +21,7 @@ class NormalVideoCallScreen extends StatefulWidget {
   final double initialTimer;
   final bool fromChat;
   final bool isIncomingCall;
+  final bool isFriend;
 
   const NormalVideoCallScreen({
     Key? key, // Add Key? key here
@@ -32,6 +33,7 @@ class NormalVideoCallScreen extends StatefulWidget {
     required this.initialTimer,
     this.fromChat = false,
     this.isIncomingCall = false,
+    this.isFriend = false,
   }) : super(key: key); // Pass key to super
 
   @override
@@ -91,20 +93,20 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
     _chatController = Get.put(ChatController());
     _initializeDurationService();
 
-    // Fetch initial wallet balance
-    _chatController.fetchWalletBalance();
-
-    // Setup wallet refresh timer (every 30 seconds)
-    _walletRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) {
-        _chatController.fetchWalletBalance();
-      }
-    });
+    // Fetch initial wallet balance and setup refresh timer only if not a friend call
+    if (!widget.isFriend) {
+      _chatController.fetchWalletBalance();
+      _walletRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (mounted) {
+          _chatController.fetchWalletBalance();
+        }
+      });
+    }
 
     _preventScreenshots();
     _setupScreenshotDetection();
     print(
-        "Initializing with token: ${widget.token}, channel: ${widget.channel}");
+        "Initializing with token: ${widget.token}, channel: ${widget.channel}, isFriend: ${widget.isFriend}");
 
     // Initialize call variables
     if (widget.participant != null) {
@@ -145,12 +147,21 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
 
   // Initialize the timers based on call type
   void _startTimers() {
-    print("Starting video call timers:");
+    print("Starting video call timers: isFriend: ${widget.isFriend}");
     print("Initial Timer: ${widget.initialTimer}");
 
     setState(() {
       _timerStarted = true;
     });
+
+    if (widget.isFriend) {
+      print("Friend call: No countdown timer started.");
+      // Ensure connection status is updated if it wasn't already
+      if (isConnecting.value) {
+        connectionStatus('Connected'); // Friend calls are unlimited
+      }
+      return;
+    }
 
     print(
         "Starting REGULAR meeting countdown timer (${widget.initialTimer} minutes)");
@@ -175,7 +186,8 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
           _remainingSeconds--;
 
           // Check if we need to send last-minute payment for incoming calls
-          if (widget.isIncomingCall &&
+          if (widget
+                  .isIncomingCall && // _sendLastMinutePayment will check isFriend
               _remainingSeconds <= 60 &&
               _remainingSeconds >=
                   59 && // Only trigger once at exactly 60 seconds remaining
@@ -203,7 +215,8 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
 
   // Add method to send payment at the last minute
   void _sendLastMinutePayment() async {
-    if (!widget.isIncomingCall || widget.participant == null) return;
+    if (widget.isFriend || !widget.isIncomingCall || widget.participant == null)
+      return;
 
     try {
       // Mark as paid to prevent duplicate payments
@@ -509,7 +522,7 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
     _allowScreenshots();
     _sessionTimer?.cancel();
     _autoPaymentTimer?.cancel();
-    _walletRefreshTimer?.cancel();
+    _walletRefreshTimer?.cancel(); // Safe to call even if null
     _autoPaymentEnabled = false;
 
     if (widget.onSessionEnd != null) {
@@ -524,7 +537,7 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
     _allowScreenshots();
     _sessionTimer?.cancel();
     _autoPaymentTimer?.cancel();
-    _walletRefreshTimer?.cancel();
+    _walletRefreshTimer?.cancel(); // Safe to call even if null
     _autoPaymentEnabled = false;
     _durationService.reset();
     super.dispose();
@@ -581,7 +594,9 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
                           const SizedBox(height: 8),
                           // Call type
                           Text(
-                            'Video Call',
+                            widget.isFriend
+                                ? 'Friend Video Call'
+                                : 'Video Call',
                             style: TextStyle(
                               fontSize: 16,
                               color: Colors.grey[400],
@@ -627,42 +642,94 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
               ),
             ),
 
-          // Participant name
-          if (!_callEnded && _remoteUid != null)
+          // Top-left: Call Type and Participant Name
+          if (!_callEnded)
             Positioned(
               top: 16,
               left: 16,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 18,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    // Call Type Tag
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: widget.isFriend
+                            ? [
+                                Colors.purple.withOpacity(0.8),
+                                Colors.deepPurple.withOpacity(0.8)
+                              ]
+                            : [
+                                Colors.blue.withOpacity(0.8),
+                                Colors.teal.withOpacity(0.8)
+                              ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 5,
+                          offset: const Offset(0, 2),
+                        )
+                      ],
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      widget.participant?.name ?? 'Unknown User',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          widget.isFriend
+                              ? Icons.people_alt_rounded
+                              : Icons.videocam,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          widget.isFriend ? 'Friend Call' : 'Video Call',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_remoteUid != null &&
+                      widget.participant !=
+                          null) // Show participant name only when connected to remote
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Container(
+                        // Participant Name
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Text(
+                          widget.participant!.name ?? 'Unknown User',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 13,
+                          ),
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
             ),
 
-          // Incoming/outgoing indicator
-          if (!_callEnded)
+          // Incoming/outgoing indicator (keep if still desired, or remove if Call Type tag is enough)
+          if (!_callEnded &&
+              !widget
+                  .isFriend) // Optionally hide for friends if Call Type tag is enough
             Positioned(
               top: 16,
               right: 16,
@@ -698,8 +765,9 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
               ),
             ),
 
-          // Draggable floating timer
-          if (_timerStarted && !_callEnded) _buildDraggableTimer(),
+          // Draggable floating timer - hide for friends
+          if (_timerStarted && !_callEnded && !widget.isFriend)
+            _buildDraggableTimer(),
 
           // Call controls
           if (!_callEnded)

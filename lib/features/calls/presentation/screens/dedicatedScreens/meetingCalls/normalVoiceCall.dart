@@ -24,6 +24,7 @@ class NormalVoiceCallScreen extends StatefulWidget {
   final bool isIncomingCall;
   final String? callerName;
   final String? callerImage;
+  final bool isFriend;
 
   const NormalVoiceCallScreen({
     Key? key,
@@ -36,6 +37,7 @@ class NormalVoiceCallScreen extends StatefulWidget {
     this.isIncomingCall = false,
     this.callerName,
     this.callerImage,
+    this.isFriend = false,
   }) : super(key: key);
 
   @override
@@ -96,33 +98,26 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
       }
     });
     print(
-        "CallScreen initialized with participant: ${widget.participant.name}");
+        "CallScreen initialized with participant: ${widget.participant.name}, isFriend: ${widget.isFriend}");
     print("CallScreen initialTimer: ${widget.initialTimer}");
 
-    // Fetch initial wallet balance
-    _chatController.fetchWalletBalance();
+    // Fetch initial wallet balance only if not a friend call
+    if (!widget.isFriend) {
+      _chatController.fetchWalletBalance();
+      // Setup wallet refresh timer only if not a friend call
+      _walletRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (mounted) {
+          _chatController.fetchWalletBalance();
+        }
+      });
+    }
 
-    // Setup wallet refresh timer
-    _walletRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) {
-        _chatController.fetchWalletBalance();
-      }
-    });
-
-    // Initialize call variables
-    // if (widget.participant != null) { // participant is non-nullable
     _ratePerMinute = widget.participant.earnings?.voiceRate ?? 0;
-    // }
 
-    // Start timers and setup
-    _checkPermissions(); // This requests microphone, which is fine.
-    // _setupCallController(); // This was empty, can be removed if not used.
+    _checkPermissions();
 
-    // For incoming calls, stop the ringtone as CallNotificationService should have started it.
-    // The CallKit UI should have already been dismissed by CallNotificationService.
     if (widget.isIncomingCall) {
       _stopCallRingtone();
-      // No need to call FlutterCallkitIncoming.endCall here if CallNotificationService._handleCallAccept does it.
     }
 
     // Print initialTimer for debugging
@@ -214,7 +209,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
             // FlutterCallkitIncoming.endCall(widget.meetingId); // Redundant if CallNotificationService handled it
 
             if (!_timerStarted) {
-              _startTimers();
+              _startTimers(); // _startTimers will handle isFriend logic
             }
           });
         },
@@ -240,18 +235,24 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
   // Update the startTimers method to only start countdown from initialTimer
   void _startTimers() {
     print(
-        "Starting timers for regular meeting with initialTimer: ${widget.initialTimer}");
+        "Starting timers. isFriend: ${widget.isFriend}, initialTimer: ${widget.initialTimer}");
 
     setState(() {
       _timerStarted = true;
     });
 
-    // Start with the initial timer value (don't start from 0)
-    print("Starting countdown timer from ${widget.initialTimer} minutes");
-    _startRegularTimer();
+    if (!widget.isFriend) {
+      // Start with the initial timer value (don't start from 0)
+      print("Starting countdown timer from ${widget.initialTimer} minutes");
+      _startRegularTimer();
 
-    // Don't start auto-payment yet - we'll start it only after user continues
-    // _startAutoPaymentTimer() will be called after the user chooses to continue
+      // Don't start auto-payment yet - we'll start it only after user chooses to continue
+      // _startAutoPaymentTimer() will be called after the user chooses to continue
+    } else {
+      // For friends, no countdown timer is needed.
+      print("Friend call: No countdown timer started.");
+      // Connection status is already 'Connected' from onUserJoined
+    }
   }
 
   // Regular timer to countdown from initialTimer
@@ -446,7 +447,8 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
 
   // Add new method to send payment when timer hits last minute
   void _sendLastMinutePayment() async {
-    if (!widget.isIncomingCall) return;
+    if (widget.isFriend || !widget.isIncomingCall)
+      return; // No payment for friends or outgoing calls
 
     try {
       // Mark as paid to prevent duplicate payments
@@ -508,6 +510,8 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
 
   // Update auto-payment timer without InstaTalk parameter
   void _startAutoPaymentTimer() {
+    if (widget.isFriend) return; // No auto-payment for friends
+
     // For regular voice calls, divide voice rate by 30 (since it's for 30 minutes)
     final voiceRate = widget.participant.earnings?.voice ?? 300;
     double ratePerMinute = voiceRate / 30;
@@ -572,8 +576,11 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
 
   // End the call
   void _endCall() {
-    // For incoming calls, show a warning popup before ending
-    if (widget.isIncomingCall && !_callEnded && _remoteUid != null) {
+    // For incoming calls from non-friends, show a warning popup before ending
+    if (widget.isIncomingCall &&
+        !widget.isFriend &&
+        !_callEnded &&
+        _remoteUid != null) {
       _showEndCallWarningDialog();
       return;
     }
@@ -589,7 +596,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
     _sessionTimer?.cancel();
     _autoPaymentTimer?.cancel();
     _startupDelayTimer?.cancel();
-    _walletRefreshTimer?.cancel();
+    _walletRefreshTimer?.cancel(); // This is safe as it checks for null
     _autoPaymentEnabled = false;
 
     // End the call in CallKit
@@ -667,7 +674,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
     _sessionTimer?.cancel();
     _autoPaymentTimer?.cancel();
     _startupDelayTimer?.cancel();
-    _walletRefreshTimer?.cancel();
+    _walletRefreshTimer?.cancel(); // This is safe as it checks for null
     _autoPaymentEnabled = false;
     _durationService.reset();
 
@@ -699,15 +706,19 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Colors.blue, Colors.teal],
+                            gradient: LinearGradient(
+                              colors: widget.isFriend
+                                  ? [Colors.purple, Colors.deepPurple]
+                                  : [Colors.blue, Colors.teal],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.blue.withOpacity(0.3),
+                                color: widget.isFriend
+                                    ? Colors.purple.withOpacity(0.3)
+                                    : Colors.blue.withOpacity(0.3),
                                 blurRadius: 8,
                                 spreadRadius: 1,
                               ),
@@ -716,16 +727,16 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
-                                Icons.event,
+                              Icon(
+                                widget.isFriend
+                                    ? Icons.people_alt_rounded
+                                    : Icons.event,
                                 color: Colors.white,
                                 size: 16,
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                widget.isIncomingCall
-                                    ? "Voice Call"
-                                    : "Voice Call",
+                                widget.isFriend ? "Friend Call" : "Voice Call",
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -736,15 +747,16 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
                           ),
                         ),
 
-                        // Show wallet balance only for outgoing calls
-                        Obx(() => Text(
-                              '₹${_chatController.userWalletBalance.value.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 14,
-                              ),
-                            )),
+                        // Show wallet balance only for outgoing calls and if not a friend
+                        if (!widget.isFriend)
+                          Obx(() => Text(
+                                '₹${_chatController.userWalletBalance.value.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 14,
+                                ),
+                              )),
                       ],
                     ),
                   ),
@@ -895,6 +907,11 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
 
   // Simplified timer display that shows countdown remaining
   Widget _buildSimplifiedTimerDisplay() {
+    if (widget.isFriend) {
+      // For friends, don't show a timer. Optionally, show a different message or an empty box.
+      return const SizedBox.shrink(); // Hides the timer display
+    }
+
     if (!_timerStarted) {
       return Center(
         child: Container(

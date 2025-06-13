@@ -384,6 +384,7 @@ class NotificationHelper {
     final String callDuration =
         payloadData['duration'] ?? payloadData['duration'] ?? '30';
     final String callerId = payloadData['callerId'] ?? '';
+    final bool isFriend = payloadData['isFriend'] == 'true';
 
     showCallSnackBar(
       callerName: callerName,
@@ -629,6 +630,7 @@ class NotificationHelper {
           final token = payload['token'] ?? '';
           final callerName = payload['callerName'] ?? 'Unknown Caller';
           final callerImage = payload['callerImage'] ?? '';
+          final isFriend = payload['isFriend'] == 'true';
 
           // Stop any ringtone playing
           await stopCallNotificationEffects();
@@ -665,6 +667,7 @@ class NotificationHelper {
                   channel: channelName,
                   token: token,
                   initialTimer: double.parse(payload['duration'] ?? '30'),
+                  isFriend: isFriend,
                 ));
           } else {
             await Get.to(() => NormalVoiceCallScreen(
@@ -673,6 +676,7 @@ class NotificationHelper {
                   channel: channelName,
                   token: token,
                   initialTimer: double.parse(payload['duration'] ?? '30'),
+                  isFriend: isFriend,
                 ));
           }
           break;

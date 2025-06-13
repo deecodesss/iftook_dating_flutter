@@ -24,6 +24,7 @@ class VoiceCallLoadingScreen extends StatefulWidget {
   final String? token;
   final String? channel;
   final double? remainingTime;
+  final bool isFriend;
 
   const VoiceCallLoadingScreen({
     Key? key,
@@ -38,6 +39,7 @@ class VoiceCallLoadingScreen extends StatefulWidget {
     this.token,
     this.channel,
     this.remainingTime,
+    this.isFriend = false,
   }) : super(key: key);
 
   @override
@@ -140,6 +142,7 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
                         initialTimer: widget.remainingTime! ?? 30,
                         participant: widget.participant,
                         onSessionEnd: widget.onSessionEnd,
+                        isFriend: widget.isFriend,
                       ),
                   arguments: {'participant': widget.participant});
             }
