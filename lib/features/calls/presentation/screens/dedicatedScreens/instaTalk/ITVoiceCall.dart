@@ -96,6 +96,12 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
     print(
         "InstaTalk Voice Call initialized with participant: ${widget.participant.name}");
     print("InstaTalk Trial: ${widget.isTrial}");
+    print(
+        "DEBUG: ITVoiceCall initState: Participant ID: ${widget.participant.sId}");
+    print(
+        "DEBUG: ITVoiceCall initState: Participant earnings: ${widget.participant.earnings}");
+    print(
+        "DEBUG: ITVoiceCall initState: Participant live earnings: ${widget.participant.earnings?.live}");
 
     // Fetch initial wallet balance
     _chatController.fetchWalletBalance();
@@ -108,7 +114,12 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
     });
 
     // Initialize call variables
-    _ratePerMinute = widget.participant.earnings?.live?.toDouble() ?? 0;
+    print(
+        "DEBUG: ITVoiceCall initState: BEFORE _ratePerMinute init: widget.participant.earnings?.live?.toDouble() is ${widget.participant.earnings?.live?.toDouble()}");
+    _ratePerMinute =
+        widget.participant.earnings?.live?.toDouble() ?? 0.0; // Corrected line
+    print(
+        "DEBUG: ITVoiceCall initState: AFTER _ratePerMinute init: _ratePerMinute is $_ratePerMinute");
 
     // Start timers and setup
     _checkPermissions();
@@ -270,9 +281,18 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
   // Auto-payment timer specifically for InstaTalk
   void _startAutoPaymentTimer() {
     // For InstaTalk, use instaTalk rate directly (already per minute)
-    _ratePerMinute = widget.participant.earnings?.live?.toDouble() ?? 0;
+    print(
+        "DEBUG: ITVoiceCall _startAutoPaymentTimer: BEFORE _ratePerMinute re-init: widget.participant.earnings?.live?.toDouble() is ${widget.participant.earnings?.live?.toDouble()}");
+    _ratePerMinute = widget.participant.earnings?.live?.toDouble() ??
+        0.0; // Corrected default
+    print(
+        "DEBUG: ITVoiceCall _startAutoPaymentTimer: AFTER _ratePerMinute re-init: _ratePerMinute is $_ratePerMinute");
 
-    if (_ratePerMinute <= 0) return;
+    if (_ratePerMinute <= 0) {
+      print(
+          "DEBUG: ITVoiceCall _startAutoPaymentTimer: _ratePerMinute is <= 0, not starting auto payment timer.");
+      return;
+    }
 
     _autoPaymentEnabled = true;
     const paymentIntervalSeconds = 60; // Charge every minute
@@ -650,6 +670,8 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
 
   // InstaTalk-specific timer display
   Widget _buildInstaTalkTimerDisplay() {
+    print(
+        "DEBUG: ITVoiceCall _buildInstaTalkTimerDisplay: _timerStarted is $_timerStarted, _ratePerMinute is $_ratePerMinute");
     if (!_timerStarted) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -719,7 +741,8 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
             child: Text(
               widget.isTrial
                   ? 'Free Trial'
-                  : '₹${_ratePerMinute.toStringAsFixed(0)}/min',
+                  // : '₹${_ratePerMinute.toStringAsFixed(2)}/min', // Changed to toStringAsFixed(2)
+                  : '', // Changed to toStringAsFixed(2)
               style: TextStyle(
                 color: Colors.grey[400],
                 fontSize: 13,
@@ -1012,6 +1035,14 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
         ? '30-second free InstaTalk trial'
         : '${widget.instaTalkDuration}-minute InstaTalk session';
 
+    print(
+        "DEBUG: ITVoiceCall _showContinueCallPrompt: _ratePerMinute is $_ratePerMinute");
+    print(
+        "DEBUG: ITVoiceCall _showContinueCallPrompt: widget.participant.earnings?.live is ${widget.participant.earnings?.live}");
+    // Use _ratePerMinute for consistency in the prompt, which should now be 0.0 if data is missing
+    final displayRate =
+        _ratePerMinute > 0 ? _ratePerMinute.toStringAsFixed(0) : "0";
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1034,13 +1065,13 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
               style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
-            Text(
-              'Rate: ₹${widget.participant.earnings?.live?.toStringAsFixed(0) ?? "0"}/minute',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            // Text(
+            //   'Rate: ₹$displayRate/minute', // Using the calculated _ratePerMinute
+            //   style: const TextStyle(
+            //     color: Colors.white,
+            //     fontWeight: FontWeight.bold,
+            //   ),
+            // ),
           ],
         ),
         actions: [

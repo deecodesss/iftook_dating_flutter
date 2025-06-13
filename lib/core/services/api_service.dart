@@ -337,16 +337,26 @@ class ApiService {
 
   static Future<http.Response> makePayment(double amount) async {
     final token = await SharedPrefs.getAccessToken();
-    final userId = await SharedPrefs.getUserIdSharedPreference();
 
     return authenticatedRequest(() => http.post(
-          Uri.parse(
-              '$baseUrl/payments/create'), // Update the endpoint as per your API
+          Uri.parse('$baseUrl/payments/create'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $token',
           },
-          body: jsonEncode({'amount': amount}), // Pass the amount in the body
+          body: jsonEncode({'amount': amount}),
+        ));
+  }
+
+  // Add new method to verify payment status
+  static Future<http.Response> verifyPayment(String merchantReferenceId) async {
+    final token = await SharedPrefs.getAccessToken();
+
+    return authenticatedRequest(() => http.get(
+          Uri.parse('$baseUrl/payments/verify/$merchantReferenceId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
         ));
   }
 

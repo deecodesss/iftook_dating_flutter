@@ -33,6 +33,76 @@ class _WalletScreenState extends State<WalletScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    // Ensure walletController.fetchTransactions() is called, e.g., in its onInit or here if needed.
+    // walletController.fetchTransactions(); // Or handled by controller's lifecycle
+  }
+
+  Map<String, dynamic> _getTransactionDisplayDetails(
+      Map<String, dynamic> transaction) {
+    String paymentType = transaction['paymentType'] ?? 'unknown';
+    double amount = (transaction['amount'] as num?)?.toDouble() ?? 0.0;
+    String transactionId = transaction['_id'] ?? 'N/A';
+
+    bool isCredit;
+    IconData iconData;
+    Color statusColor;
+    String title;
+    String formattedAmount;
+    String baseTitle;
+
+    switch (paymentType.toLowerCase()) {
+      case 'earning':
+        isCredit = true;
+        baseTitle = 'Earning';
+        break;
+      case 'refund':
+        isCredit = true;
+        baseTitle = 'Refund Received';
+        break;
+      case 'wallet_deposit':
+        isCredit = true;
+        baseTitle = 'Added to Wallet';
+        break;
+      case 'withdrawal':
+        isCredit = false;
+        baseTitle = 'Bank Transfer';
+        break;
+      case 'wallet_payment':
+        isCredit = false;
+        baseTitle = 'Service Payment';
+        break;
+      default:
+        isCredit = true; // Default for unknown types, or handle as error
+        baseTitle =
+            GetUtils.capitalizeFirst(paymentType.replaceAll('_', ' ')) ??
+                'Transaction';
+        // Log unknown paymentType if necessary
+        debugPrint("Unknown payment type: $paymentType");
+        break;
+    }
+
+    if (isCredit) {
+      iconData = HugeIcons.strokeRoundedSquareArrowDownLeft;
+      statusColor = AppColors.greenColor;
+      formattedAmount = '+₹${amount.toStringAsFixed(2)}';
+    } else {
+      iconData = HugeIcons.strokeRoundedSquareArrowUpRight;
+      statusColor = AppColors.redColor;
+      formattedAmount = '-₹${amount.toStringAsFixed(2)}';
+    }
+
+    title = baseTitle;
+    String subtitle = 'ID: $transactionId';
+
+    return {
+      'icon': iconData,
+      'color': statusColor,
+      'title': title,
+      'subtitle': subtitle,
+      'amount': formattedAmount,
+      'date': convertToIST(
+          transaction['paymentDate'] ?? DateTime.now().toIso8601String()),
+    };
   }
 
   Future<bool> _validateBankTransfer() async {
@@ -269,20 +339,23 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   List<Map<String, dynamic>> getFilteredTransactions() {
+    final allTransactions = walletController.transactions;
     if (_tabController.index == 0) {
-      return walletController.transactions
+      // "Transactions" tab - should show non-earning, non-refund
+      return allTransactions
           .where((tx) =>
-              tx['paymentType'] != 'refund' &&
-              tx['paymentType'] == 'wallet_deposit')
-          .toList(); // Wallet add
+              tx['paymentType'] != 'earning' && tx['paymentType'] != 'refund')
+          .toList();
     } else if (_tabController.index == 1) {
-      return walletController.transactions
-          .where((tx) => tx['paymentType'] != 'refund')
-          .toList(); // Earnings
+      // "Earnings" tab
+      return allTransactions
+          .where((tx) => tx['paymentType'] == 'earning')
+          .toList();
     } else {
-      return walletController.transactions
+      // "Refunds" tab (_tabController.index == 2)
+      return allTransactions
           .where((tx) => tx['paymentType'] == 'refund')
-          .toList(); // Refunds
+          .toList();
     }
   }
 
@@ -423,6 +496,9 @@ class _WalletScreenState extends State<WalletScreen>
                           (context, index) {
                             final transaction =
                                 getFilteredTransactions()[index];
+                            final displayDetails =
+                                _getTransactionDisplayDetails(transaction);
+
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
                               padding: const EdgeInsets.all(12),
@@ -435,23 +511,13 @@ class _WalletScreenState extends State<WalletScreen>
                                   Container(
                                     padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
-                                      color: transaction['paymentType'] ==
-                                              'refund'
-                                          ? AppColors.redColor.withOpacity(0.2)
-                                          : AppColors.greenColor
-                                              .withOpacity(0.2),
+                                      color: (displayDetails['color'] as Color)
+                                          .withOpacity(0.2),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Icon(
-                                      transaction['paymentType'] == 'refund'
-                                          ? HugeIcons
-                                              .strokeRoundedSquareArrowUpRight
-                                          : HugeIcons
-                                              .strokeRoundedSquareArrowDownLeft,
-                                      color:
-                                          transaction['paymentType'] == 'refund'
-                                              ? AppColors.redColor
-                                              : AppColors.greenColor,
+                                      displayDetails['icon'] as IconData,
+                                      color: displayDetails['color'] as Color,
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -461,17 +527,24 @@ class _WalletScreenState extends State<WalletScreen>
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          transaction['paymentType'] == 'refund'
-                                              ? 'Refund #${transaction['_id']}'
-                                              : 'Earning #${transaction['_id']}',
+                                          displayDetails['title'] as String,
                                           style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 16,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
+                                        const SizedBox(height: 2),
                                         Text(
-                                          convertToIST(
-                                              transaction['paymentDate']),
+                                          displayDetails['subtitle'] as String,
+                                          style: TextStyle(
+                                            color: Colors.grey[400],
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          displayDetails['date'] as String,
                                           style: const TextStyle(
                                             color: Colors.grey,
                                             fontSize: 12,
@@ -481,14 +554,9 @@ class _WalletScreenState extends State<WalletScreen>
                                     ),
                                   ),
                                   Text(
-                                    transaction['paymentType'] == 'refund'
-                                        ? '-₹${transaction['amount']}'
-                                        : '+₹${transaction['amount']}',
+                                    displayDetails['amount'] as String,
                                     style: TextStyle(
-                                      color:
-                                          transaction['paymentType'] == 'refund'
-                                              ? AppColors.redColor
-                                              : AppColors.greenColor,
+                                      color: displayDetails['color'] as Color,
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                     ),

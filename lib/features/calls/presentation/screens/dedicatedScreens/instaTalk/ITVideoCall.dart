@@ -330,13 +330,13 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen> {
               style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
-            Text(
-              'Rate: ₹${widget.participant.earnings?.live?.toStringAsFixed(0) ?? "0"}/minute',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            // Text(
+            //   'Rate: ₹${widget.participant.earnings?.live?.toStringAsFixed(0) ?? "0"}/minute',
+            //   style: const TextStyle(
+            //     color: Colors.white,
+            //     fontWeight: FontWeight.bold,
+            //   ),
+            // ),
           ],
         ),
         actions: [
@@ -772,14 +772,14 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen> {
                     const Icon(Icons.attach_money,
                         color: Colors.white, size: 16),
                     const SizedBox(width: 4),
-                    Text(
-                      '₹${_ratePerMinute.toStringAsFixed(2)}/min',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                    ),
+                    // Text(
+                    //   '₹${_ratePerMinute.toStringAsFixed(2)}/min',
+                    //   style: const TextStyle(
+                    //     color: Colors.white,
+                    //     fontWeight: FontWeight.w500,
+                    //     fontSize: 14,
+                    //   ),
+                    // ),
                   ],
                 ),
                 Obx(() => Row(
@@ -1039,24 +1039,24 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen> {
                 ),
 
               // Rate display
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: widget.isIncomingCall
-                    ? Text(
-                        '+ ₹${perMinuteRate.toStringAsFixed(2)}/min',
-                        style: TextStyle(
-                          color: Colors.grey[300],
-                          fontSize: 10,
-                        ),
-                      )
-                    : Text(
-                        '- ₹${perMinuteRate.toStringAsFixed(2)}/min',
-                        style: TextStyle(
-                          color: Colors.grey[300],
-                          fontSize: 10,
-                        ),
-                      ),
-              ),
+              // Padding(
+              //   padding: const EdgeInsets.only(top: 4),
+              //   child: widget.isIncomingCall
+              //       ? Text(
+              //           '+ ₹${perMinuteRate.toStringAsFixed(2)}/min',
+              //           style: TextStyle(
+              //             color: Colors.grey[300],
+              //             fontSize: 10,
+              //           ),
+              //         )
+              //       : Text(
+              //           '- ₹${perMinuteRate.toStringAsFixed(2)}/min',
+              //           style: TextStyle(
+              //             color: Colors.grey[300],
+              //             fontSize: 10,
+              //           ),
+              //         ),
+              // ),
 
               // Add InstaTalk badge
               Container(
