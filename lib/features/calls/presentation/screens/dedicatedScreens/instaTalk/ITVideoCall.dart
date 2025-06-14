@@ -114,7 +114,7 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen>
 
     _chatController.fetchWalletBalance();
 
-    _walletRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _walletRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) {
         _chatController.fetchWalletBalance();
       }
