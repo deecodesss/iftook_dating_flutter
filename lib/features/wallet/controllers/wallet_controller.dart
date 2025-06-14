@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
-import 'package:iftook/core/widgets/webview_screen.dart';
-import 'package:iftook/helpers/app_constants.dart';
 import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 import 'dart:async';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 class WalletController extends GetxController {
   var balance = 0.0.obs;
@@ -87,53 +86,34 @@ class WalletController extends GetxController {
         final merchantReferenceId = data['merchantReferenceId'];
 
         if (payPageUrl != null) {
-          isLoading(false); // Stop loading before pushing WebView
-          
-          // Construct success and failure URLs based on your backend configuration
-          final String successUrlPrefix = '${AppConstants.BASE_URL}/api/payments/redirect/success';
-          final String failureUrlPrefix = '${AppConstants.BASE_URL}/api/payments/redirect/failure';
-          
-          // Open WebView with the payment URL
-          final result = await Get.to<Map<String, String>>(
-            () => WebviewScreen(
-              initialUrl: payPageUrl,
-              successUrlPrefix: successUrlPrefix, 
-              failureUrlPrefix: failureUrlPrefix,
-            ),
-          );
-          
-          // Handle the result from WebView
-          if (result != null) {
-            final status = result['status'];
-            final returnedMerchantReferenceId = result['merchantReferenceId'];
-            
-            if (status == 'success' && returnedMerchantReferenceId == merchantReferenceId) {
-              // Verify payment status with backend
-              await verifyPaymentStatus(merchantReferenceId);
-            } else if (status == 'failure') {
-              Get.snackbar(
-                'Payment Failed',
-                'Your payment was not successful. Please try again.',
-                backgroundColor: Colors.red,
-                colorText: Colors.white,
-              );
-            } else {
-              Get.snackbar(
-                'Payment Status Unknown',
-                'Please check your wallet for updated balance.',
-                backgroundColor: Colors.orange,
-                colorText: Colors.white,
-              );
-            }
-            
-            // Refresh wallet data regardless of status
-            await fetchWalletData();
-          } else {
-            // User canceled the payment
+          isLoading(false); // Stop loading before opening payment URL
+
+          // Launch the payment URL directly using correct method for your version
+          bool launched = false;
+
+          try {
+            // Use the URL launcher package with correct import
+            final Uri uri = Uri.parse(payPageUrl);
+            launched = await url_launcher.launch(payPageUrl);
+          } catch (e) {
+            print('Error launching URL: $e');
             Get.snackbar(
-              'Payment Canceled',
-              'You canceled the payment process.',
-              backgroundColor: Colors.grey,
+              'Error',
+              'Could not open payment page. Please try again.',
+              backgroundColor: Colors.red,
+              colorText: Colors.white,
+            );
+            return;
+          }
+
+          if (launched) {
+            // Wait for user to return from the payment app
+            await _showPaymentConfirmationDialog(merchantReferenceId);
+          } else {
+            Get.snackbar(
+              'Error',
+              'Could not open payment page. Please try again.',
+              backgroundColor: Colors.red,
               colorText: Colors.white,
             );
           }
@@ -147,7 +127,7 @@ class WalletController extends GetxController {
     } catch (e) {
       print('Error in payment process: $e');
       Get.snackbar(
-        'Error', 
+        'Error',
         'Failed to make payment: ${e.toString()}',
         backgroundColor: Colors.red,
         colorText: Colors.white,
@@ -156,18 +136,53 @@ class WalletController extends GetxController {
       isLoading(false);
     }
   }
-  
+
+  Future<void> _showPaymentConfirmationDialog(
+      String merchantReferenceId) async {
+    final result = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('Payment Status'),
+        content: const Text('Did you complete the payment in your UPI app?'),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('No, Payment Failed'),
+          ),
+          TextButton(
+            onPressed: () => Get.back(result: true),
+            child: const Text('Yes, Payment Completed'),
+          ),
+        ],
+      ),
+      barrierDismissible: false,
+    );
+
+    if (result == true) {
+      // User confirmed payment was successful
+      await verifyPaymentStatus(merchantReferenceId);
+      await fetchWalletData(); // Refresh wallet data
+    } else {
+      // User indicated payment failed
+      Get.snackbar(
+        'Payment Failed',
+        'Your payment was not successful. Please try again.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
   // Add this new method to verify payment status
   Future<void> verifyPaymentStatus(String merchantReferenceId) async {
     try {
       isLoading(true);
-      
+
       // Create a verification endpoint in your API service or use:
       final response = await ApiService.verifyPayment(merchantReferenceId);
-      
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         if (data['paymentStatus'] == 'completed') {
           Get.snackbar(
             'Payment Successful',
@@ -175,7 +190,7 @@ class WalletController extends GetxController {
             backgroundColor: Colors.green,
             colorText: Colors.white,
           );
-          
+
           // Refresh wallet data to show updated balance
           await fetchWalletData();
         } else {

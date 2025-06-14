@@ -216,6 +216,61 @@ class ChatController extends GetxController {
     }
   }
 
+  Future<bool> sendCallMoney(String receiverId, double amount) async {
+    try {
+      isTransferring(true);
+
+      // Refresh wallet balance first
+      await fetchWalletBalance();
+
+      // Check if user has enough balance
+      // if (userWalletBalance.value < amount) {
+      //   Get.snackbar(
+      //     'Insufficient Balance',
+      //     'Please top up your wallet to send money',
+      //     backgroundColor: Colors.red,
+      //     colorText: Colors.white,
+      //     duration: const Duration(seconds: 3),
+      //     mainButton: TextButton(
+      //       onPressed: () => Get.toNamed('/wallet/topup'),
+      //       child: Text('Top Up', style: TextStyle(color: Colors.white)),
+      //     ),
+      //   );
+      //   return false;
+      // }
+
+      // Deduct money from sender's wallet
+      final deductResponse = await ApiService.deductMoneyToWallet(amount);
+      if (deductResponse.statusCode != 200) {
+        throw Exception('Failed to deduct money from wallet');
+      }
+
+      // Add money to receiver's wallet
+      final addResponse =
+          await ApiService.addMoneyToReceiverWallet(amount, receiverId);
+      if (addResponse.statusCode != 200) {
+        // If adding fails, we should try to revert the deduction (in a real app)
+        throw Exception('Failed to transfer money to recipient');
+      }
+
+      // Update wallet balance after transaction
+      await fetchWalletBalance();
+
+      return true;
+    } catch (e) {
+      print('Error sending money: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to send money: ${e.toString()}',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return false;
+    } finally {
+      isTransferring(false);
+    }
+  }
+
   Future<bool> unfriend(String userId, String friendId) async {
     try {
       final response = await ApiService.removeFriend(userId, friendId);

@@ -1,18 +1,20 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:get/get.dart';
+import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/calls/controllers/call_controller.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/calls/services/call_duration_service.dart';
 import 'package:iftook/features/friends/controllers/chat_controller.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
+import 'package:iftook/core/services/api_service.dart';
 
 class ITVoiceCallScreen extends StatefulWidget {
   final String meetingId;
@@ -44,7 +46,8 @@ class ITVoiceCallScreen extends StatefulWidget {
   State<ITVoiceCallScreen> createState() => _ITVoiceCallScreenState();
 }
 
-class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
+class _ITVoiceCallScreenState extends State<ITVoiceCallScreen>
+    with TickerProviderStateMixin {
   final String appId = "5da40b914dcf4a089e8bbee75a926178";
   int? _remoteUid;
   bool _isMuted = false;
@@ -59,30 +62,41 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
   Timer? _sessionTimer;
   Timer? _autoPaymentTimer;
   Timer? _walletRefreshTimer;
+  Timer? _healthCheckTimer; // Add health check timer
   int _remainingSeconds = 0;
   int _elapsedSeconds = 0;
-  bool _sessionExpired = false;
-  bool _showingPaymentPrompt = false;
   bool _timerStarted = false;
-  bool _hasRenewedSession = false;
-  bool _isRenewing = false;
   bool _callEnded = false;
 
   // Payment variables
   double _ratePerMinute = 0;
   bool _autoPaymentEnabled = false;
 
-  late final CallController _callController;
+  // late final CallController _callController;
   late final CallDurationService _durationService;
   late final ChatController _chatController;
+
+  // Add variables for fetched user data
+  User? _fetchedParticipant;
+  bool _isLoadingUserData = true;
+
+  // Add animation variables for payment indication
+  late AnimationController _paymentAnimationController;
+  late Animation<double> _paymentFadeAnimation;
+  late Animation<Offset> _paymentSlideAnimation;
+  String _lastPaymentAmount = '';
+  bool _showPaymentAnimation = false;
 
   @override
   void initState() {
     super.initState();
-    _callController = Get.put(CallController());
+    // _callController = Get.put(CallController());
     _durationService = Get.put(CallDurationService());
     _chatController = Get.put(ChatController());
     _initializeDurationService();
+
+    // Fetch complete user data from backend
+    _fetchParticipantData();
 
     // Initialize Agora engine
     _initializeAgora().then((_) {
@@ -93,41 +107,46 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
         });
       }
     });
-    print(
-        "InstaTalk Voice Call initialized with participant: ${widget.participant.name}");
-    print("InstaTalk Trial: ${widget.isTrial}");
-    print(
-        "DEBUG: ITVoiceCall initState: Participant ID: ${widget.participant.sId}");
-    print(
-        "DEBUG: ITVoiceCall initState: Participant earnings: ${widget.participant.earnings}");
-    print(
-        "DEBUG: ITVoiceCall initState: Participant live earnings: ${widget.participant.earnings?.live}");
 
     // Fetch initial wallet balance
     _chatController.fetchWalletBalance();
 
     // Setup wallet refresh timer
-    _walletRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _walletRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) {
         _chatController.fetchWalletBalance();
       }
     });
 
-    // Initialize call variables
-    print(
-        "DEBUG: ITVoiceCall initState: BEFORE _ratePerMinute init: widget.participant.earnings?.live?.toDouble() is ${widget.participant.earnings?.live?.toDouble()}");
-    _ratePerMinute =
-        widget.participant.earnings?.live?.toDouble() ?? 0.0; // Corrected line
-    print(
-        "DEBUG: ITVoiceCall initState: AFTER _ratePerMinute init: _ratePerMinute is $_ratePerMinute");
-
-    // Start timers and setup
     _checkPermissions();
-
-    // For incoming calls, stop the ringtone
     if (widget.isIncomingCall) {
       _stopCallRingtone();
     }
+
+    // Initialize payment animation controller
+    _paymentAnimationController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+
+    _paymentFadeAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _paymentAnimationController,
+      curve: Curves.easeOut,
+    ));
+
+    _paymentSlideAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(0, -1),
+    ).animate(CurvedAnimation(
+      parent: _paymentAnimationController,
+      curve: Curves.easeOut,
+    ));
+
+    // Start health check timer to verify all variables every 10 seconds
+    _startHealthCheckTimer();
   }
 
   Future<void> _stopCallRingtone() async {
@@ -141,9 +160,7 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
   Future<void> _initializeAgora() async {
     try {
       _connectionStatus = 'Checking permissions...';
-      // await _requestPermissions(); // Permissions are requested in _checkPermissions
-
-      _connectionStatus = 'Initializing engine...';
+      _connectionStatus = 'Initializing call...';
       _engine = createAgoraRtcEngine();
       await _engine.initialize(RtcEngineContext(
         appId: appId,
@@ -192,12 +209,6 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
             _remoteUid = remoteUid;
             _isConnecting = false;
             _connectionStatus = 'Connected';
-            // Stop ringtone and end CallKit UI when remote user joins and call is established
-            // This is a good place to ensure CallKit is dismissed if not already.
-            // CallNotificationService._handleCallAccept should have already called endCall.
-            // _stopCallRingtone(); // Already called in initState if isIncomingCall
-            // FlutterCallkitIncoming.endCall(widget.meetingId); // Redundant if CallNotificationService handled it
-
             if (!_timerStarted) {
               _startTimers();
             }
@@ -222,7 +233,6 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
     );
   }
 
-  // Update the startTimers method to focus only on InstaTalk
   void _startTimers() {
     print("Starting InstaTalk timers:");
     print("Is Trial: ${widget.isTrial}");
@@ -233,11 +243,9 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
     });
 
     if (widget.isTrial) {
-      // Trial InstaTalk - 30 seconds countdown, then end call
       print("Starting TRIAL countdown timer (30 seconds)");
       _startTrialCountdownTimer();
     } else {
-      // Paid InstaTalk - growing timer with auto-payment per minute
       print("Starting PAID InstaTalk growing timer with auto-payment");
       _startGrowingTimer();
       _startAutoPaymentTimer();
@@ -265,7 +273,6 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
     });
   }
 
-  // Growing timer for tracking elapsed time
   void _startGrowingTimer() {
     setState(() {
       _elapsedSeconds = 0;
@@ -278,54 +285,211 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
     });
   }
 
-  // Auto-payment timer specifically for InstaTalk
-  void _startAutoPaymentTimer() {
-    // For InstaTalk, use instaTalk rate directly (already per minute)
-    print(
-        "DEBUG: ITVoiceCall _startAutoPaymentTimer: BEFORE _ratePerMinute re-init: widget.participant.earnings?.live?.toDouble() is ${widget.participant.earnings?.live?.toDouble()}");
-    _ratePerMinute = widget.participant.earnings?.live?.toDouble() ??
-        0.0; // Corrected default
-    print(
-        "DEBUG: ITVoiceCall _startAutoPaymentTimer: AFTER _ratePerMinute re-init: _ratePerMinute is $_ratePerMinute");
+  // Add health check timer to verify all variables and data loading
+  void _startHealthCheckTimer() {
+    _healthCheckTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _performHealthCheck();
+    });
+  }
 
-    if (_ratePerMinute <= 0) {
-      print(
-          "DEBUG: ITVoiceCall _startAutoPaymentTimer: _ratePerMinute is <= 0, not starting auto payment timer.");
+  // Comprehensive health check function
+  void _performHealthCheck() {
+    print("=== VOICE CALL HEALTH CHECK ===");
+    print("Health Check - _isLoadingUserData: $_isLoadingUserData");
+    print("Health Check - _fetchedParticipant: $_fetchedParticipant");
+    print("Health Check - _ratePerMinute: $_ratePerMinute");
+    print("Health Check - _timerStarted: $_timerStarted");
+    print("Health Check - _autoPaymentEnabled: $_autoPaymentEnabled");
+    print(
+        "Health Check - _autoPaymentTimer active: ${_autoPaymentTimer?.isActive ?? false}");
+    print("Health Check - _callEnded: $_callEnded");
+    print("Health Check - _remoteUid: $_remoteUid");
+
+    // If call ended, stop health check
+    if (_callEnded) {
+      print("Health Check - Call ended, stopping health check");
+      _healthCheckTimer?.cancel();
       return;
     }
 
+    // Check 1: If user data is still loading after reasonable time, retry fetching
+    if (_isLoadingUserData) {
+      print("Health Check - User data still loading, retrying fetch");
+      _fetchParticipantData();
+      return;
+    }
+
+    // Check 2: If user data loaded but no rate, try direct rate extraction
+    if (_fetchedParticipant == null && !_isLoadingUserData) {
+      print(
+          "Health Check - No fetched participant but not loading, retrying fetch");
+      _fetchParticipantData();
+      return;
+    }
+
+    // Check 3: If we have participant data but rate is still 0, recalculate
+    if (_fetchedParticipant != null && _ratePerMinute <= 0) {
+      final newRate = _fetchedParticipant?.earnings?.live?.toDouble() ?? 0.0;
+      print("Health Check - Recalculating rate: $newRate");
+      if (newRate > 0) {
+        setState(() {
+          _ratePerMinute = newRate;
+        });
+      }
+    }
+
+    // Check 4: If timer started and connected but auto-payment not enabled for paid calls
+    if (_timerStarted &&
+        !widget.isTrial &&
+        _remoteUid != null &&
+        !_autoPaymentEnabled &&
+        _ratePerMinute > 0) {
+      print(
+          "Health Check - Auto-payment should be enabled but isn't, starting");
+      _startAutoPaymentTimer();
+    }
+
+    // Check 5: If auto-payment should be running but timer is not active
+    if (!widget.isTrial &&
+        _autoPaymentEnabled &&
+        _ratePerMinute > 0 &&
+        (_autoPaymentTimer == null || !_autoPaymentTimer!.isActive)) {
+      print("Health Check - Auto-payment timer not active, restarting");
+      _startAutoPaymentTimer();
+    }
+
+    // Check 6: If we're in a paid call but timers not started and both users connected
+    if (!widget.isTrial &&
+        !_timerStarted &&
+        _localUserJoined &&
+        _remoteUid != null) {
+      print(
+          "Health Check - Paid call connected but timers not started, starting");
+      _startTimers();
+    }
+
+    print("=== END VOICE CALL HEALTH CHECK ===");
+  }
+
+  // Modified _startAutoPaymentTimer with better error handling and logging
+  void _startAutoPaymentTimer() {
+    print("=== VOICE CALL AUTO PAYMENT TIMER START ===");
+    print("Voice call _isLoadingUserData: $_isLoadingUserData");
+    print("Voice call _ratePerMinute: $_ratePerMinute");
+    print("Voice call _fetchedParticipant: $_fetchedParticipant");
+    print("Voice call isIncomingCall: ${widget.isIncomingCall}");
+
+    // Cancel existing timer if any
+    _autoPaymentTimer?.cancel();
+
+    // Wait for user data to be loaded
+    if (_isLoadingUserData) {
+      print(
+          "Voice call User data still loading, retrying auto-payment setup in 2 seconds");
+      Timer(const Duration(seconds: 2), _startAutoPaymentTimer);
+      return;
+    }
+
+    // Use the fetched rate with multiple fallbacks
+    double actualRatePerMinute = 0.0;
+
+    // Try fetched participant first
+    if (_fetchedParticipant?.earnings?.live != null) {
+      actualRatePerMinute = _fetchedParticipant!.earnings!.live!.toDouble();
+      print(
+          "Voice call Got rate from fetched participant: $actualRatePerMinute");
+    }
+    // Fallback to stored rate
+    else if (_ratePerMinute > 0) {
+      actualRatePerMinute = _ratePerMinute;
+      print("Voice call Using stored rate: $actualRatePerMinute");
+    }
+    // Last resort: try original participant
+    else if (widget.participant.earnings?.live != null) {
+      actualRatePerMinute = widget.participant.earnings!.live!.toDouble();
+      print("Voice call Using original participant rate: $actualRatePerMinute");
+    }
+
+    print("=== VOICE CALL AUTO PAYMENT TIMER SETUP ===");
+    print("Voice call Final rate per minute: $actualRatePerMinute");
+
+    if (actualRatePerMinute <= 0) {
+      print(
+          "Voice call Rate per minute is 0 or negative, skipping auto-payment setup");
+      return;
+    }
+
+    print(
+        "Voice call Setting up auto-payment with rate: ₹$actualRatePerMinute/min");
+
     _autoPaymentEnabled = true;
-    const paymentIntervalSeconds = 60; // Charge every minute
+    const paymentIntervalSeconds = 60;
 
     _autoPaymentTimer = Timer.periodic(
-        Duration(seconds: paymentIntervalSeconds), (timer) async {
+        const Duration(seconds: paymentIntervalSeconds), (timer) async {
       if (!_autoPaymentEnabled) return;
 
       try {
-        // Calculate cost for one minute
-        final cost = _ratePerMinute;
+        final cost = actualRatePerMinute;
 
+        // Always refresh wallet balance
         await _chatController.fetchWalletBalance();
-        if (_chatController.userWalletBalance.value < cost) {
-          // Stop timer and show insufficient balance message
-          _autoPaymentTimer?.cancel();
-          _showInsufficientBalanceDialog();
-          return;
-        }
 
-        // Process payment for one minute
-        final success = await _chatController.purchaseChatSession(
-            widget.participant.sId!, cost,
-            minutes: 1, silent: true);
+        if (widget.isIncomingCall) {
+          // For incoming calls: Just refresh wallet balance, no payment deduction
+          print(
+              "Voice call Incoming - wallet balance refreshed, no payment deduction");
+          // Show earning animation for incoming calls
+          _showPaymentNotification(cost);
+          print(
+              "Voice call Incoming call - showing earning notification: +₹$cost");
+        } else {
+          // For outgoing calls: Check balance and deduct money
+          if (_chatController.userWalletBalance.value < cost) {
+            _autoPaymentTimer?.cancel();
+            _showInsufficientBalanceDialog();
+            return;
+          }
 
-        if (!success) {
-          throw Exception('Payment failed');
+          // Deduct money for outgoing calls
+          final success = await _chatController.sendCallMoney(
+            widget.participant.sId!,
+            cost,
+          );
+
+          if (!success) {
+            throw Exception('Payment failed');
+          } else {
+            // Show payment animation when successful
+            _showPaymentNotification(cost);
+            print("Voice call Outgoing call - payment successful: -₹$cost");
+          }
         }
       } catch (e) {
-        print('Auto-payment error: $e');
+        print('Voice call Auto-payment error: $e');
         _autoPaymentTimer?.cancel();
-        _showPaymentErrorDialog();
+        if (!widget.isIncomingCall) {
+          // Only show payment error for outgoing calls
+          _showPaymentErrorDialog();
+        }
       }
+    });
+
+    print("Voice call Auto-payment timer started successfully");
+  }
+
+  // Add method to show animated payment notification
+  void _showPaymentNotification(double amount) {
+    setState(() {
+      _lastPaymentAmount = '₹${amount.toStringAsFixed(0)}';
+      _showPaymentAnimation = true;
+    });
+
+    _paymentAnimationController.reset();
+    _paymentAnimationController.forward().then((_) {
+      setState(() {
+        _showPaymentAnimation = false;
+      });
     });
   }
 
@@ -347,9 +511,7 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
     _engine.setEnableSpeakerphone(_isSpeakerOn);
   }
 
-  // End the call
   void _endCall() {
-    // For incoming calls, show a warning popup before ending
     if (widget.isIncomingCall && !_callEnded && _remoteUid != null) {
       _showEndCallWarningDialog();
       return;
@@ -368,20 +530,17 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
     _walletRefreshTimer?.cancel();
     _autoPaymentEnabled = false;
 
-    // End the call in CallKit
     FlutterCallkitIncoming.endCall(widget.meetingId);
 
-    // Call session end callback if provided
-    if (widget.onSessionEnd != null) {
-      widget.onSessionEnd!();
-    }
+    // if (widget.onSessionEnd != null) {
+    //   widget.onSessionEnd!();
+    // }
     Get.off(() => AddReviewScreen(
           userId: widget.participant.sId ?? '',
         ));
     // Get.back();
   }
 
-  // New method to show warning dialog for incoming calls
   void _showEndCallWarningDialog() {
     showDialog(
       context: context,
@@ -425,14 +584,109 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
   }
 
   Future<void> _initializeDurationService() async {
-    // if (widget.participant != null) { // participant is non-nullable
     await _durationService.initialize(widget.participant.sId!);
-    // }
   }
 
-  // void _setupCallController() { // Empty method, can be removed
-  //   // Setup any additional call controller logic here
-  // }
+  // Fetch participant data for outgoing calls, own data for incoming calls
+  Future<void> _fetchParticipantData() async {
+    try {
+      print("=== FETCHING PARTICIPANT DATA (VOICE) ===");
+
+      String userId;
+      if (widget.isIncomingCall) {
+        // For incoming calls, fetch own profile data
+        final currentUserId = await SharedPrefs.getUserIdSharedPreference();
+        userId = currentUserId ?? '';
+        print("Incoming call - fetching own profile: $userId");
+      } else {
+        // For outgoing calls, fetch participant profile data
+        userId = widget.participant.sId ?? '';
+        print("Outgoing call - fetching participant profile: $userId");
+      }
+
+      if (userId.isEmpty) {
+        print("Voice call - No user ID available");
+        setState(() {
+          _isLoadingUserData = false;
+        });
+        return;
+      }
+
+      final response = await ApiService.getUserById(userId);
+      print("Voice call API response status: ${response.statusCode}");
+
+      if (response.statusCode == 200) {
+        final responseBody = json.decode(response.body) as Map<String, dynamic>;
+        print("Voice call Full response body: $responseBody");
+
+        if (responseBody['success'] == true && responseBody['user'] != null) {
+          final userData = responseBody['user'] as Map<String, dynamic>;
+          print("Voice call User data: $userData");
+          print("Voice call Earnings from response: ${userData['earnings']}");
+
+          try {
+            _fetchedParticipant = User.fromJson(userData);
+            print("Voice call User.fromJson successful");
+          } catch (e) {
+            print("Voice call User.fromJson failed: $e");
+            _fetchedParticipant = null;
+          }
+
+          _ratePerMinute = _fetchedParticipant?.earnings?.live?.toDouble() ?? 0;
+
+          print(
+              "Voice call Fetched participant earnings: ${_fetchedParticipant?.earnings}");
+          print("Voice call Fetched rate per minute: $_ratePerMinute");
+
+          // Also try direct access to earnings
+          final earningsData = userData['earnings'] as Map<String, dynamic>?;
+          if (earningsData != null) {
+            final liveRate = earningsData['live'];
+            print(
+                "Voice call Direct live rate access: $liveRate (type: ${liveRate.runtimeType})");
+            if (liveRate != null) {
+              _ratePerMinute = (liveRate as num).toDouble();
+              print(
+                  "Voice call Updated rate per minute from direct access: $_ratePerMinute");
+            }
+          } else {
+            print("Voice call Earnings data is null in response");
+          }
+
+          setState(() {
+            _isLoadingUserData = false;
+          });
+
+          print("Voice call Data loading completed successfully");
+        } else {
+          print("Voice call API response success=false or user=null");
+          print("Voice call Success: ${responseBody['success']}");
+          print("Voice call User: ${responseBody['user']}");
+          _ratePerMinute = 0;
+          setState(() {
+            _isLoadingUserData = false;
+          });
+        }
+      } else {
+        print("Voice call Failed to fetch user data: ${response.statusCode}");
+        print("Voice call Response body: ${response.body}");
+        _ratePerMinute = 0;
+        setState(() {
+          _isLoadingUserData = false;
+        });
+      }
+    } catch (e) {
+      print("Voice call Error fetching participant data: $e");
+      print("Voice call Error stack trace: ${StackTrace.current}");
+      _ratePerMinute = 0;
+      setState(() {
+        _isLoadingUserData = false;
+      });
+    }
+    print("=== END FETCHING PARTICIPANT DATA (VOICE) ===");
+    print("Voice call Final loading state: $_isLoadingUserData");
+    print("Voice call Final rate: $_ratePerMinute");
+  }
 
   @override
   void dispose() {
@@ -450,6 +704,8 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
     // Ensure CallKit UI is dismissed on dispose as well.
     FlutterCallkitIncoming.endCall(widget.meetingId);
 
+    _healthCheckTimer?.cancel();
+    _paymentAnimationController.dispose();
     super.dispose();
   }
 
@@ -458,220 +714,285 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
       body: SafeArea(
-        child: _callEnded
-            ? _buildCallEndedUI()
-            : Column(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Top section with call type and wallet balance
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // InstaTalk call type indicator
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Colors.purple, Colors.deepPurple],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.purple.withOpacity(0.3),
-                                blurRadius: 8,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.star,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                widget.isTrial
-                                    ? "InstaTalk Trial"
-                                    : "InstaTalk",
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Wallet Balance
-                        Obx(() => Text(
-                              '₹${_chatController.userWalletBalance.value.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 14,
-                              ),
-                            )),
-                      ],
-                    ),
-                  ),
-
-                  // Incoming/Outgoing indicator
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: widget.isIncomingCall
-                          ? Colors.green.withOpacity(0.15)
-                          : Colors.blue.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          widget.isIncomingCall
-                              ? Icons.call_received
-                              : Icons.call_made,
-                          color: widget.isIncomingCall
-                              ? Colors.green
-                              : Colors.blue,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          widget.isIncomingCall ? "Incoming" : "Outgoing",
-                          style: TextStyle(
-                            color: widget.isIncomingCall
-                                ? Colors.green
-                                : Colors.blue,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // User profile with status
-                  Column(
+        child: Stack(
+          children: [
+            // Main content
+            _callEnded
+                ? _buildCallEndedUI()
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      // Profile photo with purple border for InstaTalk
+                      // Top section with call type and wallet balance
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // InstaTalk call type indicator
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Colors.purple, Colors.deepPurple],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.purple.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.star,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    widget.isTrial
+                                        ? "InstaTalk Trial"
+                                        : "InstaTalk",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Wallet Balance
+                            Obx(() => Text(
+                                  '₹${_chatController.userWalletBalance.value.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 14,
+                                  ),
+                                )),
+                          ],
+                        ),
+                      ),
+
+                      // Incoming/Outgoing indicator
                       Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 5, horizontal: 12),
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.purple,
-                            width: 3,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.purple.withOpacity(0.2),
-                              blurRadius: 12,
-                              spreadRadius: 2,
+                          color: widget.isIncomingCall
+                              ? Colors.green.withOpacity(0.15)
+                              : Colors.blue.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              widget.isIncomingCall
+                                  ? Icons.call_received
+                                  : Icons.call_made,
+                              color: widget.isIncomingCall
+                                  ? Colors.green
+                                  : Colors.blue,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              widget.isIncomingCall ? "Incoming" : "Outgoing",
+                              style: TextStyle(
+                                color: widget.isIncomingCall
+                                    ? Colors.green
+                                    : Colors.blue,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
-                        child: widget.participant.photos?.isNotEmpty == true
-                            ? CircleAvatar(
-                                radius: 60,
-                                backgroundColor: Colors.grey[800],
-                                backgroundImage: NetworkImage(
-                                    widget.participant.photos!.first),
-                                onBackgroundImageError: (_, __) {},
-                              )
-                            : CircleAvatar(
-                                radius: 60,
-                                backgroundColor: Colors.grey[800],
-                                child: const Icon(Icons.person,
-                                    size: 60, color: Colors.white54),
+                      ),
+
+                      // User profile with status
+                      Column(
+                        children: [
+                          // Profile photo with purple border for InstaTalk
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.purple,
+                                width: 3,
                               ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Caller name
-                      Text(
-                        widget.participant.name ?? 'Unknown User',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-
-                      // Connection status
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: _isConnecting
-                              ? Colors.amber.withOpacity(0.2)
-                              : Colors.green.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          _connectionStatus,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: _isConnecting ? Colors.amber : Colors.green,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.purple.withOpacity(0.2),
+                                  blurRadius: 12,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: widget.participant.photos?.isNotEmpty == true
+                                ? CircleAvatar(
+                                    radius: 60,
+                                    backgroundColor: Colors.grey[800],
+                                    backgroundImage: NetworkImage(
+                                        widget.participant.photos!.first),
+                                    onBackgroundImageError: (_, __) {},
+                                  )
+                                : CircleAvatar(
+                                    radius: 60,
+                                    backgroundColor: Colors.grey[800],
+                                    child: const Icon(Icons.person,
+                                        size: 60, color: Colors.white54),
+                                  ),
                           ),
+                          const SizedBox(height: 16),
+
+                          // Caller name
+                          Text(
+                            widget.participant.name ?? 'Unknown User',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+
+                          // Connection status
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: _isConnecting
+                                  ? Colors.amber.withOpacity(0.2)
+                                  : Colors.green.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _connectionStatus,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color:
+                                    _isConnecting ? Colors.amber : Colors.green,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Timer display
+                      _buildInstaTalkTimerDisplay(),
+
+                      // Call controls
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildCallButton(
+                              icon: _isMuted ? Icons.mic_off : Icons.mic,
+                              color: Colors.white,
+                              backgroundColor:
+                                  _isMuted ? Colors.red : Colors.grey[800]!,
+                              onTap: _toggleMute,
+                            ),
+                            _buildCallButton(
+                              icon: Icons.call_end,
+                              color: Colors.white,
+                              backgroundColor: Colors.red,
+                              onTap: _endCall,
+                              size: 65,
+                            ),
+                            _buildCallButton(
+                              icon: _isSpeakerOn
+                                  ? Icons.volume_up
+                                  : Icons.volume_off,
+                              color: Colors.white,
+                              backgroundColor:
+                                  _isSpeakerOn ? Colors.grey[800]! : Colors.red,
+                              onTap: _toggleSpeaker,
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
 
-                  // Timer display
-                  _buildInstaTalkTimerDisplay(),
-
-                  // Call controls
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildCallButton(
-                          icon: _isMuted ? Icons.mic_off : Icons.mic,
-                          color: Colors.white,
-                          backgroundColor:
-                              _isMuted ? Colors.red : Colors.grey[800]!,
-                          onTap: _toggleMute,
+            // Animated payment notification overlay
+            if (_showPaymentAnimation)
+              Positioned(
+                top: MediaQuery.of(context).size.height * 0.4,
+                left: 0,
+                right: 0,
+                child: AnimatedBuilder(
+                  animation: _paymentAnimationController,
+                  builder: (context, child) {
+                    return SlideTransition(
+                      position: _paymentSlideAnimation,
+                      child: FadeTransition(
+                        opacity: _paymentFadeAnimation,
+                        child: Container(
+                          alignment: Alignment.center,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: widget.isIncomingCall
+                                  ? Colors.green.withOpacity(0.9)
+                                  : Colors.red.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(25),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  widget.isIncomingCall
+                                      ? Icons.add
+                                      : Icons.remove,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${widget.isIncomingCall ? '+' : '-'}$_lastPaymentAmount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        _buildCallButton(
-                          icon: Icons.call_end,
-                          color: Colors.white,
-                          backgroundColor: Colors.red,
-                          onTap: _endCall,
-                          size: 65,
-                        ),
-                        _buildCallButton(
-                          icon:
-                              _isSpeakerOn ? Icons.volume_up : Icons.volume_off,
-                          color: Colors.white,
-                          backgroundColor:
-                              _isSpeakerOn ? Colors.grey[800]! : Colors.red,
-                          onTap: _toggleSpeaker,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                      ),
+                    );
+                  },
+                ),
               ),
+          ],
+        ),
       ),
     );
   }
 
   // InstaTalk-specific timer display
   Widget _buildInstaTalkTimerDisplay() {
-    print(
-        "DEBUG: ITVoiceCall _buildInstaTalkTimerDisplay: _timerStarted is $_timerStarted, _ratePerMinute is $_ratePerMinute");
     if (!_timerStarted) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -680,12 +1001,16 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
           color: Colors.black26,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Text(
-          'Connecting...',
-          style: TextStyle(color: Colors.grey, fontSize: 16),
+        child: Text(
+          _isLoadingUserData ? 'Loading user data...' : 'Connecting...',
+          style: const TextStyle(color: Colors.grey, fontSize: 16),
         ),
       );
     }
+
+    // Use fetched participant data for rate display
+    final perMinuteRate =
+        _fetchedParticipant?.earnings?.live?.toDouble() ?? 0.0;
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
@@ -735,17 +1060,27 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
               ),
             ),
 
-          // Rate display
+          // Rate display with +/- sign based on call direction
           Padding(
             padding: const EdgeInsets.only(top: 5),
             child: Text(
               widget.isTrial
                   ? 'Free Trial'
-                  // : '₹${_ratePerMinute.toStringAsFixed(2)}/min', // Changed to toStringAsFixed(2)
-                  : '', // Changed to toStringAsFixed(2)
+                  : _isLoadingUserData
+                      ? 'Loading rate...'
+                      : perMinuteRate > 0
+                          ? '${widget.isIncomingCall ? '+' : '-'}₹${perMinuteRate.toStringAsFixed(0)}/min'
+                          : 'Rate: N/A',
               style: TextStyle(
-                color: Colors.grey[400],
+                color: widget.isTrial
+                    ? Colors.grey[400]
+                    : perMinuteRate > 0
+                        ? (widget.isIncomingCall
+                            ? Colors.green[400]
+                            : Colors.red[400])
+                        : Colors.grey[400],
                 fontSize: 13,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
@@ -879,14 +1214,14 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
               ),
               elevation: 4,
             ),
-            child: Row(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.home, size: 20),
-                const SizedBox(width: 8),
-                const Text(
+                Icon(Icons.home, size: 20),
+                SizedBox(width: 8),
+                Text(
                   'Return to Home',
-                  style: TextStyle(fontSize: 16),
+                  style: TextStyle(fontSize: 16, color: Colors.white),
                 ),
               ],
             ),
@@ -894,56 +1229,6 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
         ],
       ),
     );
-  }
-
-  // Update _purchaseCall method to fix the call to _startAutoPaymentTimer
-  void _purchaseCall() async {
-    setState(() => _isRenewing = true);
-
-    try {
-      final instaTalkRate = widget.participant.earnings?.live?.toDouble() ?? 0;
-      // Purchase for InstaTalk session at the live rate
-      final success = await _callController.purchaseCallSession(
-        widget.participant.sId!,
-        instaTalkRate * widget.instaTalkDuration, // Rate * duration
-        'voice',
-        minutes: widget.instaTalkDuration,
-      );
-
-      if (success) {
-        setState(() {
-          _sessionExpired = false;
-          _hasRenewedSession = true;
-          _isRenewing = false;
-          _showingPaymentPrompt = false;
-          _elapsedSeconds = 0; // Reset elapsed time for new session
-
-          if (_sessionTimer == null || !_sessionTimer!.isActive) {
-            _startGrowingTimer();
-          }
-          if (_autoPaymentTimer == null || !_autoPaymentTimer!.isActive) {
-            _startAutoPaymentTimer();
-          }
-        });
-
-        Get.snackbar(
-          'Success',
-          'InstaTalk session purchased',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-      } else {
-        throw Exception('Failed to purchase session');
-      }
-    } catch (e) {
-      setState(() => _isRenewing = false);
-      Get.snackbar(
-        'Error',
-        'Failed to purchase InstaTalk session',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
   }
 
   String _formatTime(int seconds) {
@@ -1017,82 +1302,6 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen> {
               _endCall();
             },
             child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showContinueCallPrompt() {
-    _showingPaymentPrompt = true;
-
-    if (widget.onSessionEnd != null) {
-      widget.onSessionEnd!();
-      return;
-    }
-
-    final prompt = widget.isTrial
-        ? '30-second free InstaTalk trial'
-        : '${widget.instaTalkDuration}-minute InstaTalk session';
-
-    print(
-        "DEBUG: ITVoiceCall _showContinueCallPrompt: _ratePerMinute is $_ratePerMinute");
-    print(
-        "DEBUG: ITVoiceCall _showContinueCallPrompt: widget.participant.earnings?.live is ${widget.participant.earnings?.live}");
-    // Use _ratePerMinute for consistency in the prompt, which should now be 0.0 if data is missing
-    final displayRate =
-        _ratePerMinute > 0 ? _ratePerMinute.toStringAsFixed(0) : "0";
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text(
-          'InstaTalk Session Ended',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Your $prompt with ${widget.participant.name ?? "User"} has ended.',
-              style: const TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Would you like to continue this InstaTalk call?',
-              style: TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-            // Text(
-            //   'Rate: ₹$displayRate/minute', // Using the calculated _ratePerMinute
-            //   style: const TextStyle(
-            //     color: Colors.white,
-            //     fontWeight: FontWeight.bold,
-            //   ),
-            // ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _performEndCall();
-            },
-            child:
-                const Text('End Call', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              _purchaseCall();
-            },
-            child: const Text('Continue'),
           ),
         ],
       ),

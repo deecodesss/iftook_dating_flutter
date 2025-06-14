@@ -14,7 +14,7 @@ import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/inst
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_voice_call_screen.dart';
-import 'package:iftook/features/calls/presentation/screens/missed_call_screen.dart';
+// import 'package:iftook/features/calls/presentation/screens/missed_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/video_call_screen.dart';
 import 'package:iftook/features/calls/services/ringtone_service.dart'; // Import the new service
 import 'package:iftook/features/profile/data/models/user.dart';
@@ -581,7 +581,7 @@ class CallNotificationService {
         case Event.actionCallCallback:
           debugPrint('📞 Callback action received. Body: ${event.body}');
           // Handle missed call callback action
-          await _handleMissedCallCallback(event.body as Map<String, dynamic>?);
+          // await _handleMissedCallCallback(event.body as Map<String, dynamic>?);
           break;
 
         default:
@@ -936,61 +936,6 @@ class CallNotificationService {
       }
     } finally {
       _callsBeingEnded.remove(callIdToProcess);
-    }
-  }
-
-  /// Handle when a user taps on a missed call notification
-  Future<void> _handleMissedCallCallback(Map<String, dynamic>? body) async {
-    if (body == null) {
-      debugPrint('⚠️ Missed call callback body is null');
-      return;
-    }
-
-    try {
-      debugPrint('📞 Processing missed call callback with body: $body');
-
-      // Extract data from the callback
-      final callId = body['id']?.toString() ?? '';
-      final extraData = body['extra'] as Map<String, dynamic>?;
-
-      if (extraData == null) {
-        debugPrint('❌ Error: extra data is null');
-        return;
-      }
-
-      final callerId = extraData['callerId']?.toString() ?? '';
-      final callerName = body['nameCaller']?.toString() ?? 'Unknown Caller';
-      final callerImage = body['avatar']?.toString() ?? '';
-      final isVideo = extraData['isVideo'] as bool? ?? false;
-      final isInstatalk = extraData['isInstatalk'] as bool? ?? false;
-      final timestamp = extraData['timestamp'] as int? ??
-          DateTime.now().millisecondsSinceEpoch;
-
-      if (callerId.isEmpty) {
-        debugPrint('❌ Error: callerId is empty');
-        return;
-      }
-
-      // Fetch caller info from API
-      final response = await ApiService.getUserById(callerId);
-
-      if (response.statusCode != 200) {
-        debugPrint('❌ Error fetching caller info: ${response.statusCode}');
-        return;
-      }
-
-      final userData = User.fromJson(
-          (json.decode(response.body) as Map<String, dynamic>)['data']);
-
-      // Navigate to the missed call screen
-      Get.to(() => MissedCallScreen(
-            caller: userData,
-            timestamp: DateTime.fromMillisecondsSinceEpoch(timestamp),
-            isVideo: isVideo,
-            isInstatalk: isInstatalk,
-          ));
-    } catch (e) {
-      debugPrint('❌ Error handling missed call callback: $e');
     }
   }
 

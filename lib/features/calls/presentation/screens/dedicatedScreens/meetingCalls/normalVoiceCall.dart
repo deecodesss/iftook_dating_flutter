@@ -65,8 +65,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
   bool _sessionExpired = false;
   bool _showingPaymentPrompt = false;
   bool _timerStarted = false;
-  bool _hasRenewedSession = false;
-  bool _isRenewing = false;
+
   bool _callEnded = false;
   bool _hasSentLastMinutePayment =
       false; // Flag to track if payment was sent for current timer cycle
@@ -242,16 +241,10 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
     });
 
     if (!widget.isFriend) {
-      // Start with the initial timer value (don't start from 0)
       print("Starting countdown timer from ${widget.initialTimer} minutes");
       _startRegularTimer();
-
-      // Don't start auto-payment yet - we'll start it only after user chooses to continue
-      // _startAutoPaymentTimer() will be called after the user chooses to continue
     } else {
-      // For friends, no countdown timer is needed.
       print("Friend call: No countdown timer started.");
-      // Connection status is already 'Connected' from onUserJoined
     }
   }
 
@@ -603,9 +596,9 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
     FlutterCallkitIncoming.endCall(widget.meetingId);
 
     // Call session end callback if provided
-    if (widget.onSessionEnd != null) {
-      widget.onSessionEnd!();
-    }
+    // if (widget.onSessionEnd != null) {
+    //   widget.onSessionEnd!();
+    // }
     Get.off(() => AddReviewScreen(
           userId: widget.participant.sId ?? '',
         ));
@@ -1139,18 +1132,6 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
         ],
       ),
     );
-  }
-
-  // Replace the _showContinueCallPrompt method to use the meeting ended popup
-  void _showContinueCallPrompt() {
-    // This is now replaced with the simple meeting ended popup
-    _showMeetingEndedPopup();
-  }
-
-  // Remove _purchaseCall functionality - comment it out or replace with stub
-  void _purchaseCall() {
-    // Simply end the call instead of renewing
-    _performEndCall();
   }
 
   String _formatTime(int seconds) {

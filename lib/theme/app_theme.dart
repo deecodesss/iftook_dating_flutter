@@ -30,7 +30,7 @@ class AppThemes {
       backgroundColor: Colors.transparent,
       elevation: 0,
       titleTextStyle: TextStyle(
-        color: AppColors['accentColor'],
+        color: Colors.white,
         fontSize: 20,
         fontWeight: FontWeight.w600,
       ),
@@ -47,8 +47,8 @@ class AppThemes {
       ),
     ),
     textTheme: GoogleFonts.interTextTheme().apply(
-      bodyColor: AppColors['accentColor'],
-      displayColor: AppColors['accentColor'],
+      bodyColor: Colors.white,
+      displayColor: Colors.white,
     ),
     colorScheme: ColorScheme.light(
       primary: AppColors['primaryColor']!,
@@ -86,6 +86,7 @@ class AppThemes {
       backgroundColor: Colors.transparent,
       elevation: 0,
       titleTextStyle: GoogleFonts.inter().copyWith(
+        color: Colors.white,
         fontSize: 20,
         fontWeight: FontWeight.w600,
       ),
@@ -99,7 +100,10 @@ class AppThemes {
         backgroundColor: const Color(0xff487FD9),
       ),
     ),
-    textTheme: GoogleFonts.manropeTextTheme().apply(),
+    textTheme: GoogleFonts.manropeTextTheme().apply(
+      bodyColor: Colors.white,
+      displayColor: Colors.white,
+    ),
     colorScheme: const ColorScheme.dark(
       primary: Color(0xff487FD9),
       secondary: Color.fromARGB(255, 60, 162, 236),

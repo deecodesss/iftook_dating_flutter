@@ -348,7 +348,6 @@ class ApiService {
         ));
   }
 
-  // Add new method to verify payment status
   static Future<http.Response> verifyPayment(String merchantReferenceId) async {
     final token = await SharedPrefs.getAccessToken();
 

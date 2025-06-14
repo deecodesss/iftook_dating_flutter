@@ -7,7 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iftook/core/services/api_service.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVideoCall.dart';
 import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/instaTalk/ITVoiceCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVideoCall.dart';
+import 'package:iftook/features/calls/presentation/screens/dedicatedScreens/meetingCalls/normalVoiceCall.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_voice_call_screen.dart';
 import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
 import 'package:iftook/features/friend_requests/controller/friend_controller.dart';
@@ -556,16 +559,15 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
           break;
 
         case 'voice':
-          await Get.to(() => VoiceCallLoadingScreen(
+          await Get.to(() => ITVoiceCallScreen(
+                meetingId: meetingId,
                 participant: participant,
-                scheduleTime: DateTime.now(),
-                type: "voice",
-                isInstatalk: true,
+                token: meeting['token'],
+                channel: meeting['channelName'],
                 isTrial: isTrial,
                 instaTalkDuration: meeting['duration'],
                 onSessionEnd: () =>
                     _showContinueSessionDialog(participant, amount, type),
-                remainingTime: meeting['duration']?.toDouble() ?? 30.0,
               ));
           break;
         // case 'voice':
@@ -586,11 +588,11 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         //   break;
 
         case 'video':
-          await Get.to(() => VideoCallLoadingScreen(
+          await Get.to(() => ITVideoCallScreen(
                 participant: participant,
-                scheduleTime: DateTime.now(),
-                type: "video",
-                isInstatalk: true,
+                meetingId: meetingId,
+                token: meeting['token'],
+                channel: meeting['channelName'],
                 isTrial: isTrial,
                 instaTalkDuration: meeting['duration'],
                 onSessionEnd: () =>
@@ -701,7 +703,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 'Remaining time for voice call: $remainingTime minutes (Total: $totalDuration minutes)');
 
             await _handleChatVoiceCall(participant, meetingId,
-                remainingTime: remainingTime + 1);
+                remainingTime: remainingTime);
             break;
 
           case 'video':
@@ -725,7 +727,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 'remainingTime: $remainingTime minutes (Total: $totalDuration minutes)');
 
             await _handleNormalMeetingVideoCall(participant, meetingId,
-                remainingTime: remainingTime + 1);
+                remainingTime: remainingTime);
             break;
           case 'chat':
             await Get.to(() => ChatRoomScreen(
@@ -760,7 +762,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 'Remaining time for voice call: $remainingTime minutes (Total: $totalDuration minutes)');
 
             await _handleChatVoiceCall(participant, meetingId,
-                remainingTime: remainingTime + 1);
+                remainingTime: remainingTime);
             break;
 
           case 'video':
@@ -784,7 +786,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                 'remainingTime: $remainingTime minutes (Total: $totalDuration minutes)');
 
             await _handleNormalMeetingVideoCall(participant, meetingId,
-                remainingTime: remainingTime + 1);
+                remainingTime: remainingTime);
             break;
 
           case 'chat':
@@ -826,14 +828,12 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       if (callData != null) {
         print('Video call initialized with data: $callData');
 
-        await Get.to(() => VideoCallLoadingScreen(
+        await Get.to(() => NormalVideoCallScreen(
               participant: participant,
-              type: "video",
-              scheduleTime: DateTime.now(),
               meetingId: callData['meetingId'],
               token: callData['token'],
               channel: callData['channelName'],
-              remainingTime: remainingTime.toDouble(),
+              initialTimer: remainingTime.toDouble(),
             ));
       }
     } catch (e) {
@@ -871,14 +871,24 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       if (callData != null) {
         print('Voice call initialized with data: $callData');
 
-        await Get.to(() => VoiceCallLoadingScreen(
+        // await Get.to(() => VoiceCallLoadingScreen(
+        //       participant: participant,
+        //       type: "voice",
+        //       scheduleTime: DateTime.now(),
+        //       meetingId: callData['meetingId'],
+        //       token: callData['token'],
+        //       channel: callData['channelName'],
+        //       remainingTime: remainingTime.toDouble(),
+        //     ));
+        await Get.to(() => NormalVoiceCallScreen(
               participant: participant,
-              type: "voice",
-              scheduleTime: DateTime.now(),
+              // type: "voice",
+              // scheduleTime: DateTime.now(),
               meetingId: callData['meetingId'],
               token: callData['token'],
               channel: callData['channelName'],
-              remainingTime: remainingTime.toDouble(),
+              initialTimer: remainingTime.toDouble(),
+              // remainingTime: remainingTime.toDouble(),
             ));
       }
     } catch (e) {
@@ -2954,11 +2964,8 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
         barrierDismissible: false,
       );
 
-      // Check if the other user is online before proceeding
       final userOnlineController = Get.find<UserOnlineController>();
 
-      // Get the most up-to-date online status directly from the socket
-      // This ensures we have the latest status before joining
       userOnlineController.clearUserStatusCache(otherUserId);
       final bool isOtherUserOnline =
           await userOnlineController.isUserOnline(otherUserId);

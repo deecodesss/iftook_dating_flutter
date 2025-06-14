@@ -197,7 +197,7 @@ class _VoiceCallLoadingScreenState extends State<VoiceCallLoadingScreen> {
     switch (state) {
       case CallState.rejected:
         loadingStateMessage.value =
-            "${widget.participant.name ?? 'User'} declined the call";
+            "${widget.participant.name ?? 'User'} declined the calll";
         break;
       case CallState.busy:
         loadingStateMessage.value =

@@ -55,17 +55,15 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
   Timer? _sessionTimer;
   Timer? _autoPaymentTimer;
   int _remainingSeconds = 0;
-  int _elapsedSeconds = 0; // For growing timer in InstaTalk
-  bool _isCallConnected = false;
+
   bool _sessionExpired = false;
   bool _showingPaymentPrompt = false;
   bool _timerStarted = false;
-  bool _hasRenewedSession = false;
-  bool _isRenewing = false;
-  bool _callEnded = false; // To track if call has been ended by remote user
+
+  bool _callEnded = false;
 
   // Payment variables
-  static const int AUTO_PAYMENT_INTERVAL = 60; // Seconds between auto payments
+  static const int AUTO_PAYMENT_INTERVAL = 60;
   double _ratePerMinute = 0;
   bool _autoPaymentEnabled = false;
 
@@ -74,14 +72,13 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
 
   // Add ChatController for wallet balance
   late final ChatController _chatController;
-  Timer? _walletRefreshTimer; // Timer for refreshing wallet balance
+  Timer? _walletRefreshTimer;
 
   // Get Agora app ID from environment or config
   final String appId = "5da40b914dcf4a089e8bbee75a926178";
 
-  // Add these variables for last-minute payment and draggable timer
   bool _hasSentLastMinutePayment = false;
-  Offset _timerPosition = Offset(20, 80); // Default position for floating timer
+  Offset _timerPosition = Offset(20, 80);
   bool _isDraggingTimer = false;
 
   @override
