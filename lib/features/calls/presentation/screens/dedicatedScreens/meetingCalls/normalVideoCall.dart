@@ -907,16 +907,16 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
               ),
 
               // Rate display
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  '₹${perMinuteRate.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    color: Colors.grey[300],
-                    fontSize: 10,
-                  ),
-                ),
-              ),
+              // Padding(
+              //   padding: const EdgeInsets.only(top: 4),
+              //   child: Text(
+              //     '₹${perMinuteRate.toStringAsFixed(2)}',
+              //     style: TextStyle(
+              //       color: Colors.grey[300],
+              //       fontSize: 10,
+              //     ),
+              //   ),
+              // ),
             ],
           ),
         ),

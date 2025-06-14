@@ -8,6 +8,7 @@ import 'package:iftook/core/services/api_service.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/core/widgets/custom_app_bar.dart';
 import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
+import 'package:iftook/features/friend_requests/controller/friend_controller.dart';
 import 'package:iftook/features/friends/controllers/instaTalkController.dart';
 import 'package:iftook/features/home/presentation/screens/profile_swiper.dart';
 import 'package:iftook/features/home/presentation/screens/schedule_meeting_screen.dart';
@@ -216,6 +217,15 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
       print('Error initializing LiveController: $e');
       _liveController = LiveController();
       Get.put(_liveController);
+    }
+
+    // Initialize FriendController to ensure data is available when needed
+    try {
+      if (!Get.isRegistered<FriendController>()) {
+        Get.put(FriendController());
+      }
+    } catch (e) {
+      print('Error initializing FriendController: $e');
     }
   }
 

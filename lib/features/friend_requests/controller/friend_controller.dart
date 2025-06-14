@@ -21,6 +21,11 @@ class FriendController extends GetxController {
   var instaTalkRequests = <Map<String, dynamic>>[].obs;
   var isInstatalkLoading = false.obs;
 
+  // Add specific loading states for each tab
+  var isMeetingsLoading = false.obs;
+  var isFriendRequestsLoading = false.obs;
+  var isSentRequestsLoading = false.obs;
+
   // Add new observable for current time
   final currentTime = DateTime.now().obs;
   Timer? _timeUpdateTimer;
@@ -29,11 +34,9 @@ class FriendController extends GetxController {
   void onInit() {
     super.onInit();
     _initCurrentUserId();
-    fetchFriendRequests();
-    fetchFriends();
-    fetchSentRequests();
-    fetchMeetings();
-    fetchInstaTalkRequests(); // Add this line
+
+    // Fetch all data on initialization
+    fetchAllData();
 
     // Start timer to update current time every minute
     _timeUpdateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
@@ -47,10 +50,21 @@ class FriendController extends GetxController {
     super.onClose();
   }
 
+  // Add method to fetch all data
+  Future<void> fetchAllData() async {
+    await Future.wait([
+      fetchFriendRequests(),
+      fetchFriends(),
+      fetchSentRequests(),
+      fetchMeetings(),
+      fetchInstaTalkRequests(),
+    ]);
+  }
+
   Future<void> fetchFriendRequests() async {
     try {
       print('request....');
-      isLoading(true);
+      isFriendRequestsLoading(true);
       var response =
           await ApiService.getFriendRequests(); // Replace with your API call
       if (response != null) {
@@ -65,7 +79,7 @@ class FriendController extends GetxController {
     } catch (e) {
       print("Error fetching friend requests: $e");
     } finally {
-      isLoading(false);
+      isFriendRequestsLoading(false);
     }
   }
 
@@ -141,7 +155,7 @@ class FriendController extends GetxController {
 
   Future<void> fetchSentRequests() async {
     try {
-      isLoading(true);
+      isSentRequestsLoading(true);
       final response = await ApiService.getSentFriendRequests();
 
       if (response.statusCode == 200) {
@@ -162,13 +176,13 @@ class FriendController extends GetxController {
       print('Error in fetchSentRequests: $e');
       sentRequests.clear();
     } finally {
-      isLoading(false);
+      isSentRequestsLoading(false);
     }
   }
 
   Future<void> fetchMeetings() async {
     try {
-      isLoading(true);
+      isMeetingsLoading(true);
       final userId = await SharedPrefs.getUserIdSharedPreference();
       print('Fetching meetings for user: $userId');
 
@@ -186,7 +200,7 @@ class FriendController extends GetxController {
     } catch (e) {
       print('Error fetching meetings: $e');
     } finally {
-      isLoading(false);
+      isMeetingsLoading(false);
     }
   }
 

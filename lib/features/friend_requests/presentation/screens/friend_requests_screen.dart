@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -17,7 +16,6 @@ import 'package:iftook/features/friend_requests/controller/friend_controller.dar
 import 'package:iftook/features/friend_requests/data/models/friend_request.dart';
 import 'package:iftook/features/friends/presentation/screens/chat_room_screen.dart';
 import 'package:iftook/features/home/presentation/widgets/user_profile_screen.dart';
-import 'package:iftook/features/instatalk/presentation/instatalk_schedule.dart';
 import 'package:iftook/features/shared/controllers/user_online_controller.dart';
 import 'package:iftook/features/wallet/controllers/wallet_controller.dart';
 import 'package:iftook/helpers/app_colors.dart';
@@ -60,7 +58,7 @@ class FriendRequestsScreen extends StatefulWidget {
 class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     with SingleTickerProviderStateMixin {
   FriendController controller = Get.put(FriendController());
-  final ChatController _chatController = Get.put(ChatController());
+  // final ChatController _chatController = Get.put(ChatController());
 
   late TabController _tabController;
   late Timer _timer;
@@ -144,34 +142,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     }
 
     return '${DateFormat('MMM d, h:mm a').format(meetingTime)} IST';
-  }
-
-  Widget _buildMeetingTimeIndicator(DateTime meetingTime) {
-    final now = DateTime.now();
-    final difference = meetingTime.difference(now);
-
-    String timeText;
-    Color timeColor;
-
-    if (difference.isNegative) {
-      timeText = 'Started ${-difference.inMinutes} min ago';
-      timeColor = AppColors.greenColor;
-    } else if (difference.inMinutes < 60) {
-      timeText = 'In ${difference.inMinutes} min';
-      timeColor = AppColors.primaryColor;
-    } else {
-      timeText = _formatMeetingTime(meetingTime);
-      timeColor = Colors.white70;
-    }
-
-    return Text(
-      timeText,
-      style: TextStyle(
-        color: timeColor,
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-      ),
-    );
   }
 
   void _showAcceptWarning(BuildContext context, String reqId) {
@@ -355,10 +325,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     );
   }
 
-  DateTime _convertToIST(DateTime utc) {
-    return utc.add(const Duration(hours: 5, minutes: 30));
-  }
-
   String _getMeetingStatus(DateTime scheduledTime, String currentStatus) {
     final now = DateTime.now();
     final minutesDifference = now.difference(scheduledTime).inMinutes;
@@ -392,42 +358,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         return Colors.blue;
       default:
         return Colors.grey;
-    }
-  }
-
-  Future<void> _handleProfileNavigation(String userId) async {
-    try {
-      Get.dialog(
-        WillPopScope(
-          onWillPop: () async => false,
-          child: const Center(child: CircularProgressIndicator()),
-        ),
-        barrierDismissible: false,
-      );
-
-      final response = await ApiService.getUserById(userId);
-
-      if (!response.body.contains('success')) {
-        throw Exception('Invalid response format');
-      }
-
-      final data = jsonDecode(response.body);
-      if (data['success'] == true && data['data'] != null) {
-        final userProfile = User.fromJson(data['data']);
-        Get.back();
-        Get.to(() => UserProfileScreen(profile: userProfile));
-      } else {
-        throw Exception('Failed to load profile data');
-      }
-    } catch (e) {
-      Get.back();
-      Get.snackbar(
-        'Error',
-        'Could not load profile. Please try again.',
-        backgroundColor: Colors.red.withOpacity(0.8),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-      );
     }
   }
 
@@ -570,22 +500,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                     _showContinueSessionDialog(participant, amount, type),
               ));
           break;
-        // case 'voice':
-        //   await Get.to(() => ITVoiceCallScreen(
-        //         meetingId: meetingId,
-        //         participant: participant,
-        //         token: meeting['token'],
-        //         channel: meeting['channelName'],
-
-        //         // scheduleTime: DateTime.now(),
-        //         // type: "voice",
-        //         // isInstatalk: true,
-        //         // isTrial: isTrial,
-        //         // instaTalkDuration: meeting['duration'],
-        //         onSessionEnd: () =>
-        //             _showContinueSessionDialog(participant, amount, type),
-        //       ));
-        //   break;
 
         case 'video':
           await Get.to(() => ITVideoCallScreen(
@@ -622,7 +536,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       final userData = meeting['user'];
       final participantData = meeting['participant'];
       final type = meeting['type'];
-      final scheduledTime = DateTime.parse(meeting['scheduledTime']);
       final meetingId = meeting['_id'];
 
       // Get token and channel data from the meeting
@@ -653,6 +566,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       } else if (userId == currentUserId && participantId != currentUserId) {
         correctParticipantData = participantData;
       } else {
+        // Default fallback
         correctParticipantData = participantData;
       }
 
@@ -668,64 +582,62 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             voice: correctParticipantData['earnings']['voice'] ?? 0,
           ));
 
+      // --- REFACTORED AND CORRECTED TIME CALCULATION ---
+
+      final scheduledTime = DateTime.parse(meeting['scheduledTime']);
+      final totalDurationInMinutes = (meeting['duration'] is int)
+          ? meeting['duration'] as int
+          : int.tryParse('${meeting['duration']}') ?? 30;
+
+      // 1. Calculate the exact time the meeting is supposed to end.
+      final meetingEndTime =
+          scheduledTime.add(Duration(minutes: totalDurationInMinutes));
+
+      // 2. Find the difference between the end time and the current time.
+      final remainingDuration = meetingEndTime.difference(DateTime.now());
+
+      // 3. Convert the remaining duration to minutes as a double.
+      // If the duration is negative (meeting already ended), it results in 0.0.
+      final double remainingTime = remainingDuration.isNegative
+          ? 0.0
+          : remainingDuration.inSeconds / 60.0;
+
       print('Joining regular meeting: $meetingId');
       print('Meeting type: $type');
       print('Scheduled time: $scheduledTime');
+      print('Total duration: $totalDurationInMinutes minutes');
+      print('Calculated end time: $meetingEndTime');
+      print('Calculated remaining time: $remainingTime minutes');
       print('Selected participant: ${participant.name} (${participant.sId})');
       if (usedWrongParticipant) {
         print(
             'WARNING: Had to swap participant and user due to incorrect IDs!');
       }
 
-      // Check if token and channel are available in the meeting data
+      // You can prevent joining a voice/video call that has already ended
+      if (remainingTime <= 0 && (type == 'voice' || type == 'video')) {
+        print('Cannot join call, it has already ended.');
+        Get.snackbar(
+          'Meeting Ended',
+          'This call has already concluded.',
+          backgroundColor: Colors.orange.withOpacity(0.8),
+          colorText: Colors.white,
+        );
+        return; // Exit the function
+      }
+
+      // The logic inside both branches of this if/else is now identical for
+      // voice and video calls, making the code much cleaner.
       if (channelName.isNotEmpty && token.isNotEmpty) {
         print('Using existing Agora credentials from meeting data');
 
         switch (type) {
           case 'voice':
-            final now = DateTime.now();
-            final scheduledTime = DateTime.parse(meeting['scheduledTime']);
-
-            final totalDuration = (meeting['duration'] is int)
-                ? meeting['duration'] as int
-                : int.tryParse('${meeting['duration']}') ?? 30;
-
-            // Calculate seconds elapsed for more precision
-            final secondsElapsed = now.difference(scheduledTime).inSeconds;
-            final totalSeconds = totalDuration * 60;
-            final remainingSeconds =
-                math.max(60, totalSeconds - secondsElapsed);
-
-            // Convert to minutes with decimal part
-            final remainingTime = remainingSeconds / 60.0;
-
-            print(
-                'Remaining time for voice call: $remainingTime minutes (Total: $totalDuration minutes)');
-
             await _handleChatVoiceCall(participant, meetingId,
                 remainingTime: remainingTime);
             break;
 
           case 'video':
-            final now = DateTime.now();
-            final scheduledTime = DateTime.parse(meeting['scheduledTime']);
-
-            final totalDuration = (meeting['duration'] is int)
-                ? meeting['duration'] as int
-                : int.tryParse('${meeting['duration']}') ?? 30;
-
-            // Calculate seconds elapsed for more precision
-            final secondsElapsed = now.difference(scheduledTime).inSeconds;
-            final totalSeconds = totalDuration * 60;
-            final remainingSeconds =
-                math.max(60, totalSeconds - secondsElapsed);
-
-            // Convert to minutes with decimal part
-            final remainingTime = remainingSeconds / 60.0;
-
-            print(
-                'remainingTime: $remainingTime minutes (Total: $totalDuration minutes)');
-
             await _handleNormalMeetingVideoCall(participant, meetingId,
                 remainingTime: remainingTime);
             break;
@@ -736,7 +648,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                   duration: meeting['duration'],
                   isFriend: false,
                   isInstatalkSender: controller.isInstatalkSender(meeting),
-                  scheduledTime: DateTime.parse(meeting['scheduledTime']),
+                  scheduledTime: scheduledTime,
                 ));
             break;
         }
@@ -746,49 +658,14 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
 
         switch (type) {
           case 'voice':
-            final now = DateTime.now();
-            final scheduledTime = DateTime.parse(meeting['scheduledTime']);
-
-            final totalDuration = (meeting['duration'] is int)
-                ? meeting['duration'] as int
-                : int.tryParse('${meeting['duration']}') ?? 30;
-
-            final minutesElapsed = now.difference(scheduledTime).inMinutes;
-
-            final remainingTime =
-                math.max<int>(1, totalDuration - minutesElapsed);
-
-            print(
-                'Remaining time for voice call: $remainingTime minutes (Total: $totalDuration minutes)');
-
             await _handleChatVoiceCall(participant, meetingId,
                 remainingTime: remainingTime);
             break;
 
           case 'video':
-            final now = DateTime.now();
-            final scheduledTime = DateTime.parse(meeting['scheduledTime']);
-
-            final totalDuration = (meeting['duration'] is int)
-                ? meeting['duration'] as int
-                : int.tryParse('${meeting['duration']}') ?? 30;
-
-            // Calculate seconds elapsed for more precision
-            final secondsElapsed = now.difference(scheduledTime).inSeconds;
-            final totalSeconds = totalDuration * 60;
-            final remainingSeconds =
-                math.max(60, totalSeconds - secondsElapsed);
-
-            // Convert to minutes with decimal part
-            final remainingTime = remainingSeconds / 60.0;
-
-            print(
-                'remainingTime: $remainingTime minutes (Total: $totalDuration minutes)');
-
             await _handleNormalMeetingVideoCall(participant, meetingId,
                 remainingTime: remainingTime);
             break;
-
           case 'chat':
             await Get.to(() => ChatRoomScreen(
                   profile: participant,
@@ -796,7 +673,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                   duration: meeting['duration'],
                   isFriend: false,
                   isInstatalkSender: controller.isInstatalkSender(meeting),
-                  scheduledTime: DateTime.parse(meeting['scheduledTime']),
+                  scheduledTime: scheduledTime,
                 ));
             break;
         }
@@ -2311,11 +2188,11 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
               final bool isUserInCall = callSnapshot.data?['inCall'] ?? false;
               final String? callType = callSnapshot.data?['callType'];
 
-              final bool canJoin = isAccepted &&
-                  isActive &&
-                  !hasUsedTime &&
-                  isOtherUserOnline &&
-                  !isUserInCall;
+              // final bool canJoin = isAccepted &&
+              //     isActive &&
+              //     !hasUsedTime &&
+              //     isOtherUserOnline &&
+              //     !isUserInCall;
 
               final DateTime createdAt =
                   DateTime.parse(instaTalk['scheduledTime']);
@@ -2381,18 +2258,31 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
                                       width: 2,
                                     ),
                                   ),
-                                  child: CircleAvatar(
-                                    radius: 24,
-                                    backgroundImage: _getProfileImage(isSender
-                                        ? instaTalk['participant']
-                                        : instaTalk['user']),
-                                    child: _getProfileImage(isSender
-                                                ? instaTalk['participant']
-                                                : instaTalk['user']) ==
-                                            null
-                                        ? const Icon(Icons.person,
-                                            color: Colors.white70)
-                                        : null,
+                                  child: InkWell(
+                                    onTap: () {
+                                      // Handle profile image tap
+                                      // if (isSender) {
+
+                                      //   Get.to(() => UserProfileScreen(
+                                      //       profile: instaTalk['participant']));
+                                      // } else {
+                                      //   Get.to(() => UserProfileScreen(
+                                      //       profile: instaTalk['user']));
+                                      // }
+                                    },
+                                    child: CircleAvatar(
+                                      radius: 24,
+                                      backgroundImage: _getProfileImage(isSender
+                                          ? instaTalk['participant']
+                                          : instaTalk['user']),
+                                      child: _getProfileImage(isSender
+                                                  ? instaTalk['participant']
+                                                  : instaTalk['user']) ==
+                                              null
+                                          ? const Icon(Icons.person,
+                                              color: Colors.white70)
+                                          : null,
+                                    ),
                                   ),
                                 ),
                                 // Online status indicator
