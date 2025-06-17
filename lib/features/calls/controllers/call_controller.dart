@@ -566,6 +566,9 @@ class CallController extends GetxController {
 
           // Auto end call and go back when remote user leaves
           endCall();
+          //    Get.off(() => AddReviewScreen(
+          //   userId: widget.participant.sId ?? '',
+          // ));
           Get.back();
         },
         onConnectionStateChanged: (RtcConnection connection,
@@ -662,7 +665,7 @@ class CallController extends GetxController {
 
   void endCall() {
     try {
-      _engine?.leaveChannel();
+      _engine.leaveChannel();
       _remoteUid.value = 0;
       isCallActive.value = false;
       hasRemoteUserJoined.value = false;

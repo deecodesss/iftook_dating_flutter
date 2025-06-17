@@ -1131,162 +1131,582 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
       selectedTime.minute,
     );
 
+    // Show modern scheduling flow modal
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      isScrollControlled: true,
+      builder: (context) => _MeetingSchedulingFlowModal(
+        participant: widget.participant,
+        meetingType: widget.type,
+        scheduleTime: scheduleTime,
+        meetingRate: meetingRate,
+        isInstant: widget.isInstant,
+        onSchedule: () async {
+          return await _homeController.createMeeting(
+            widget.participant.sId!,
+            widget.type.toApiValue(),
+            scheduleTime,
+            meetingRate,
+          );
+        },
+        onComplete: () {
+          Get.back(); // Go back to previous screen
+        },
+      ),
+    );
+  }
+}
+
+class _MeetingSchedulingFlowModal extends StatefulWidget {
+  final User participant;
+  final MeetingType meetingType;
+  final DateTime scheduleTime;
+  final double meetingRate;
+  final bool isInstant;
+  final Future<bool> Function() onSchedule;
+  final VoidCallback onComplete;
+
+  const _MeetingSchedulingFlowModal({
+    required this.participant,
+    required this.meetingType,
+    required this.scheduleTime,
+    required this.meetingRate,
+    required this.isInstant,
+    required this.onSchedule,
+    required this.onComplete,
+  });
+
+  @override
+  State<_MeetingSchedulingFlowModal> createState() =>
+      _MeetingSchedulingFlowModalState();
+}
+
+enum MeetingSchedulingState { loading, success, error }
+
+class _MeetingSchedulingFlowModalState
+    extends State<_MeetingSchedulingFlowModal> with TickerProviderStateMixin {
+  MeetingSchedulingState _currentState = MeetingSchedulingState.loading;
+  late AnimationController _scaleController;
+  late AnimationController _slideController;
+  late Animation<double> _scaleAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _scaleController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOut,
+    ));
+
+    // Start animations
+    _scaleController.forward();
+    _slideController.forward();
+
+    // Start the scheduling process
+    _performScheduling();
+  }
+
+  @override
+  void dispose() {
+    _scaleController.dispose();
+    _slideController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _performScheduling() async {
     try {
-      // Replace the dialog with a bottom loading indicator
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isDismissible: false,
-        builder: (context) => Container(
-          height: 140,
-          padding: const EdgeInsets.all(16),
+      // Wait for at least 1.5 seconds to show loading state
+      final results = await Future.wait([
+        widget.onSchedule(),
+        Future.delayed(const Duration(milliseconds: 1500)),
+      ]);
+
+      final success = results[0] as bool;
+
+      // Check if widget is still mounted
+      if (mounted) {
+        setState(() {
+          _currentState = success
+              ? MeetingSchedulingState.success
+              : MeetingSchedulingState.error;
+        });
+
+        // Reset and replay animations for state transition
+        _scaleController.reset();
+        _slideController.reset();
+
+        _scaleController.duration = const Duration(milliseconds: 200);
+        _slideController.duration = const Duration(milliseconds: 200);
+
+        _scaleController.forward();
+        _slideController.forward();
+      }
+    } catch (e) {
+      print('Error scheduling meeting: $e');
+      if (mounted) {
+        setState(() {
+          _currentState = MeetingSchedulingState.error;
+        });
+
+        // Reset and replay animations for error state
+        _scaleController.reset();
+        _slideController.reset();
+
+        _scaleController.duration = const Duration(milliseconds: 200);
+        _slideController.duration = const Duration(milliseconds: 200);
+
+        _scaleController.forward();
+        _slideController.forward();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.5),
+      ),
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.grey[900],
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(
-                'Scheduling meeting...',
-                style: TextStyle(color: Colors.grey[400]),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.grey[900]!,
+                Colors.grey[850]!,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.grey[800]!.withOpacity(0.5),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: _buildContent(),
+            ),
+          ),
         ),
-      );
+      ),
+    );
+  }
 
-      final success = await _homeController.createMeeting(
-        widget.participant.sId!,
-        widget.type.toApiValue(),
-        scheduleTime,
-        meetingRate,
-      );
-
-      // Remove loading sheet
-      Navigator.pop(context);
-
-      if (success) {
-        // Show success bottom sheet
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: Colors.transparent,
-          builder: (context) => Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.grey[900],
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.check_circle_outline,
-                      color: Colors.green, size: 40),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Meeting Scheduled Successfully',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Your meeting has been scheduled for ${DateFormat('MMM d, yyyy - h:mm a').format(scheduleTime)}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[400]),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryColor,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context); // Close bottom sheet
-                      Get.back(); // Go back to previous screen
-                    },
-                    child: const Text(
-                      'Done',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      } else {
-        // Show error bottom sheet
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: Colors.transparent,
-          builder: (context) => Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.grey[900],
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.error_outline,
-                      color: Colors.red, size: 40),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Failed to Schedule Meeting',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Please try again later',
-                  style: TextStyle(color: Colors.grey[400]),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Close'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      Navigator.pop(context); // Remove loading indicator
-      print('Error scheduling meeting: $e');
+  Widget _buildContent() {
+    switch (_currentState) {
+      case MeetingSchedulingState.loading:
+        return _buildLoadingState();
+      case MeetingSchedulingState.success:
+        return _buildSuccessState();
+      case MeetingSchedulingState.error:
+        return _buildErrorState();
     }
+  }
+
+  Widget _buildLoadingState() {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Animated loading indicator
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppColors.primaryColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 60,
+                  height: 60,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.primaryColor,
+                    ),
+                  ),
+                ),
+                Icon(
+                  widget.isInstant
+                      ? Icons.flash_on_outlined
+                      : Icons.schedule_outlined,
+                  color: AppColors.primaryColor,
+                  size: 24,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          Text(
+            widget.isInstant ? 'Starting Session' : 'Scheduling Meeting',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            widget.isInstant
+                ? 'Preparing your instant session...'
+                : 'Setting up your meeting...',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 14,
+              height: 1.4,
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Progress indicators
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildProgressDot(true),
+              _buildProgressLine(true),
+              _buildProgressDot(false),
+              _buildProgressLine(false),
+              _buildProgressDot(false),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuccessState() {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Success icon
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.check_circle_outline,
+              color: Colors.green,
+              size: 48,
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          Text(
+            widget.isInstant ? 'Session Started!' : 'Meeting Scheduled!',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            widget.isInstant
+                ? 'Your instant ${widget.meetingType.value} session with ${widget.participant.name} has started successfully.'
+                : 'Your ${widget.meetingType.value} meeting with ${widget.participant.name} has been scheduled successfully.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 14,
+              height: 1.4,
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          // Meeting details card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[800]!.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.green.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      widget.meetingType == MeetingType.video
+                          ? Icons.videocam_outlined
+                          : widget.meetingType == MeetingType.voice
+                              ? Icons.phone_outlined
+                              : Icons.chat_bubble_outline,
+                      color: Colors.green,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${widget.meetingType.value.toUpperCase()} Session',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                if (!widget.isInstant) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.schedule_outlined,
+                        color: Colors.grey[400],
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        DateFormat('MMM d, yyyy - h:mm a')
+                            .format(widget.scheduleTime),
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.payments_outlined,
+                      color: Colors.grey[400],
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '₹${widget.meetingRate.toStringAsFixed(0)} for 30 minutes',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                widget.onComplete();
+              },
+              child: const Text(
+                'Done',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Error icon
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.error_outline,
+              color: Colors.red,
+              size: 48,
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          Text(
+            widget.isInstant ? 'Session Failed' : 'Scheduling Failed',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            widget.isInstant
+                ? 'We couldn\'t start your session. Please check your connection and try again.'
+                : 'We couldn\'t schedule your meeting. Please check your connection and try again.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 14,
+              height: 1.4,
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: BorderSide(color: Colors.grey[600]!),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // Retry by calling the original function again
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      (context as Element)
+                          .findAncestorStateOfType<
+                              _ScheduleMeetingScreenState>()
+                          ?._scheduleMeeting();
+                    });
+                  },
+                  child: const Text(
+                    'Retry',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressDot(bool isActive) {
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: isActive ? AppColors.primaryColor : Colors.grey[700],
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+
+  Widget _buildProgressLine(bool isActive) {
+    return Container(
+      width: 20,
+      height: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: isActive ? AppColors.primaryColor : Colors.grey[700],
+        borderRadius: BorderRadius.circular(1),
+      ),
+    );
   }
 }

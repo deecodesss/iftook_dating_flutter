@@ -704,171 +704,554 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
   }
 
   void _scheduleInstatalk() async {
+    // Show modern scheduling flow modal
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      isScrollControlled: true,
+      builder: (context) => _SchedulingFlowModal(
+        participant: widget.participant,
+        selectedType: _selectedType,
+        isTrialUsed: isTrialUsed,
+        meetingRate: meetingRate,
+        durationInMinutes: durationInMinutes,
+        onSchedule: () async {
+          return await _instaTalkController.createInstaTalk(
+            widget.participant.sId!,
+            _selectedType.toApiValue(),
+          );
+        },
+        onComplete: () {
+          Get.back(); // Go back to previous screen
+        },
+      ),
+    );
+  }
+}
+
+class _SchedulingFlowModal extends StatefulWidget {
+  final User participant;
+  final MeetingType selectedType;
+  final bool isTrialUsed;
+  final double meetingRate;
+  final int durationInMinutes;
+  final Future<dynamic> Function() onSchedule;
+  final VoidCallback onComplete;
+
+  const _SchedulingFlowModal({
+    required this.participant,
+    required this.selectedType,
+    required this.isTrialUsed,
+    required this.meetingRate,
+    required this.durationInMinutes,
+    required this.onSchedule,
+    required this.onComplete,
+  });
+
+  @override
+  State<_SchedulingFlowModal> createState() => _SchedulingFlowModalState();
+}
+
+enum SchedulingState { loading, success, error }
+
+class _SchedulingFlowModalState extends State<_SchedulingFlowModal>
+    with TickerProviderStateMixin {
+  SchedulingState _currentState = SchedulingState.loading;
+  late AnimationController _scaleController;
+  late AnimationController _slideController;
+  late Animation<double> _scaleAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 400), // Reduced from 800ms
+      vsync: this,
+    );
+
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 300), // Reduced from 600ms
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(
+      begin: 0.8, // Changed from 0.0 to 0.8 for less dramatic scaling
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _scaleController,
+      curve: Curves
+          .easeOutCubic, // Changed from Curves.elasticOut for gentler animation
+    ));
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1), // Reduced from 0.3 to 0.1 for subtle slide
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves
+          .easeOut, // Changed from Curves.easeOutQuart for smoother animation
+    ));
+
+    // Start animations
+    _scaleController.forward();
+    _slideController.forward();
+
+    // Start the scheduling process
+    _performScheduling();
+  }
+
+  @override
+  void dispose() {
+    _scaleController.dispose();
+    _slideController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _performScheduling() async {
     try {
-      // Show loading indicator
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isDismissible: false,
-        builder: (context) => Container(
-          height: 140,
-          padding: const EdgeInsets.all(16),
+      // Wait for at least 1.5 seconds to show loading state (reduced from 2 seconds)
+      await Future.wait([
+        widget.onSchedule(),
+        Future.delayed(const Duration(milliseconds: 1500)),
+      ]);
+
+      // Check if widget is still mounted
+      if (mounted) {
+        setState(() {
+          _currentState = SchedulingState.success;
+        });
+
+        // Reset and replay animations for success state with reduced intensity
+        _scaleController.reset();
+        _slideController.reset();
+
+        // Use faster, subtler animations for state transitions
+        _scaleController.duration = const Duration(milliseconds: 200);
+        _slideController.duration = const Duration(milliseconds: 200);
+
+        _scaleController.forward();
+        _slideController.forward();
+      }
+    } catch (e) {
+      print('Error scheduling InstaTalk: $e');
+      if (mounted) {
+        setState(() {
+          _currentState = SchedulingState.error;
+        });
+
+        // Reset and replay animations for error state with reduced intensity
+        _scaleController.reset();
+        _slideController.reset();
+
+        // Use faster, subtler animations for state transitions
+        _scaleController.duration = const Duration(milliseconds: 200);
+        _slideController.duration = const Duration(milliseconds: 200);
+
+        _scaleController.forward();
+        _slideController.forward();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.5),
+      ),
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.grey[900],
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(
-                'Sending InstaTalk Request....',
-                style: TextStyle(color: Colors.grey[400]),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.grey[900]!,
+                Colors.grey[850]!,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.grey[800]!.withOpacity(0.5),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: _buildContent(),
+            ),
+          ),
         ),
-      );
+      ),
+    );
+  }
 
-      // Create InstaTalk request
-      final result = await _instaTalkController.createInstaTalk(
-        widget.participant.sId!,
-        _selectedType.toApiValue(),
-      );
-
-      // Remove loading sheet
-      Navigator.pop(context);
-
-      // Check if result is not null
-      if (result != null) {
-        // Show success bottom sheet
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: Colors.transparent,
-          builder: (context) => Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.grey[900],
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.check_circle_outline,
-                      color: Colors.green, size: 40),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  isTrialUsed ? 'InstaTalk Renewed' : 'InstaTalk Request Sent',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  isTrialUsed
-                      ? 'Your InstaTalk session has been renewed'
-                      : 'You will be notified when ${widget.participant.name} accepts your request',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[400]),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryColor,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context); // Close bottom sheet
-                      Get.back(); // Go back to previous screen
-                    },
-                    child: const Text('Done'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      } else {
-        // Show error bottom sheet only if result is null
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: Colors.transparent,
-          builder: (context) => Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.grey[900],
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.error_outline,
-                      color: Colors.red, size: 40),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Failed to Send Request',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Please try again later',
-                  style: TextStyle(color: Colors.grey[400]),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Close'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      // Handle errors
-      Navigator.pop(context); // Remove loading indicator
-      print('Error scheduling InstaTalk: $e');
-
-      // Show error snackbar
-      Get.snackbar(
-        'Error',
-        'Failed to send InstaTalk request. Please try again.',
-        backgroundColor: Colors.red.withOpacity(0.8),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-      );
+  Widget _buildContent() {
+    switch (_currentState) {
+      case SchedulingState.loading:
+        return _buildLoadingState();
+      case SchedulingState.success:
+        return _buildSuccessState();
+      case SchedulingState.error:
+        return _buildErrorState();
     }
+  }
+
+  Widget _buildLoadingState() {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Animated loading indicator
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppColors.primaryColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 60,
+                  height: 60,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.primaryColor,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.send_outlined,
+                  color: AppColors.primaryColor,
+                  size: 24,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          const Text(
+            'Sending Request',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            'Preparing your InstaTalk request...',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 14,
+              height: 1.4,
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Progress indicators
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildProgressDot(true),
+              _buildProgressLine(true),
+              _buildProgressDot(false),
+              _buildProgressLine(false),
+              _buildProgressDot(false),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuccessState() {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Success icon with animation
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.check_circle_outline,
+              color: Colors.green,
+              size: 48,
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          Text(
+            widget.isTrialUsed ? 'InstaTalk Renewed!' : 'Request Sent!',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            widget.isTrialUsed
+                ? 'Your InstaTalk session with ${widget.participant.name} has been renewed successfully.'
+                : 'Your InstaTalk request has been sent to ${widget.participant.name}. You\'ll be notified when they respond.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 14,
+              height: 1.4,
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          // Session details card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[800]!.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.green.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      widget.selectedType == MeetingType.video
+                          ? Icons.videocam_outlined
+                          : widget.selectedType == MeetingType.voice
+                              ? Icons.phone_outlined
+                              : Icons.chat_bubble_outline,
+                      color: Colors.green,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${widget.selectedType.value.toUpperCase()} Session',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                if (widget.isTrialUsed) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.payments_outlined,
+                        color: Colors.grey[400],
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '₹${widget.meetingRate.toStringAsFixed(0)} for ${widget.durationInMinutes} minute${widget.durationInMinutes > 1 ? 's' : ''}',
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                widget.onComplete();
+              },
+              child: const Text(
+                'Done',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Error icon
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.error_outline,
+              color: Colors.red,
+              size: 48,
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          const Text(
+            'Request Failed',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            'We couldn\'t send your InstaTalk request. Please check your connection and try again.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 14,
+              height: 1.4,
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: BorderSide(color: Colors.grey[600]!),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // Retry by calling the original function again
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      (context as Element)
+                          .findAncestorStateOfType<
+                              _ScheduleInstaTalkScreenState>()
+                          ?._scheduleInstatalk();
+                    });
+                  },
+                  child: const Text(
+                    'Retry',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressDot(bool isActive) {
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: isActive ? AppColors.primaryColor : Colors.grey[700],
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+
+  Widget _buildProgressLine(bool isActive) {
+    return Container(
+      width: 20,
+      height: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: isActive ? AppColors.primaryColor : Colors.grey[700],
+        borderRadius: BorderRadius.circular(1),
+      ),
+    );
   }
 }
