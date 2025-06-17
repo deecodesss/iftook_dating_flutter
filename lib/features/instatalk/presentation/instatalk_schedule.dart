@@ -130,6 +130,7 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        scrolledUnderElevation: 0,
         title: Text("InstaTalk with ${widget.participant.name}"),
       ),
       body: isLoading
@@ -142,177 +143,406 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Participant Info
-                        Card(
-                          child: ListTile(
-                            title: Text(widget.participant.name ?? 'User'),
-                            subtitle: Text(widget.participant.profession ?? ''),
-                            leading: CircleAvatar(
-                              backgroundImage:
-                                  widget.participant.photos?.isNotEmpty == true
-                                      ? NetworkImage(
-                                          widget.participant.photos!.first)
-                                      : null,
-                              child: widget.participant.photos?.isEmpty == true
-                                  ? Icon(Icons.person)
-                                  : null,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Trial Status
+                        // Combined User Profile & Pricing Card
                         Container(
-                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: isTrialUsed
-                                ? Colors.amber.withOpacity(0.2)
-                                : Colors.green.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isTrialUsed
-                                  ? Colors.amber
-                                  : Colors.green.withOpacity(0.8),
-                              width: 0.1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                isTrialUsed
-                                    ? Icons.warning_amber_rounded
-                                    : Icons.emoji_events,
-                                color:
-                                    isTrialUsed ? Colors.amber : Colors.green,
-                                size: 24,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  isTrialUsed
-                                      ? 'Free trial already used'
-                                      : 'Free trial available',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Meeting Type Selection
-                        Text(
-                          'Select Meeting Type',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _buildTypeOption(MeetingType.chat,
-                                Icons.chat_bubble_outline, 'Chat'),
-                            _buildTypeOption(MeetingType.voice,
-                                Icons.phone_outlined, 'Voice'),
-                            _buildTypeOption(MeetingType.video,
-                                Icons.videocam_outlined, 'Video'),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-
-                        // // Duration Selection (only for non-trial)
-                        // if (isTrialUsed) ...[
-                        //   Text(
-                        //     'Select Duration',
-                        //     style: TextStyle(
-                        //       fontSize: 16,
-                        //       fontWeight: FontWeight.bold,
-                        //       color: Colors.white,
-                        //     ),
-                        //   ),
-                        //   const SizedBox(height: 12),
-                        //   Row(
-                        //     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        //     children: [
-                        //       _buildDurationOption(1, '1 min'),
-                        //       // _buildDurationOption(10, '10 min'),
-                        //       // _buildDurationOption(30, '30 min'),
-                        //     ],
-                        //   ),
-                        const SizedBox(height: 24),
-                        // ],
-
-                        // Rate Card
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  isTrialUsed
-                                      ? 'Rate for $durationInMinutes minutes'
-                                      : 'Trial (free)',
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                                Text(
-                                  isTrialUsed
-                                      ? '₹${(meetingRate).toStringAsFixed(0)}'
-                                      : 'FREE',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: isTrialUsed
-                                        ? AppColors.primaryColor
-                                        : Colors.green,
-                                  ),
-                                ),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                const Color.fromARGB(255, 21, 21, 21)!,
+                                const Color.fromARGB(255, 29, 29, 29)!,
                               ],
                             ),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: const Color.fromARGB(255, 38, 38, 38)!
+                                  .withOpacity(0.5),
+                              width: 1,
+                            ),
                           ),
-                        ),
-
-                        // Wallet Balance (only show if not free trial)
-                        if (isTrialUsed)
-                          Obx(() => Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Wallet Balance',
-                                        style: TextStyle(color: Colors.white),
+                          child: Column(children: [
+                            // User Profile Header
+                            Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(
+                                        color: AppColors.primaryColor
+                                            .withOpacity(0.3),
+                                        width: 2,
                                       ),
-                                      Text(
-                                        '₹${_homeController.userWalletBalance.value.toStringAsFixed(0)}',
-                                        style: TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          color: _homeController
-                                                      .userWalletBalance
-                                                      .value >=
-                                                  (meetingRate *
-                                                      durationInMinutes /
-                                                      30)
-                                              ? Colors.green
-                                              : Colors.red,
+                                    ),
+                                    child: CircleAvatar(
+                                      radius: 30,
+                                      backgroundImage: widget.participant.photos
+                                                  ?.isNotEmpty ==
+                                              true
+                                          ? NetworkImage(
+                                              widget.participant.photos!.first)
+                                          : null,
+                                      child:
+                                          widget.participant.photos?.isEmpty ==
+                                                  true
+                                              ? Icon(Icons.person,
+                                                  size: 30,
+                                                  color: Colors.grey[400])
+                                              : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          widget.participant.name ?? 'User',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                         ),
+                                        const SizedBox(height: 4),
+                                        if (widget.participant.profession !=
+                                            null)
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.work_outline,
+                                                color: Colors.grey[400],
+                                                size: 16,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                widget.participant.profession!,
+                                                style: TextStyle(
+                                                  color: Colors.grey[400],
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        const SizedBox(height: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: isTrialUsed
+                                                ? Colors.amber.withOpacity(0.1)
+                                                : Colors.green.withOpacity(0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                            border: Border.all(
+                                              color: isTrialUsed
+                                                  ? Colors.amber
+                                                      .withOpacity(0.3)
+                                                  : Colors.green
+                                                      .withOpacity(0.3),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                isTrialUsed
+                                                    ? Icons
+                                                        .warning_amber_rounded
+                                                    : Icons.emoji_events,
+                                                color: isTrialUsed
+                                                    ? Colors.amber
+                                                    : Colors.green,
+                                                size: 14,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                isTrialUsed
+                                                    ? 'TRIAL USED'
+                                                    : 'FREE TRIAL',
+                                                style: TextStyle(
+                                                  color: isTrialUsed
+                                                      ? Colors.amber
+                                                      : Colors.green,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w700,
+                                                  letterSpacing: 0.5,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Divider
+                            Container(
+                              height: 1,
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.grey[700]!.withOpacity(0.5),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            // Rate and Wallet Section
+                            Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(children: [
+                                // Rate Section
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.blue[400]!.withOpacity(0.2),
+                                            Colors.blue[600]!.withOpacity(0.1),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(14),
                                       ),
+                                      child: Icon(
+                                        Icons.monetization_on_outlined,
+                                        color: Colors.blue[300],
+                                        size: 22,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            isTrialUsed
+                                                ? 'Rate for $durationInMinutes minutes'
+                                                : 'Trial Session',
+                                            style: TextStyle(
+                                              color: Colors.grey[400],
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                              letterSpacing: 0.3,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.baseline,
+                                            textBaseline:
+                                                TextBaseline.alphabetic,
+                                            children: [
+                                              Text(
+                                                isTrialUsed
+                                                    ? '₹${(meetingRate).toStringAsFixed(0)}'
+                                                    : 'FREE',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 20,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              if (isTrialUsed) ...[
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  '/min',
+                                                  style: TextStyle(
+                                                    color: Colors.grey[500],
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                // Wallet Section (only if trial used)
+                                if (isTrialUsed) ...[
+                                  const SizedBox(height: 16),
+                                  Obx(
+                                    () {
+                                      final hasBalance = _homeController
+                                              .userWalletBalance.value >=
+                                          (meetingRate *
+                                              durationInMinutes /
+                                              30);
+                                      return Row(children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: hasBalance
+                                                  ? [
+                                                      Colors.green[400]!
+                                                          .withOpacity(0.2),
+                                                      Colors.green[600]!
+                                                          .withOpacity(0.1),
+                                                    ]
+                                                  : [
+                                                      Colors.orange[400]!
+                                                          .withOpacity(0.2),
+                                                      Colors.orange[600]!
+                                                          .withOpacity(0.1),
+                                                    ],
+                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                          ),
+                                          child: Icon(
+                                            hasBalance
+                                                ? Icons.account_balance_wallet
+                                                : Icons
+                                                    .account_balance_wallet_outlined,
+                                            color: hasBalance
+                                                ? Colors.green[300]
+                                                : Colors.orange[300],
+                                            size: 22,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Wallet Balance',
+                                                  style: TextStyle(
+                                                    color: Colors.grey[400],
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w500,
+                                                    letterSpacing: 0.3,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Row(
+                                                  children: [
+                                                    Text(
+                                                      '₹${_homeController.userWalletBalance.value.toStringAsFixed(0)}',
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 20,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Container(
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 3,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: hasBalance
+                                                            ? Colors.green[400]!
+                                                                .withOpacity(
+                                                                    0.2)
+                                                            : Colors
+                                                                .orange[400]!
+                                                                .withOpacity(
+                                                                    0.2),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(8),
+                                                      ),
+                                                      child: Text(
+                                                        hasBalance
+                                                            ? 'READY'
+                                                            : 'LOW',
+                                                        style: TextStyle(
+                                                          color: hasBalance
+                                                              ? Colors
+                                                                  .green[400]
+                                                              : Colors
+                                                                  .orange[400],
+                                                          fontSize: 9,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          letterSpacing: 0.5,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ]),
+                                        ),
+                                      ]);
+                                    },
+                                  ),
+                                ],
+                              ]),
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // Meeting Type Selection Card
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[900],
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.grey[800]!.withOpacity(0.5),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Select Meeting Type',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      _buildTypeOption(MeetingType.chat,
+                                          Icons.chat_bubble_outline, 'Chat'),
+                                      _buildTypeOption(MeetingType.voice,
+                                          Icons.phone_outlined, 'Voice'),
+                                      _buildTypeOption(MeetingType.video,
+                                          Icons.videocam_outlined, 'Video'),
                                     ],
                                   ),
-                                ),
-                              )),
+                                ],
+                              ),
+                            ),
+                          ]),
 
+                          // const SizedBox(height: 24),
+
+                          // Action Buttons
+                        ),
                         const SizedBox(height: 24),
-
                         if (isTrialUsed &&
                             _homeController.userWalletBalance.value <
                                 (meetingRate * durationInMinutes / 30))
@@ -323,11 +553,17 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
                                 backgroundColor: Colors.green,
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               onPressed: () =>
                                   Get.to(() => const WalletScreen()),
                               child: const Text('Top Up Wallet',
-                                  style: TextStyle(color: Colors.white)),
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600)),
                             ),
                           ),
 
@@ -341,12 +577,17 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
                                 backgroundColor: AppColors.primaryColor,
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                              onPressed: () =>
-                                  _scheduleInstatalk(), // This should be the only call to schedule
+                              onPressed: () => _scheduleInstatalk(),
                               child: Text(
                                 'Send Request',
-                                style: const TextStyle(color: Colors.white),
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600),
                               ),
                             ),
                           ),
@@ -370,30 +611,52 @@ class _ScheduleInstaTalkScreenState extends State<ScheduleInstaTalkScreen> {
       },
       child: Container(
         width: 90,
-        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        padding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primaryColor.withOpacity(0.2)
-              : Colors.grey.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(8),
-          // border: Border.all(
-          //   color: isSelected ? AppColors.primaryColor : Colors.grey,
-          //   width: 1,
-          // ),
+          gradient: isSelected
+              ? LinearGradient(
+                  colors: [
+                    AppColors.primaryColor.withOpacity(0.2),
+                    AppColors.primaryColor.withOpacity(0.1),
+                  ],
+                )
+              : LinearGradient(
+                  colors: [
+                    Colors.grey[800]!.withOpacity(0.3),
+                    Colors.grey[800]!.withOpacity(0.1),
+                  ],
+                ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primaryColor.withOpacity(0.5)
+                : Colors.grey[700]!.withOpacity(0.3),
+            width: 1.5,
+          ),
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: isSelected ? AppColors.primaryColor : Colors.grey,
-              size: 28,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.primaryColor.withOpacity(0.2)
+                    : Colors.grey[700]!.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: isSelected ? AppColors.primaryColor : Colors.grey[400],
+                size: 24,
+              ),
             ),
             SizedBox(height: 8),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.grey,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? Colors.white : Colors.grey[400],
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontSize: 13,
               ),
             ),
           ],
