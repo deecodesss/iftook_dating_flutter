@@ -44,7 +44,8 @@ class ChatRoomScreen extends StatefulWidget {
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
 
-class _ChatRoomScreenState extends State<ChatRoomScreen> {
+class _ChatRoomScreenState extends State<ChatRoomScreen>
+    with TickerProviderStateMixin {
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
 
@@ -72,6 +73,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   DateTime? _meetingStartTime;
   DateTime? _meetingEndTime;
 
+  // Add payment animation variables
+  late AnimationController _paymentAnimationController;
+  late Animation<double> _paymentFadeAnimation;
+  late Animation<Offset> _paymentSlideAnimation;
+  String _lastPaymentAmount = '';
+  bool _showPaymentAnimation = false;
+
+  // Add variable to track if current user is sender or receiver
+  bool _isInstaTalkSender = false;
+
   @override
   void initState() {
     super.initState();
@@ -86,29 +97,54 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
     _chatController.scrollController.addListener(_onScroll);
 
+    // Initialize payment animation controller
+    _paymentAnimationController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+
+    _paymentFadeAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _paymentAnimationController,
+      curve: Curves.easeOut,
+    ));
+
+    _paymentSlideAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(0, -1),
+    ).animate(CurvedAnimation(
+      parent: _paymentAnimationController,
+      curve: Curves.easeOut,
+    ));
+
+    // Determine if current user is sender or receiver for InstaTalk
+    _determineInstaTalkRole();
+
     // Initialize meeting time tracking
     if (!widget.isFriend) {
       if (widget.isInstatalk) {
         // For InstaTalk
         if (widget.isTrial) {
-          // Trial mode - use short timer (30 seconds)
+          // Trial mode - use short countdown timer (30 seconds)
           print('Starting trial InstaTalk with 30 seconds');
           _remainingSeconds = 30;
           _startSessionTimer();
         } else {
-          // Paid InstaTalk - start growing timer with auto-billing
+          // Paid InstaTalk - start growing timer from 0 with auto-billing
           final liveRate = widget.profile.earnings?.liveRate ?? 0;
           print('Starting regular InstaTalk with rate: $liveRate');
+          print('Current user is InstaTalk sender: $_isInstaTalkSender');
 
           if (_chatController.isFreeChat(liveRate)) {
-            // Free chat - just use regular timer
-            _remainingSeconds = widget.duration * 60;
-            _startSessionTimer();
+            // Free chat - no timer needed
+            print('InstaTalk is free, no timer needed');
           } else {
-            // Paid chat with auto-billing
-            _elapsedSeconds = 0; // Start timer from 0
-            _startGrowingTimer(); // Use growing timer for paid InstaTalk
-            _startAutoPaymentTimer();
+            // Paid InstaTalk with auto-billing - start from 0
+            _elapsedSeconds = 0;
+            _startInstaTalkGrowingTimer();
+            _startInstaTalkAutoPaymentTimer();
           }
         }
       } else if (widget.scheduledTime != null) {
@@ -356,6 +392,113 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     });
   }
 
+  void _startInstaTalkGrowingTimer() {
+    _sessionTimer?.cancel();
+
+    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _elapsedSeconds++;
+        // Calculate elapsed minutes for payment tracking
+        _elapsedMinutes = _elapsedSeconds ~/ 60;
+      });
+    });
+  }
+
+  void _startInstaTalkAutoPaymentTimer() {
+    final liveRate = widget.profile.earnings?.liveRate ?? 0.0;
+
+    // Auto-payment timer checks every minute for InstaTalk
+    _autoPaymentTimer?.cancel();
+    _autoPaymentTimer =
+        Timer.periodic(const Duration(minutes: 1), (timer) async {
+      if (_sessionExpired) {
+        timer.cancel();
+        return;
+      }
+
+      try {
+        print('InstaTalk auto-billing for 1 minute at rate: $liveRate');
+        print('Current user is sender: $_isInstaTalkSender');
+
+        // Always refresh wallet balance
+        await _chatController.fetchWalletBalance();
+
+        if (_isInstaTalkSender) {
+          // For senders (who initiated InstaTalk): Check balance and deduct money
+          if (_chatController.userWalletBalance.value < liveRate) {
+            // Not enough balance, stop timers and show topup dialog
+            _autoPaymentTimer?.cancel();
+            _sessionTimer?.cancel();
+            _sessionExpired = true;
+            _showInsufficientBalanceDialog();
+            return;
+          }
+
+          // Deduct money for senders
+          final success = await _chatController.sendCallMoney(
+            widget.profile.sId.toString(),
+            liveRate,
+          );
+
+          if (success) {
+            // Show payment animation for sender (minus)
+            _showPaymentNotification(liveRate, isReceiving: false);
+            print('InstaTalk sender payment successful: -₹$liveRate');
+          } else {
+            // Payment failed
+            _showPaymentFailedDialog();
+            _autoPaymentTimer?.cancel();
+            _sessionTimer?.cancel();
+            _sessionExpired = true;
+          }
+        } else {
+          // For receivers: Just refresh wallet balance and show earning animation
+          _showPaymentNotification(liveRate, isReceiving: true);
+          print('InstaTalk receiver earning: +₹$liveRate');
+        }
+      } catch (e) {
+        print('InstaTalk auto-payment error: $e');
+        if (_isInstaTalkSender) {
+          // Only show payment error for senders
+          _showPaymentFailedDialog();
+          _autoPaymentTimer?.cancel();
+          _sessionTimer?.cancel();
+          _sessionExpired = true;
+        }
+      }
+    });
+  }
+
+  // Add method to determine InstaTalk role
+  Future<void> _determineInstaTalkRole() async {
+    if (widget.isInstatalk) {
+      final currentUserId = await SharedPrefs.getUserIdSharedPreference();
+      // If widget.isInstatalkSender is true, current user initiated InstaTalk (sender)
+      // If false, current user received InstaTalk request (receiver)
+      _isInstaTalkSender = widget.isInstatalkSender;
+
+      print('InstaTalk role determined:');
+      print('Current user ID: $currentUserId');
+      print('Profile user ID: ${widget.profile.sId}');
+      print('Is InstaTalk sender: $_isInstaTalkSender');
+    }
+  }
+
+  // Add method to show animated payment notification
+  void _showPaymentNotification(double amount, {bool isReceiving = false}) {
+    setState(() {
+      _lastPaymentAmount = '₹${amount.toStringAsFixed(0)}';
+      _showPaymentAnimation = true;
+    });
+
+    _paymentAnimationController.reset();
+    _paymentAnimationController.forward().then((_) {
+      setState(() {
+        _showPaymentAnimation = false;
+      });
+    });
+  }
+
   void _showInsufficientBalanceDialog() {
     Get.dialog(
       WillPopScope(
@@ -488,11 +631,34 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               backgroundColor: AppColors.primaryColor,
               foregroundColor: Colors.white,
             ),
-            onPressed: () => _purchaseChat(minutes: 1, isInstatalk: true),
-            child: const Text('Continue (1 min)'),
+            onPressed: () => _startPaidInstaTalk(),
+            child: const Text('Continue'),
           ),
         ],
       ),
+    );
+  }
+
+  void _startPaidInstaTalk() {
+    Navigator.pop(context); // Close dialog
+
+    setState(() {
+      _sessionExpired = false;
+      _showingPaymentPrompt = false;
+      _elapsedSeconds = 0; // Reset to 0
+      _elapsedMinutes = 0;
+      _lastBilledMinute = 0;
+    });
+
+    // Start the growing timer and auto-payment
+    _startInstaTalkGrowingTimer();
+    _startInstaTalkAutoPaymentTimer();
+
+    Get.snackbar(
+      'InstaTalk Started',
+      'You are now in a paid InstaTalk session!',
+      backgroundColor: Colors.green,
+      colorText: Colors.white,
     );
   }
 
@@ -696,6 +862,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _amountController.dispose();
     _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
+    _paymentAnimationController.dispose();
 
     if (_hasRenewedSession) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1118,291 +1285,359 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Scaffold(
-          appBar: AppBar(
-            scrolledUnderElevation: 0,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () {
-                FocusScope.of(context).unfocus();
-                Navigator.pop(context);
-              },
-            ),
-            title: Row(
-              children: [
-                Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: widget.profile.photos != null &&
-                              widget.profile.photos!.isNotEmpty
-                          ? ClipOval(
-                              child: Image.network(
-                                widget.profile.photos![0],
-                                width: 50,
-                                height: 50,
-                                fit: BoxFit.cover,
-                              ),
-                            )
-                          : CircleAvatar(
-                              backgroundColor: AppColors.primaryBackground,
-                              radius: 25,
-                            ),
-                    ),
-                    _buildOnlineIndicator(),
-                  ],
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    return WillPopScope(
+      onWillPop: () async {
+        // Handle back navigation based on friend status
+        _handleBackNavigation();
+        return false; // Prevent default back behavior
+      },
+      child: Stack(
+        children: [
+          Scaffold(
+            appBar: AppBar(
+              scrolledUnderElevation: 0,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () {
+                  FocusScope.of(context).unfocus();
+                  _handleBackNavigation();
+                },
+              ),
+              title: Row(
+                children: [
+                  Stack(
                     children: [
-                      Text(
-                        widget.profile.name.toString(),
-                        style: GoogleFonts.manrope(
-                          fontSize: 16,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: widget.profile.photos != null &&
+                                widget.profile.photos!.isNotEmpty
+                            ? ClipOval(
+                                child: Image.network(
+                                  widget.profile.photos![0],
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : CircleAvatar(
+                                backgroundColor: AppColors.primaryBackground,
+                                radius: 25,
+                              ),
                       ),
-                      _buildOnlineStatusText(),
+                      _buildOnlineIndicator(),
                     ],
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.profile.name.toString(),
+                          style: GoogleFonts.manrope(
+                            fontSize: 16,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        _buildOnlineStatusText(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                if (widget.isFriend) ...[
+                  _buildActionButton(
+                    icon: Icons.videocam,
+                    onPressed: _handleChatVideoCall, // Use new handler
+                    label: 'Video Call',
+                    color: AppColors.primaryColor,
+                  ),
+                  _buildActionButton(
+                    icon: Icons.call,
+                    onPressed: _handleChatVoiceCall, // Use new handler
+                    label: 'Voice Call',
+                    color: AppColors.greenColor,
+                  ),
+                ],
+                IconButton(
+                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  onPressed: _showMoreOptions,
                 ),
               ],
             ),
-            actions: [
-              if (widget.isFriend) ...[
-                _buildActionButton(
-                  icon: Icons.videocam,
-                  onPressed: _handleChatVideoCall, // Use new handler
-                  label: 'Video Call',
-                  color: AppColors.primaryColor,
-                ),
-                _buildActionButton(
-                  icon: Icons.call,
-                  onPressed: _handleChatVoiceCall, // Use new handler
-                  label: 'Voice Call',
-                  color: AppColors.greenColor,
-                ),
-              ],
-              IconButton(
-                icon: const Icon(Icons.more_vert, color: Colors.white),
-                onPressed: _showMoreOptions,
-              ),
-            ],
-          ),
-          body: SafeArea(
-            child: Column(
-              children: [
-                // Chat status banner - different based on chat type
-                if (_isFreeChatSession()) ...[
-                  // Free chat banner - either friend or free rate
-                  !widget.isFriend
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 8, horizontal: 16),
-                          color: Colors.green.withOpacity(0.2),
-                          child: Row(
-                            children: [
-                              widget.isFriend
-                                  ? const Icon(Icons.check_circle,
-                                      color: Colors.green)
-                                  : SizedBox(),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  widget.isFriend
-                                      ? 'Unlimited chat with friend'
-                                      : 'Free chat session',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  // Chat status banner - different based on chat type
+                  if (_isFreeChatSession()) ...[
+                    // Free chat banner - either friend or free rate
+                    !widget.isFriend
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 8, horizontal: 16),
+                            color: Colors.green.withOpacity(0.2),
+                            child: Row(
+                              children: [
+                                widget.isFriend
+                                    ? const Icon(Icons.check_circle,
+                                        color: Colors.green)
+                                    : SizedBox(),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    widget.isFriend
+                                        ? 'Unlimited chat with friend'
+                                        : 'Free chat session',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : SizedBox()
+                  ] else if (!_sessionExpired) ...[
+                    // Timer banner for paid chats
+                    _buildTimerBanner(),
+                  ],
+
+                  // Expired session banner
+                  if (!_isFreeChatSession() && _sessionExpired)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      color: Colors.redAccent.withOpacity(0.1),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber,
+                              color: Colors.redAccent),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              widget.isInstatalk
+                                  ? 'InstaTalk session paused. Add funds to continue.'
+                                  : 'Your session has ended. Purchase more time to continue.',
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          if (widget.isInstatalk)
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryColor,
+                              ),
+                              onPressed: () => Get.toNamed('/wallet/topup'),
+                              child: const Text('Add Funds'),
+                            )
+                          else
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryColor,
+                              ),
+                              onPressed: () => _showMeetingEndedDialog(),
+                              child: const Text('Continue'),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                  // Message list
+                  Expanded(
+                    child: Obx(() {
+                      if (_chatController.isLoading.value) {
+                        return _buildSkeletonLoading();
+                      } else if (_chatController.messages.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            'Start a conversation!',
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                        );
+                      } else {
+                        return ListView.builder(
+                          controller: _chatController.scrollController,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          itemCount: _chatController.messages.length,
+                          itemBuilder: (context, index) {
+                            final message = _chatController.messages[index];
+
+                            // Check if we need to show a date header
+                            final showDateHeader = index == 0 ||
+                                !_isSameDay(
+                                    DateTime.parse(_chatController
+                                        .messages[index - 1].createdAt
+                                        .toString()),
+                                    DateTime.parse(
+                                        message.createdAt.toString()));
+
+                            return Column(
+                              children: [
+                                if (showDateHeader)
+                                  _buildDateHeader(DateTime.parse(
+                                      message.createdAt.toString())),
+                                _buildMessageBubble(message),
+                              ],
+                            );
+                          },
+                        );
+                      }
+                    }),
+                  ),
+
+                  // Chat input field
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    decoration: const BoxDecoration(
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(25)),
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _messageController,
+                              focusNode: _focusNode,
+                              style: const TextStyle(color: Colors.white),
+                              textCapitalization: TextCapitalization.sentences,
+                              keyboardType: TextInputType.multiline,
+                              maxLines: 4,
+                              minLines: 1,
+                              enabled: _isFreeChatSession() || !_sessionExpired,
+                              decoration: InputDecoration(
+                                hintText: (!_isFreeChatSession() &&
+                                        _sessionExpired)
+                                    ? 'Session ended. Purchase time to continue.'
+                                    : 'Type a message...',
+                                hintStyle: TextStyle(
+                                    color: Colors.white.withOpacity(0.6)),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(25),
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor: AppColors.primaryBackground,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 10,
+                                ),
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: (!_isFreeChatSession() && _sessionExpired)
+                                  ? Colors.grey
+                                  : AppColors.primaryColor,
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              iconSize: 20,
+                              padding: EdgeInsets.zero,
+                              icon: const Icon(Icons.send, color: Colors.white),
+                              onPressed:
+                                  (!_isFreeChatSession() && _sessionExpired)
+                                      ? null
+                                      : _sendMessage,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: const BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              iconSize: 20,
+                              padding: EdgeInsets.zero,
+                              icon: const Icon(Icons.currency_rupee,
+                                  color: Colors.white),
+                              onPressed: _showSendMoneyDialog,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Animated payment notification overlay with sender/receiver logic
+          if (_showPaymentAnimation)
+            Positioned(
+              top: MediaQuery.of(context).size.height * 0.4,
+              left: 0,
+              right: 0,
+              child: AnimatedBuilder(
+                animation: _paymentAnimationController,
+                builder: (context, child) {
+                  return SlideTransition(
+                    position: _paymentSlideAnimation,
+                    child: FadeTransition(
+                      opacity: _paymentFadeAnimation,
+                      child: Container(
+                        alignment: Alignment.center,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: _isInstaTalkSender
+                                ? Colors.red.withOpacity(
+                                    0.9) // Red for sender (money going out)
+                                : Colors.green.withOpacity(
+                                    0.9), // Green for receiver (money coming in)
+                            borderRadius: BorderRadius.circular(25),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 10,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _isInstaTalkSender ? Icons.remove : Icons.add,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${_isInstaTalkSender ? '-' : '+'}$_lastPaymentAmount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ],
                           ),
-                        )
-                      : SizedBox()
-                ] else if (!_sessionExpired) ...[
-                  // Timer banner for paid chats - now using updated method
-                  _buildTimerBanner(),
-                ],
-
-                // Expired session banner
-                if (!_isFreeChatSession() && _sessionExpired)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    color: Colors.redAccent.withOpacity(0.1),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.warning_amber,
-                            color: Colors.redAccent),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'Your session has ended. Purchase more time to continue.',
-                            style: TextStyle(color: Colors.white70),
-                          ),
                         ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryColor,
-                          ),
-                          onPressed: () {
-                            if (widget.isInstatalk) {
-                              _showInstaTalkEndedDialog();
-                            } else {
-                              _showMeetingEndedDialog();
-                            }
-                          },
-                          child: const Text('Continue'),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-
-                // Message list
-                Expanded(
-                  child: Obx(() {
-                    if (_chatController.isLoading.value) {
-                      return _buildSkeletonLoading();
-                    } else if (_chatController.messages.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          'Start a conversation!',
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                      );
-                    } else {
-                      return ListView.builder(
-                        controller: _chatController.scrollController,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        itemCount: _chatController.messages.length,
-                        itemBuilder: (context, index) {
-                          final message = _chatController.messages[index];
-
-                          // Check if we need to show a date header
-                          final showDateHeader = index == 0 ||
-                              !_isSameDay(
-                                  DateTime.parse(_chatController
-                                      .messages[index - 1].createdAt
-                                      .toString()),
-                                  DateTime.parse(message.createdAt.toString()));
-
-                          return Column(
-                            children: [
-                              if (showDateHeader)
-                                _buildDateHeader(DateTime.parse(
-                                    message.createdAt.toString())),
-                              _buildMessageBubble(message),
-                            ],
-                          );
-                        },
-                      );
-                    }
-                  }),
-                ),
-
-                // Chat input field
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  decoration: const BoxDecoration(
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(25)),
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _messageController,
-                            focusNode: _focusNode,
-                            style: const TextStyle(color: Colors.white),
-                            textCapitalization: TextCapitalization.sentences,
-                            keyboardType: TextInputType.multiline,
-                            maxLines: 4,
-                            minLines: 1,
-                            enabled: _isFreeChatSession() || !_sessionExpired,
-                            decoration: InputDecoration(
-                              hintText: (!_isFreeChatSession() &&
-                                      _sessionExpired)
-                                  ? 'Session ended. Purchase time to continue.'
-                                  : 'Type a message...',
-                              hintStyle: TextStyle(
-                                  color: Colors.white.withOpacity(0.6)),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(25),
-                                borderSide: BorderSide.none,
-                              ),
-                              filled: true,
-                              fillColor: AppColors.primaryBackground,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 10,
-                              ),
-                              isDense: true,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: (!_isFreeChatSession() && _sessionExpired)
-                                ? Colors.grey
-                                : AppColors.primaryColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            iconSize: 20,
-                            padding: EdgeInsets.zero,
-                            icon: const Icon(Icons.send, color: Colors.white),
-                            onPressed:
-                                (!_isFreeChatSession() && _sessionExpired)
-                                    ? null
-                                    : _sendMessage,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: const BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            iconSize: 20,
-                            padding: EdgeInsets.zero,
-                            icon: const Icon(Icons.currency_rupee,
-                                color: Colors.white),
-                            onPressed: _showSendMoneyDialog,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+                  );
+                },
+              ),
             ),
-          ),
-        ),
-        if (_isRenewing)
-          Container(
-            color: Colors.black54,
-            child: const Center(
-              child: CircularProgressIndicator(),
-            ),
-          ),
-      ],
+
+          // ...existing code...
+        ],
+      ),
     );
   }
 
@@ -1583,39 +1818,39 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     if (widget.isInstatalk && !widget.isTrial && !_isFreeChatSession()) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        color: Colors.green.withOpacity(0.2),
+        color: Colors.purple.withOpacity(0.2),
         child: Row(
           children: [
-            const Icon(Icons.timer, color: Colors.green),
+            const Icon(Icons.timer, color: Colors.purple),
             const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Row(children: [
                   Text(
-                    '${_formatElapsedTime()} ',
+                    'InstaTalk: ${_formatElapsedTime()}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(width: 10),
                   Text(
-                    '₹${(widget.profile.earnings?.liveRate ?? 0).toStringAsFixed(2)}/min',
+                    '${_isInstaTalkSender ? '-' : '+'}₹${(widget.profile.earnings?.liveRate ?? 0).toStringAsFixed(2)}/min',
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: _isInstaTalkSender
+                          ? Colors.red[300]
+                          : Colors.green[300],
                       fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                  // ])
                 ],
               ),
             ),
             const SizedBox(width: 8),
             Text(
               'Balance: ₹${_chatController.userWalletBalance.value.toStringAsFixed(2)}',
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w500,
                 fontSize: 14,
@@ -1636,7 +1871,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                _formatRemainingTime(),
+                'Trial: ${_formatRemainingTime()}',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -1851,5 +2086,21 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         );
       },
     );
+  }
+
+  // Add method to handle back navigation logic
+  void _handleBackNavigation() {
+    if (widget.isFriend) {
+      // For friends, just go back normally
+      Navigator.pop(context);
+    } else {
+      // For non-friends, redirect to review screen
+      Navigator.pop(context); // Close current screen first
+      Get.to(
+        () => AddReviewScreen(userId: widget.profile.sId!),
+        fullscreenDialog: true,
+        popGesture: false,
+      );
+    }
   }
 }

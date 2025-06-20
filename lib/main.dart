@@ -14,6 +14,7 @@ import 'package:iftook/helpers/permissions_handler.dart';
 import 'features/notifications/controllers/notification_controller.dart';
 import 'features/notifications/helpers/notification_body.dart';
 import 'features/notifications/helpers/notification_helper.dart';
+import 'features/notifications/services/notification_storage_service.dart';
 import 'features/profile/data/models/user.dart';
 import 'features/friends/presentation/screens/chat_room_screen.dart';
 import 'firebase_options.dart';
@@ -177,6 +178,14 @@ Future<void> myBackgroundMessageHandler(RemoteMessage message) async {
     final currentUserId = await SharedPrefs.getUserIdSharedPreference();
     debugPrint("👤 Current user ID: $currentUserId");
 
+    // Store notification locally
+    final notificationStorage = NotificationStorageService();
+    await notificationStorage.storeNotification(
+      title: message.notification?.title ?? 'New Notification',
+      body: message.notification?.body ?? '',
+      data: message.data,
+    );
+
     // For chat messages, check if we're the sender
     if (message.data['type']?.toString() == 'chat') {
       final senderId = message.data['senderId'];
@@ -315,6 +324,9 @@ Future<void> main() async {
     await NotificationHelper.initialize(flutterLocalNotificationsPlugin);
     FirebaseMessaging.onBackgroundMessage(myBackgroundMessageHandler);
     await updateFCMToken();
+
+    // Initialize notification storage service
+    Get.put(NotificationStorageService(), permanent: true);
 
     // Initialize online status service
     await initializeOnlineStatusService();

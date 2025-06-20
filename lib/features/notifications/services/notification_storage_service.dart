@@ -31,37 +31,38 @@ class StoredNotification {
   });
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'title': title,
-    'body': body,
-    'type': type.toString(),
-    'data': data,
-    'timestamp': timestamp.toIso8601String(),
-    'isRead': isRead,
-  };
+        'id': id,
+        'title': title,
+        'body': body,
+        'type': type.toString(),
+        'data': data,
+        'timestamp': timestamp.toIso8601String(),
+        'isRead': isRead,
+      };
 
-  factory StoredNotification.fromJson(Map<String, dynamic> json) => StoredNotification(
-    id: json['id'],
-    title: json['title'],
-    body: json['body'],
-    type: NotificationType.values.firstWhere(
-      (e) => e.toString() == json['type'],
-      orElse: () => NotificationType.general,
-    ),
-    data: Map<String, dynamic>.from(json['data']),
-    timestamp: DateTime.parse(json['timestamp']),
-    isRead: json['isRead'] ?? false,
-  );
+  factory StoredNotification.fromJson(Map<String, dynamic> json) =>
+      StoredNotification(
+        id: json['id'],
+        title: json['title'],
+        body: json['body'],
+        type: NotificationType.values.firstWhere(
+          (e) => e.toString() == json['type'],
+          orElse: () => NotificationType.general,
+        ),
+        data: Map<String, dynamic>.from(json['data']),
+        timestamp: DateTime.parse(json['timestamp']),
+        isRead: json['isRead'] ?? false,
+      );
 
   StoredNotification copyWith({bool? isRead}) => StoredNotification(
-    id: id,
-    title: title,
-    body: body,
-    type: type,
-    data: data,
-    timestamp: timestamp,
-    isRead: isRead ?? this.isRead,
-  );
+        id: id,
+        title: title,
+        body: body,
+        type: type,
+        data: data,
+        timestamp: timestamp,
+        isRead: isRead ?? this.isRead,
+      );
 }
 
 class NotificationStorageService extends GetxService {
@@ -88,16 +89,16 @@ class NotificationStorageService extends GetxService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final String? notificationsJson = prefs.getString(_storageKey);
-      
+
       if (notificationsJson != null) {
         final List<dynamic> notificationsList = jsonDecode(notificationsJson);
         _notifications.value = notificationsList
             .map((json) => StoredNotification.fromJson(json))
             .toList();
-        
+
         // Sort by timestamp (newest first)
         _notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-        
+
         _updateUnreadCounts();
       }
     } catch (e) {
@@ -119,15 +120,15 @@ class NotificationStorageService extends GetxService {
 
   void _updateUnreadCounts() {
     final unreadNotifications = _notifications.where((n) => !n.isRead).toList();
-    
+
     _unreadCount.value = unreadNotifications.length;
-    
+
     _chatUnreadCount.value = unreadNotifications
         .where((n) => n.type == NotificationType.chat)
         .length;
-    
+
     _requestsUnreadCount.value = unreadNotifications
-        .where((n) => 
+        .where((n) =>
             n.type == NotificationType.meetingRequest ||
             n.type == NotificationType.friendRequest ||
             n.type == NotificationType.instaTalk ||
@@ -137,7 +138,7 @@ class NotificationStorageService extends GetxService {
 
   NotificationType _categorizeNotification(Map<String, dynamic> data) {
     final String? type = data['type']?.toString().toLowerCase();
-    
+
     switch (type) {
       case 'chat':
         return NotificationType.chat;
@@ -166,7 +167,7 @@ class NotificationStorageService extends GetxService {
   }) async {
     try {
       final notificationType = _categorizeNotification(data);
-      
+
       final notification = StoredNotification(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         title: title,
@@ -177,15 +178,15 @@ class NotificationStorageService extends GetxService {
       );
 
       _notifications.insert(0, notification);
-      
+
       // Limit the number of stored notifications
       if (_notifications.length > _maxNotifications) {
         _notifications.removeRange(_maxNotifications, _notifications.length);
       }
-      
+
       _updateUnreadCounts();
       await _saveNotifications();
-      
+
       print('Stored notification: $title (Type: $notificationType)');
     } catch (e) {
       print('Error storing notification: $e');

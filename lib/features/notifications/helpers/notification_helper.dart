@@ -37,6 +37,7 @@ import '../../calls/presentation/screens/video_call_screen.dart';
 import '../../calls/presentation/screens/voice_call_screen.dart';
 import '../screens/incoming_call_screen.dart';
 import 'notification_body.dart';
+import '../services/notification_storage_service.dart';
 
 class NotificationHelper {
   static final FlutterLocalNotificationsPlugin
@@ -1023,6 +1024,14 @@ class NotificationHelper {
     print("onMessage data: ${message.data}");
 
     try {
+      // Store notification locally
+      final notificationStorage = Get.find<NotificationStorageService>();
+      await notificationStorage.storeNotification(
+        title: message.notification?.title ?? 'New Notification',
+        body: message.notification?.body ?? '',
+        data: message.data,
+      );
+
       // Get current user ID
       final currentUserId = await SharedPrefs.getUserIdSharedPreference();
 
@@ -1261,6 +1270,14 @@ Future<dynamic> myBackgroundMessageHandler(RemoteMessage message) async {
   }
 
   try {
+    // Store notification locally
+    final notificationStorage = NotificationStorageService();
+    await notificationStorage.storeNotification(
+      title: message.notification?.title ?? 'New Notification',
+      body: message.notification?.body ?? '',
+      data: message.data,
+    );
+
     if (message.data['type'] == 'voice' || message.data['type'] == 'video') {
       await NotificationHelper._showCallNotification(message);
     } else if (message.data['type'] == 'instaTalk') {

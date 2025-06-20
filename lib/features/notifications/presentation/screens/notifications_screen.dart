@@ -15,27 +15,26 @@ class NotificationsScreen extends StatefulWidget {
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final NotificationStorageService _notificationService = Get.find<NotificationStorageService>();
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  final NotificationStorageService _notificationService =
+      Get.find<NotificationStorageService>();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
+        scrolledUnderElevation: 0,
         title: Text(
           'Notifications',
           style: GoogleFonts.manrope(
@@ -44,350 +43,213 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             color: Colors.white,
           ),
         ),
-        backgroundColor: AppColors.primaryBackground,
+        backgroundColor: Colors.black,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Get.back(),
         ),
         actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onSelected: (value) {
-              switch (value) {
-                case 'mark_all_read':
-                  _notificationService.markAllAsRead();
-                  break;
-                case 'clear_all':
-                  _showClearAllDialog();
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'mark_all_read',
-                child: Row(
-                  children: [
-                    Icon(Icons.mark_email_read, color: Colors.white70),
-                    SizedBox(width: 12),
-                    Text('Mark all as read'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'clear_all',
-                child: Row(
-                  children: [
-                    Icon(Icons.clear_all, color: Colors.white70),
-                    SizedBox(width: 12),
-                    Text('Clear all'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('All'),
-                  const SizedBox(width: 4),
-                  Obx(() => _notificationService.unreadCount > 0
-                      ? Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: AppColors.primaryColor,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
-                          child: Text(
-                            '${_notificationService.unreadCount}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        )
-                      : const SizedBox()),
-                ],
-              ),
-            ),
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Chats'),
-                  const SizedBox(width: 4),
-                  Obx(() => _notificationService.chatUnreadCount > 0
-                      ? Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: AppColors.primaryColor,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
-                          child: Text(
-                            '${_notificationService.chatUnreadCount}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        )
-                      : const SizedBox()),
-                ],
-              ),
-            ),
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Requests'),
-                  const SizedBox(width: 4),
-                  Obx(() => _notificationService.requestsUnreadCount > 0
-                      ? Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: AppColors.primaryColor,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
-                          child: Text(
-                            '${_notificationService.requestsUnreadCount}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        )
-                      : const SizedBox()),
-                ],
-              ),
-            ),
-          ],
-          indicatorColor: AppColors.primaryColor,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildAllNotifications(),
-          _buildChatNotifications(),
-          _buildRequestNotifications(),
+          Obx(() => _notificationService.unreadCount > 0
+              ? TextButton(
+                  onPressed: () => _notificationService.markAllAsRead(),
+                  child: Text(
+                    'Mark all read',
+                    style: GoogleFonts.manrope(
+                      color: AppColors.primaryColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              : const SizedBox()),
+          const SizedBox(width: 8),
         ],
       ),
-    );
-  }
+      body: Obx(() {
+        final notifications = _notificationService.notifications;
 
-  Widget _buildAllNotifications() {
-    return Obx(() {
-      final notifications = _notificationService.notifications;
-      return _buildNotificationsList(notifications);
-    });
-  }
-
-  Widget _buildChatNotifications() {
-    return Obx(() {
-      final notifications = _notificationService.getNotificationsByType(NotificationType.chat);
-      return _buildNotificationsList(notifications);
-    });
-  }
-
-  Widget _buildRequestNotifications() {
-    return Obx(() {
-      final notifications = _notificationService.notifications
-          .where((n) => 
-              n.type == NotificationType.meetingRequest ||
-              n.type == NotificationType.friendRequest ||
-              n.type == NotificationType.instaTalk ||
-              n.type == NotificationType.callRequest)
-          .toList();
-      return _buildNotificationsList(notifications);
-    });
-  }
-
-  Widget _buildNotificationsList(List<StoredNotification> notifications) {
-    if (notifications.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              HugeIcons.strokeRoundedNotification03,
-              size: 64,
-              color: Colors.white.withOpacity(0.3),
+        if (notifications.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryBackground.withOpacity(0.3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    HugeIcons.strokeRoundedNotification03,
+                    size: 48,
+                    color: Colors.white.withOpacity(0.4),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'No notifications yet',
+                  style: GoogleFonts.manrope(
+                    fontSize: 18,
+                    color: Colors.white.withOpacity(0.7),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'You\'re all caught up!',
+                  style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.5),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            Text(
-              'No notifications yet',
-              style: GoogleFonts.manrope(
-                fontSize: 18,
-                color: Colors.white.withOpacity(0.6),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+          );
+        }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: notifications.length,
-      itemBuilder: (context, index) {
-        final notification = notifications[index];
-        return _buildNotificationTile(notification);
-      },
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          itemCount: notifications.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 8),
+          itemBuilder: (context, index) {
+            final notification = notifications[index];
+            return _buildNotificationTile(notification);
+          },
+        );
+      }),
     );
   }
 
   Widget _buildNotificationTile(StoredNotification notification) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: notification.isRead 
-            ? AppColors.secondaryBackground.withOpacity(0.5)
-            : AppColors.secondaryBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: notification.isRead 
-            ? null 
-            : Border.all(color: AppColors.primaryColor.withOpacity(0.3)),
+        color: notification.isRead
+            ? AppColors.secondaryBackground.withOpacity(0.3)
+            : AppColors.secondaryBackground.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(16),
+        border: notification.isRead
+            ? null
+            : Border.all(
+                color: AppColors.primaryColor.withOpacity(0.2),
+                width: 1,
+              ),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: _getNotificationIcon(notification.type),
-        title: Text(
-          notification.title,
-          style: GoogleFonts.manrope(
-            fontSize: 16,
-            fontWeight: notification.isRead ? FontWeight.normal : FontWeight.w600,
-            color: Colors.white,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _handleNotificationTap(notification),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _getNotificationColor(notification.type)
+                        .withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _getNotificationIcon(notification.type),
+                    color: _getNotificationColor(notification.type),
+                    // size: 20,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        notification.title,
+                        style: GoogleFonts.manrope(
+                          fontSize: 16,
+                          fontWeight: notification.isRead
+                              ? FontWeight.w500
+                              : FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        notification.body,
+                        style: GoogleFonts.manrope(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.7),
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _formatTimestamp(notification.timestamp),
+                        style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          color: Colors.white.withOpacity(0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Unread indicator
+                if (!notification.isRead)
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              notification.body,
-              style: GoogleFonts.manrope(
-                fontSize: 14,
-                color: Colors.white70,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _formatTimestamp(notification.timestamp),
-              style: GoogleFonts.manrope(
-                fontSize: 12,
-                color: Colors.white54,
-              ),
-            ),
-          ],
-        ),
-        trailing: PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert, color: Colors.white70),
-          onSelected: (value) {
-            switch (value) {
-              case 'mark_read':
-                _notificationService.markAsRead(notification.id);
-                break;
-              case 'delete':
-                _notificationService.clearNotification(notification.id);
-                break;
-            }
-          },
-          itemBuilder: (context) => [
-            if (!notification.isRead)
-              const PopupMenuItem(
-                value: 'mark_read',
-                child: Row(
-                  children: [
-                    Icon(Icons.mark_email_read, color: Colors.white70),
-                    SizedBox(width: 12),
-                    Text('Mark as read'),
-                  ],
-                ),
-              ),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete, color: Colors.red),
-                  SizedBox(width: 12),
-                  Text('Delete'),
-                ],
-              ),
-            ),
-          ],
-        ),
-        onTap: () => _handleNotificationTap(notification),
       ),
     );
   }
 
-  Widget _getNotificationIcon(NotificationType type) {
-    IconData iconData;
-    Color iconColor;
-
+  IconData _getNotificationIcon(NotificationType type) {
     switch (type) {
       case NotificationType.chat:
-        iconData = HugeIcons.strokeRoundedMessage02;
-        iconColor = Colors.blue;
-        break;
+        return HugeIcons.strokeRoundedMessage02;
       case NotificationType.instaTalk:
-        iconData = HugeIcons.strokeRoundedVideoReplay;
-        iconColor = Colors.purple;
-        break;
+        return HugeIcons.strokeRoundedVideoReplay;
       case NotificationType.callRequest:
-        iconData = HugeIcons.strokeRoundedCall;
-        iconColor = Colors.green;
-        break;
+        return HugeIcons.strokeRoundedCall;
       case NotificationType.meetingRequest:
-        iconData = HugeIcons.strokeRoundedCalendar03;
-        iconColor = Colors.orange;
-        break;
+        return HugeIcons.strokeRoundedCalendar03;
       case NotificationType.friendRequest:
-        iconData = HugeIcons.strokeRoundedUserAdd02;
-        iconColor = Colors.pink;
-        break;
+        return HugeIcons.strokeRoundedUserAdd02;
       default:
-        iconData = HugeIcons.strokeRoundedNotification03;
-        iconColor = Colors.grey;
+        return HugeIcons.strokeRoundedNotification03;
     }
+  }
 
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: iconColor.withOpacity(0.2),
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        iconData,
-        color: iconColor,
-        size: 24,
-      ),
-    );
+  Color _getNotificationColor(NotificationType type) {
+    switch (type) {
+      case NotificationType.chat:
+        return Colors.blue;
+      case NotificationType.instaTalk:
+        return Colors.purple;
+      case NotificationType.callRequest:
+        return Colors.green;
+      case NotificationType.meetingRequest:
+        return Colors.orange;
+      case NotificationType.friendRequest:
+        return Colors.pink;
+      default:
+        return Colors.grey;
+    }
   }
 
   String _formatTimestamp(DateTime timestamp) {
@@ -403,7 +265,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     } else if (difference.inDays < 7) {
       return '${difference.inDays}d ago';
     } else {
-      return DateFormat('MMM d, yyyy').format(timestamp);
+      return DateFormat('MMM d').format(timestamp);
     }
   }
 
@@ -412,32 +274,31 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     _notificationService.markAsRead(notification.id);
 
     // Handle navigation based on notification type
-    switch (notification.type) {
-      case NotificationType.chat:
-        _handleChatNotificationTap(notification);
-        break;
-      case NotificationType.instaTalk:
-        // Handle InstaTalk notification
-        Get.snackbar(
-          'InstaTalk',
-          'InstaTalk session has ended or is no longer available',
-          backgroundColor: Colors.purple.withOpacity(0.8),
-          colorText: Colors.white,
-        );
-        break;
-      case NotificationType.callRequest:
-        // Handle call notification
-        Get.snackbar(
-          'Call',
-          'Call session has ended or is no longer available',
-          backgroundColor: Colors.green.withOpacity(0.8),
-          colorText: Colors.white,
-        );
-        break;
-      default:
-        // General notification tap handling
-        break;
-    }
+    // switch (notification.type) {
+    //   case NotificationType.chat:
+    //     _handleChatNotificationTap(notification);
+    //     break;
+    //   case NotificationType.instaTalk:
+    //     Get.snackbar(
+    //       'InstaTalk',
+    //       'This session is no longer available',
+    //       backgroundColor: Colors.purple.withOpacity(0.8),
+    //       colorText: Colors.white,
+    //       snackPosition: SnackPosition.TOP,
+    //     );
+    //     break;
+    //   case NotificationType.callRequest:
+    //     Get.snackbar(
+    //       'Call',
+    //       'This call is no longer available',
+    //       backgroundColor: Colors.green.withOpacity(0.8),
+    //       colorText: Colors.white,
+    //       snackPosition: SnackPosition.TOP,
+    //     );
+    //     break;
+    //   default:
+    //     break;
+    // }
   }
 
   void _handleChatNotificationTap(StoredNotification notification) {
@@ -453,42 +314,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       );
 
       Get.to(() => ChatRoomScreen(
-        profile: userData,
-        duration: 60,
-        existingChatRoomId: notification.data['chatRoomId']?.toString(),
-      ));
+            profile: userData,
+            duration: 60,
+            existingChatRoomId: notification.data['chatRoomId']?.toString(),
+          ));
     }
-  }
-
-  void _showClearAllDialog() {
-    Get.dialog(
-      AlertDialog(
-        backgroundColor: AppColors.secondaryBackground,
-        title: const Text(
-          'Clear All Notifications',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          'Are you sure you want to clear all notifications? This action cannot be undone.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              _notificationService.clearAllNotifications();
-              Get.back();
-            },
-            child: const Text(
-              'Clear All',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
