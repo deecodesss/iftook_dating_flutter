@@ -1400,4 +1400,74 @@ class ApiService {
           },
         ));
   }
+
+  // Create payment entry in database
+  static Future<http.Response> createPaymentEntry({
+    required double amount,
+    required String merchantReferenceId,
+    required String customerName,
+    required String customerEmail,
+    required String customerMobile,
+  }) async {
+    // final token = await _getToken();
+    final token = await SharedPrefs.getAccessToken();
+    final url = Uri.parse('$baseUrl/payments/create-entry');
+
+    return await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'amount': amount,
+        'merchantReferenceId': merchantReferenceId,
+        'customerName': customerName,
+        'customerEmail': customerEmail,
+        'customerMobile': customerMobile,
+      }),
+    );
+  }
+
+  // Update payment status and wallet balance
+  static Future<http.Response> updatePaymentStatusAndWallet({
+    required String merchantReferenceId,
+    required String paymentStatus,
+  }) async {
+    // final token = await _getToken();
+    final token = await SharedPrefs.getAccessToken();
+    final url = Uri.parse('$baseUrl/payments/update-status');
+
+    return await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'merchantReferenceId': merchantReferenceId,
+        'paymentStatus': paymentStatus,
+      }),
+    );
+  }
+
+  // Check and update payment status with Paygic
+  static Future<http.Response> checkAndUpdatePaymentStatus({
+    required String merchantReferenceId,
+  }) async {
+    // final token = await _getToken();
+    final token = await SharedPrefs.getAccessToken();
+    final url = Uri.parse('$baseUrl/payments/check-status');
+
+    return await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'merchantReferenceId': merchantReferenceId,
+      }),
+    );
+  }
 }

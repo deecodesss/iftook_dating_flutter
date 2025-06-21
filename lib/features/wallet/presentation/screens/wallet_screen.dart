@@ -9,6 +9,7 @@ import '../../../../core/services/api_service.dart';
 import '../../../../features/profile/data/models/user.dart';
 import '../../../../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../../controllers/wallet_controller.dart';
+import 'add_money_screen.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -430,7 +431,8 @@ class _WalletScreenState extends State<WalletScreen>
                               child: _buildActionButton(
                                 icon: HugeIcons.strokeRoundedWalletAdd02,
                                 label: 'Add Money',
-                                onTap: _showAddMoneyDialog,
+                                onTap: () =>
+                                    Get.to(() => const AddMoneyScreen()),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -576,64 +578,6 @@ class _WalletScreenState extends State<WalletScreen>
           );
         }
       }),
-    );
-  }
-
-  void _showAddMoneyDialog() {
-    final amountController = TextEditingController();
-
-    Get.dialog(
-      AlertDialog(
-        backgroundColor: Colors.grey[900],
-        title: const Text(
-          'Add Money to Wallet',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          controller: amountController,
-          keyboardType: TextInputType.number,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            labelText: 'Amount',
-            hintText: 'Enter amount',
-            labelStyle: const TextStyle(color: Colors.grey),
-            hintStyle: const TextStyle(color: Colors.grey),
-            enabledBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.grey.shade700),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.blueAccent),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Get.back();
-            },
-            child:
-                const Text('Cancel', style: TextStyle(color: Colors.redAccent)),
-          ),
-          TextButton(
-            onPressed: () {
-              final amount = double.tryParse(amountController.text);
-              if (amount != null && amount > 0) {
-                walletController.makePayment(amount);
-                Get.back();
-              } else {
-                Get.snackbar(
-                  'Error',
-                  'Please enter a valid amount',
-                  backgroundColor: Colors.redAccent,
-                  colorText: Colors.white,
-                );
-              }
-            },
-            child:
-                const Text('Add', style: TextStyle(color: Colors.greenAccent)),
-          ),
-        ],
-      ),
     );
   }
 

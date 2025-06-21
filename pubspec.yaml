@@ -72,6 +72,7 @@ dependencies:
   uuid: ^4.3.3 # For generating unique call IDs
   flutter_callkit_incoming: ^2.5.2
   sound_mode: ^3.1.1
+  dio: ^5.8.0+1
 
 dev_dependencies:
   flutter_test:
