@@ -43,6 +43,25 @@ class ProfileController extends GetxController {
     }
   }
 
+  // Fetch only wallet balance (lightweight operation)
+  Future<void> fetchWalletBalance() async {
+    try {
+      final response = await ApiService.fetchUSerWallet();
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null && data['data']['balance'] != null) {
+          final currentUser = user.value;
+          currentUser.walletBalance =
+              (data['data']['balance'] as num).toDouble();
+          user.value = currentUser;
+          print('💰 Wallet balance updated: ${currentUser.walletBalance}');
+        }
+      }
+    } catch (e) {
+      print('Error fetching wallet balance: $e');
+    }
+  }
+
   // Logout the user
   void logout() {
     SharedPrefs

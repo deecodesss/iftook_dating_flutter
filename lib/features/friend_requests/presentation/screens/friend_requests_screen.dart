@@ -122,10 +122,16 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       return 'Join Now ${DateFormat('h:mm a').format(meetingTime)} IST';
     }
 
+    // Check for "Starting soon" condition - within 5 minutes before start time
+    if (meetingTimeUtc.difference(now).inMinutes <= 5 &&
+        meetingTimeUtc.difference(now).inMinutes > 0) {
+      return 'Starting in ${meetingTimeUtc.difference(now).inMinutes} min';
+    }
+
     // Check for "In X min" condition using UTC time for accurate comparison
     if (meetingTimeUtc.difference(now).inMinutes <= 60 &&
         meetingTimeUtc.isAfter(now)) {
-      return 'In ${meetingTimeUtc.difference(now).inMinutes} min';
+      return 'Starts in ${meetingTimeUtc.difference(now).inMinutes} min';
     }
 
     // Display times in IST
@@ -1033,10 +1039,14 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
         final displayName = isCreator
             ? participant['name'] ?? 'Unknown'
             : user['name'] ?? 'Unknown';
-
         final now = DateTime.now();
         final minutesDifference = now.difference(scheduledTime).inMinutes;
-        final canJoin = minutesDifference >= -30 && minutesDifference <= 30;
+
+        // User can only join when the meeting time has arrived or passed (within 30 minutes window)
+        // Before meeting time: cannot join
+        // At meeting time to 30 minutes after: can join
+        // More than 30 minutes after: meeting expired
+        final canJoin = minutesDifference >= 0 && minutesDifference <= 30;
         final currentStatus = _getMeetingStatus(scheduledTime, status);
 
         // Check if this is a voice or video call
@@ -1044,9 +1054,8 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
 
         // Determine if we should show join button
         // For voice/video calls, only show join if the current user is the creator
-        final bool shouldShowJoin = !isCallMeeting || isCreator;
-
-        // Use StreamBuilder for call status
+        final bool shouldShowJoin =
+            !isCallMeeting || isCreator; // Use StreamBuilder for call status
         return StreamBuilder<Map<String, dynamic>>(
             stream: Get.find<CallStatusController>()
                 .getUserCallStatusStream(otherUserId),
@@ -1054,6 +1063,12 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             builder: (context, callSnapshot) {
               final bool isUserInCall = callSnapshot.data?['inCall'] ?? false;
               final String? callType = callSnapshot.data?['callType'];
+
+              // Debug print for call status
+              if (kDebugMode) {
+                print(
+                    'Meeting Card - User: $otherUserId, InCall: $isUserInCall, CallType: $callType');
+              }
 
               final bool canActuallyJoin =
                   canJoin && !isUserInCall && shouldShowJoin;
@@ -1324,9 +1339,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                                     fontSize: 14,
                                   ),
                                 ),
-                              ),
-
-                              // Add availability status tag
+                              ), // Add availability status tag
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 8, vertical: 4),
@@ -1346,7 +1359,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      isUserInCall ? 'IN CALL' : 'IDLE',
+                                      isUserInCall ? 'IN CALL' : 'AVAILABLE',
                                       style: TextStyle(
                                         color: isUserInCall
                                             ? Colors.red
@@ -1505,19 +1518,51 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 8),
-                                // Text(
-                                //   'For voice and video calls, only the person who created the meeting can initiate the call',
-                                //   style: TextStyle(
-                                //     color: Colors.amber.shade700,
-                                //     fontSize: 11,
-                                //   ),
-                                // ),
                               ],
                             ),
                           ),
                         ),
                       ],
+                    ] else ...[
+                      // Meeting hasn't started yet - show countdown or waiting message
+                      minutesDifference < 0
+                          ? Padding(
+                              padding: const EdgeInsets.only(
+                                  top: 8, left: 16, right: 16, bottom: 16),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: Colors.blue.withOpacity(0.3)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.schedule,
+                                      color: Colors.blue,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        minutesDifference < 0
+                                            ? 'Meeting will start in ${(-minutesDifference)} minutes'
+                                            : 'Meeting has expired',
+                                        style: TextStyle(
+                                          color: Colors.blue,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : Container(),
                     ],
                   ],
                 ),
@@ -2177,9 +2222,8 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
       stream: userOnlineController.getUserStatusStream(otherUserId),
       initialData: false, // Initially assume offline until we get data
       builder: (context, onlineSnapshot) {
-        final bool isOtherUserOnline = onlineSnapshot.data ?? false;
-
-        // Add nested StreamBuilder for call status
+        final bool isOtherUserOnline = onlineSnapshot.data ??
+            false; // Add nested StreamBuilder for call status
         return StreamBuilder<Map<String, dynamic>>(
             stream: Get.find<CallStatusController>()
                 .getUserCallStatusStream(otherUserId),
@@ -2187,6 +2231,12 @@ class _InstaTalkTabViewState extends State<InstaTalkTabView>
             builder: (context, callSnapshot) {
               final bool isUserInCall = callSnapshot.data?['inCall'] ?? false;
               final String? callType = callSnapshot.data?['callType'];
+
+              // Debug print for call status
+              if (kDebugMode) {
+                print(
+                    'InstaTalk Card - User: $otherUserId, InCall: $isUserInCall, CallType: $callType');
+              }
 
               // final bool canJoin = isAccepted &&
               //     isActive &&

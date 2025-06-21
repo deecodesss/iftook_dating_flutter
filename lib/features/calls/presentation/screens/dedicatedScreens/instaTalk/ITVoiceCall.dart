@@ -6,6 +6,7 @@ import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:get/get.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/calls/controllers/call_controller.dart';
+import 'package:iftook/features/calls/controllers/call_status_controller.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
@@ -97,6 +98,7 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen>
 
     // Fetch complete user data from backend
     _fetchParticipantData();
+    CallStatusController.to.userEnteredCallScreen();
 
     // Initialize Agora engine
     _initializeAgora().then((_) {
@@ -706,6 +708,7 @@ class _ITVoiceCallScreenState extends State<ITVoiceCallScreen>
 
     _healthCheckTimer?.cancel();
     _paymentAnimationController.dispose();
+    CallStatusController.to.userLeftCallScreen();
     super.dispose();
   }
 

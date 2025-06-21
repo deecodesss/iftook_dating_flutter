@@ -21,11 +21,177 @@ import 'package:iftook/features/profile/presentation/screens/view_reviews_screen
 import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 
-class ProfileScreen extends StatelessWidget {
+// Skeleton loader widget
+class SkeletonLoader extends StatelessWidget {
+  final double height;
+  final double width;
+  final BorderRadius? borderRadius;
+
+  const SkeletonLoader({
+    Key? key,
+    required this.height,
+    required this.width,
+    this.borderRadius,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: Colors.grey[800],
+        borderRadius: borderRadius ?? BorderRadius.circular(8),
+      ),
+      child: const SizedBox(),
+    );
+  }
+}
+
+// Profile skeleton loader
+class ProfileSkeleton extends StatelessWidget {
+  const ProfileSkeleton({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Profile header skeleton
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.blueGrey.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Row(
+            children: [
+              const SkeletonLoader(
+                height: 80,
+                width: 80,
+                borderRadius: BorderRadius.all(Radius.circular(40)),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SkeletonLoader(height: 20, width: 150),
+                    const SizedBox(height: 8),
+                    const SkeletonLoader(height: 16, width: 120),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Sections skeleton
+        ...List.generate(4, (index) => _buildSkeletonSection()),
+      ],
+    );
+  }
+
+  Widget _buildSkeletonSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
+          child: SkeletonLoader(height: 14, width: 100),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.blueGrey.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Column(
+            children: List.generate(
+              2 + (DateTime.now().millisecond % 3), // Random 2-4 items
+              (index) => Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  children: [
+                    const SkeletonLoader(height: 40, width: 40),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: SkeletonLoader(height: 16, width: double.infinity),
+                    ),
+                    const SizedBox(width: 16),
+                    const SkeletonLoader(height: 16, width: 60),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen>
+    with WidgetsBindingObserver {
   final ProfileController _profileController = Get.put(ProfileController());
   final LiveController _liveController = Get.put(LiveController());
 
-  ProfileScreen({super.key});
+  @override
+  void initState() {
+    super.initState();
+    // Add observer to listen for app lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
+    // Refresh profile data when screen is opened
+    _refreshProfileData();
+  }
+
+  @override
+  void dispose() {
+    // Remove observer when disposing
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(
+        state); // Refresh wallet balance when app comes to foreground (lightweight)
+    if (state == AppLifecycleState.resumed) {
+      print('🔄 App resumed, refreshing wallet balance...');
+      _refreshWalletBalance();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super
+        .didChangeDependencies(); // Only refresh wallet balance when coming back to this screen (lightweight)
+    _refreshWalletBalance();
+  }
+
+  void _refreshProfileData() {
+    print('🔄 Refreshing profile data...');
+    _profileController.fetchProfile();
+  }
+
+  Future<void> _refreshWalletBalance() async {
+    print('💰 Refreshing wallet balance only...');
+    await _profileController.fetchWalletBalance();
+  }
+
+  Future<void> _onRefresh() async {
+    print('🔄 Pull to refresh triggered...');
+    await _profileController.fetchProfile();
+  }
 
   void _handleGoLive() async {
     // Create controllers to capture input
@@ -153,152 +319,177 @@ class ProfileScreen extends StatelessWidget {
       ),
       body: Obx(() {
         if (_profileController.isLoading.value) {
-          return const Center(child: CircularProgressIndicator());
+          return const ProfileSkeleton();
         }
 
         if (_profileController.errorMessage.isNotEmpty) {
           return Center(
-            child: Text(
-              _profileController.errorMessage.value,
-              style: const TextStyle(color: Colors.red),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _profileController.errorMessage.value,
+                  style: const TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _refreshProfileData,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                  ),
+                  child: const Text(
+                    'Retry',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
             ),
           );
         }
 
         final user = _profileController.user.value;
 
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildProfileHeader(user),
-            const SizedBox(height: 24),
-            _buildSection(
-              'Streaming',
-              [
-                _buildProfileOption(
-                  icon: Icons.live_tv,
-                  title: 'Go Live',
-                  onTap: _handleGoLive,
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'LIVE',
-                      style: TextStyle(
-                        color: AppColors.primaryColor,
-                        fontWeight: FontWeight.w600,
+        return RefreshIndicator(
+          onRefresh: _onRefresh,
+          color: AppColors.primaryColor,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _buildProfileHeader(user),
+              const SizedBox(height: 24),
+              _buildSection(
+                'Streaming',
+                [
+                  _buildProfileOption(
+                    icon: Icons.live_tv,
+                    title: 'Go Live',
+                    onTap: _handleGoLive,
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'LIVE',
+                        style: TextStyle(
+                          color: AppColors.primaryColor,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            _buildSection(
-              'Account',
-              [
-                _buildProfileOption(
-                  icon: Icons.account_balance_wallet_outlined,
-                  title: 'My Wallet',
-                  onTap: () {
-                    Get.to(() => const WalletScreen());
-                  },
-                  trailing: Text(
-                    '₹${(user.walletBalance ?? 0).toStringAsFixed(2)}',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 16,
+                ],
+              ),
+              _buildSection(
+                'Account',
+                [
+                  _buildProfileOption(
+                    icon: Icons.account_balance_wallet_outlined,
+                    title: 'My Wallet',
+                    onTap: () async {
+                      // Refresh only wallet balance before navigating (lightweight)
+                      print(
+                          '💰 Refreshing wallet balance before navigation...');
+                      await _refreshWalletBalance();
+                      Get.to(() => const WalletScreen());
+                    },
+                    trailing: Text(
+                      '₹${(user.walletBalance ?? 0).toStringAsFixed(2)}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 16,
+                      ),
                     ),
                   ),
-                ),
-                _buildProfileOption(
-                  icon: Icons.history,
-                  title: 'My Activity',
-                  onTap: () {
-                    Get.to(() => ActivityScreen(
-                          viewingUserId: user.sId!,
-                        ));
-                  },
-                ),
-                _buildProfileOption(
-                  icon: Icons.interests_outlined,
-                  title: 'My Interests',
-                  onTap: () {
-                    showInterestsBottomSheet(context);
-                  },
-                ),
-                _buildProfileOption(
-                  icon: Icons.access_time,
-                  title: 'My Availability',
-                  onTap: () {
-                    Get.to(() => const AvailabilityScreen());
-                  },
-                ),
-                _buildProfileOption(
-                  icon: Icons.manage_history_outlined,
-                  title: 'My History',
-                  onTap: () {
-                    Get.to(() => const HistoryScreen());
-                  },
-                ),
-              ],
-            ),
-            _buildSection(
-              'Monetization',
-              [
-                _buildProfileOption(
-                  icon: Icons.campaign_outlined,
-                  title: 'Promote My Profile',
-                  onTap: () {
-                    Get.to(() => const PromoteProfileScreen());
-                  },
-                  iconColor: AppColors.highlightColor,
-                ),
-                _buildProfileOption(
-                  icon: Icons.payments_outlined,
-                  title: 'My Earnings',
-                  onTap: () {
-                    showPriceBottomSheet(context);
-                  },
-                  iconColor: AppColors.highlightColor,
-                ),
-              ],
-            ),
-            _buildSection(
-              'Support & Feedback',
-              [
-                _buildProfileOption(
-                  icon: Icons.support_agent_outlined,
-                  title: 'Support',
-                  onTap: () {
-                    Get.to(() => SupportScreen());
-                  },
-                  iconColor: AppColors.greenColor,
-                ),
-                _buildProfileOption(
-                  icon: Icons.star_outline,
-                  title: 'Rating & Review',
-                  onTap: () {
-                    Get.to(() => ViewReviewsScreen(
-                          userId: user.sId!,
-                        ));
-                  },
-                  iconColor: AppColors.greenColor,
-                ),
-                _buildProfileOption(
-                  icon: Icons.logout,
-                  title: 'Logout',
-                  onTap: _profileController.logout,
-                  iconColor: AppColors.greenColor,
-                ),
-              ],
-            ),
-          ],
+                  _buildProfileOption(
+                    icon: Icons.history,
+                    title: 'My Activity',
+                    onTap: () {
+                      Get.to(() => ActivityScreen(
+                            viewingUserId: user.sId!,
+                          ));
+                    },
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.interests_outlined,
+                    title: 'My Interests',
+                    onTap: () {
+                      showInterestsBottomSheet(context);
+                    },
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.access_time,
+                    title: 'My Availability',
+                    onTap: () {
+                      Get.to(() => const AvailabilityScreen());
+                    },
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.manage_history_outlined,
+                    title: 'My History',
+                    onTap: () {
+                      Get.to(() => const HistoryScreen());
+                    },
+                  ),
+                ],
+              ),
+              _buildSection(
+                'Monetization',
+                [
+                  _buildProfileOption(
+                    icon: Icons.campaign_outlined,
+                    title: 'Promote My Profile',
+                    onTap: () {
+                      Get.to(() => const PromoteProfileScreen());
+                    },
+                    iconColor: AppColors.highlightColor,
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.payments_outlined,
+                    title: 'My Earnings',
+                    onTap: () {
+                      showPriceBottomSheet(context);
+                    },
+                    iconColor: AppColors.highlightColor,
+                  ),
+                ],
+              ),
+              _buildSection(
+                'Support & Feedback',
+                [
+                  _buildProfileOption(
+                    icon: Icons.support_agent_outlined,
+                    title: 'Support',
+                    onTap: () {
+                      Get.to(() => SupportScreen());
+                    },
+                    iconColor: AppColors.greenColor,
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.star_outline,
+                    title: 'Rating & Review',
+                    onTap: () {
+                      Get.to(() => ViewReviewsScreen(
+                            userId: user.sId!,
+                          ));
+                    },
+                    iconColor: AppColors.greenColor,
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.logout,
+                    title: 'Logout',
+                    onTap: _profileController.logout,
+                    iconColor: AppColors.greenColor,
+                  ),
+                ],
+              ),
+            ],
+          ),
         );
       }),
     );

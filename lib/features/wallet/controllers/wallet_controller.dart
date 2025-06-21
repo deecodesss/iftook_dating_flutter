@@ -122,13 +122,20 @@ class WalletController extends GetxController {
         );
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
-
           if (data['txnStatus']?.toString().toLowerCase() == 'success') {
             timer.cancel();
             paymentSuccess.value = true;
 
+            print('🎉 Payment successful detected!');
+            print('🎉 Transaction Status: ${data['txnStatus']}');
+
             // Update payment status in database and add money to wallet
+            print('💰 Updating payment in backend database...');
             await _updatePaymentSuccessInDatabase(merchantReferenceId);
+
+            // Also try the backend API check
+            print('🔍 Double-checking with backend API...');
+            await checkPaymentStatusWithBackend(merchantReferenceId);
 
             // Close QR dialog if it's open
             if (isQRDialogOpen.value) {
@@ -188,6 +195,22 @@ class WalletController extends GetxController {
       }
       final merchantReferenceId = generateUniqueMerchantRefId();
       print('Generated merchant reference ID: $merchantReferenceId');
+
+      // First, create payment entry in our database
+      print('🗃️ Creating payment entry in database...');
+      try {
+        await _createPaymentEntryInDatabase(
+          amount: amount,
+          merchantReferenceId: merchantReferenceId,
+          customerName: customerName,
+          customerEmail: customerEmail,
+          customerMobile:
+              customerMobile.isEmpty ? '9999999999' : customerMobile,
+        );
+      } catch (e) {
+        print('❌ Failed to create payment entry, but continuing: $e');
+      }
+
       print('DEBUG: MERCH_ID value: "$MERCH_ID"');
       print('DEBUG: MERCHANT_PASSWORD length: ${MERCHANT_PASSWORD.length}');
       print('DEBUG: AUTH_TOKEN length: ${AUTH_TOKEN?.length}');
@@ -612,17 +635,20 @@ class WalletController extends GetxController {
         print('Extracted customer details:');
         print('Name: $customerName');
         print('Email: $customerEmail');
-        print('Mobile: $customerMobile');
+        print('Mobile: $customerMobile'); // Create Paygic payment request
+        print('🚀 Calling createPaygicPaymentRequest...');
+        print('🚀 Amount: $amount');
+        print('🚀 Customer Name: $customerName');
+        print('🚀 Customer Email: $customerEmail');
+        print('🚀 Customer Mobile: $customerMobile');
 
-        // Create Paygic payment request
-        print('Calling createPaygicPaymentRequest...');
         await createPaygicPaymentRequest(
           amount: amount,
           customerName: customerName,
           customerEmail: customerEmail,
           customerMobile: customerMobile,
         );
-        print('createPaygicPaymentRequest completed');
+        print('✅ createPaygicPaymentRequest completed');
       } else {
         print('ERROR: Failed to fetch profile');
         print('Response status: ${profileResponse.statusCode}');
@@ -761,6 +787,10 @@ class WalletController extends GetxController {
     required String customerMobile,
   }) async {
     try {
+      print('🗃️ Creating payment entry in database...');
+      print('🗃️ Amount: $amount');
+      print('🗃️ Merchant Reference ID: $merchantReferenceId');
+
       final response = await ApiService.createPaymentEntry(
         amount: amount,
         merchantReferenceId: merchantReferenceId,
@@ -769,14 +799,18 @@ class WalletController extends GetxController {
         customerMobile: customerMobile,
       );
 
+      print('🗃️ Database response status: ${response.statusCode}');
+      print('🗃️ Database response body: ${response.body}');
+
       if (response.statusCode == 201) {
-        print('Payment entry created successfully in database');
+        print('✅ Payment entry created successfully in database');
       } else {
-        print('Failed to create payment entry: ${response.body}');
+        final errorData = jsonDecode(response.body);
+        print('❌ Failed to create payment entry: ${errorData['message']}');
         // Don't throw error here as payment can still proceed
       }
     } catch (e) {
-      print('Error creating payment entry: $e');
+      print('❌ Error creating payment entry in database: $e');
       // Don't throw error here as payment can still proceed
     }
   }
@@ -804,6 +838,79 @@ class WalletController extends GetxController {
       }
     } catch (e) {
       print('Error updating payment status: $e');
+    }
+  }
+
+  // Test method to manually create payment entry
+  Future<void> testCreatePaymentEntry() async {
+    try {
+      print('🧪 Testing payment entry creation...');
+      final testMerchantRefId = generateUniqueMerchantRefId();
+
+      await _createPaymentEntryInDatabase(
+        amount: 1.0,
+        merchantReferenceId: testMerchantRefId,
+        customerName: 'Test User',
+        customerEmail: 'test@example.com',
+        customerMobile: '9999999999',
+      );
+
+      print('🧪 Test completed');
+    } catch (e) {
+      print('🧪 Test failed: $e');
+    }
+  }
+
+  // Test method to manually update payment status
+  Future<void> testUpdatePaymentStatus(String merchantReferenceId) async {
+    try {
+      print('🧪 Testing payment status update...');
+      await _updatePaymentSuccessInDatabase(merchantReferenceId);
+      print('🧪 Test completed');
+    } catch (e) {
+      print('🧪 Test failed: $e');
+    }
+  }
+
+  // Check payment status using our backend API
+  Future<void> checkPaymentStatusWithBackend(String merchantReferenceId) async {
+    try {
+      print('🔍 Checking payment status with backend...');
+      print('🔍 Merchant Reference ID: $merchantReferenceId');
+
+      final response = await ApiService.checkAndUpdatePaymentStatus(
+        merchantReferenceId: merchantReferenceId,
+      );
+
+      print('🔍 Backend response status: ${response.statusCode}');
+      print('🔍 Backend response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('✅ Backend check completed: ${data['message']}');
+
+        // If payment was successfully verified and wallet updated
+        if (data['newBalance'] != null) {
+          balance.value = (data['newBalance'] as num).toDouble();
+          print('💰 Wallet balance updated to: ${balance.value}');
+
+          // Show success message
+          Get.snackbar(
+            'Payment Verified!',
+            'Your payment has been verified and wallet updated.',
+            backgroundColor: Colors.green,
+            colorText: Colors.white,
+            duration: Duration(seconds: 3),
+          );
+
+          // Refresh wallet data
+          await fetchWalletData();
+        }
+      } else {
+        print('❌ Backend check failed: ${response.body}');
+      }
+    } catch (e) {
+      print('❌ Error checking payment status with backend: $e');
     }
   }
 }

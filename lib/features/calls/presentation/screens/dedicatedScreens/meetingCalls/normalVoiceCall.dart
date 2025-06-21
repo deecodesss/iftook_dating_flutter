@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:get/get.dart';
 import 'package:iftook/features/calls/controllers/call_controller.dart';
+import 'package:iftook/features/calls/controllers/call_status_controller.dart';
 import 'package:iftook/features/profile/data/models/user.dart';
 import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
@@ -86,6 +87,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
     _durationService = Get.put(CallDurationService());
     _chatController = Get.put(ChatController());
     _initializeDurationService();
+    CallStatusController.to.userEnteredCallScreen();
 
     // Initialize Agora engine
     _initializeAgora().then((_) {
@@ -672,6 +674,7 @@ class _NormalVoiceCallScreenState extends State<NormalVoiceCallScreen> {
     _durationService.reset();
 
     _stopCallRingtone();
+    CallStatusController.to.userLeftCallScreen();
     // Ensure CallKit UI is dismissed on dispose as well.
     FlutterCallkitIncoming.endCall(widget.meetingId);
 

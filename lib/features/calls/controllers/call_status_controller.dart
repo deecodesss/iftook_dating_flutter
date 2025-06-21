@@ -1,5 +1,9 @@
 import 'dart:async';
+// import 'package.get/get.dart';
 import 'package:get/get.dart';
+import 'package:get/get_core/src/get_main.dart';
+import 'package:get/get_state_manager/src/simple/get_controllers.dart';
+import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/core/services/socket_service.dart';
 import 'package:iftook/core/services/api_service.dart';
 
@@ -9,6 +13,7 @@ import 'package:iftook/core/services/api_service.dart';
 /// - Check if a specific user is in a call
 /// - Get notified when a user's call status changes
 /// - Fetch multiple users' call statuses at once
+/// - Manually track when a user enters or leaves a screen that is considered a "call".
 class CallStatusController extends GetxController {
   static CallStatusController get to => Get.find<CallStatusController>();
 
@@ -20,6 +25,63 @@ class CallStatusController extends GetxController {
 
   // Stream subscription for status updates
   StreamSubscription? _callStatusSubscription;
+
+  // --- NEW LOGIC FOR MANUAL SCREEN TRACKING ---
+
+  /// A counter for how many "in-call" screens are currently active.
+  int _inCallScreenCount = 0;
+
+  /// Call this method from the initState() of your call-related screens.
+  /// It notifies the server only when the first call screen is entered.
+  void userEnteredCallScreen() async {
+    _inCallScreenCount++;
+
+    // Only send the "joined" event if this is the FIRST call screen being opened.
+    if (_inCallScreenCount == 1) {
+      print('--> Entered call zone. Sending "inCall: true" status.');
+
+      // IMPORTANT: Replace with your actual user ID and meeting details
+      // You should get this from your authentication or user state service.
+      // const String currentUserId = 'my_user_id';
+      final currentUserId =
+          await SharedPrefs.getUserIdSharedPreference() ?? 'default_user_id';
+      const String meetingId = 'current_meeting_id';
+      const String callType = 'video'; // Or 'audio', etc.
+
+      notifyUserJoinedCall(currentUserId, callType, meetingId);
+    } else {
+      print(
+          'Navigating between call screens. Count is now: $_inCallScreenCount');
+    }
+  }
+
+  /// Call this method from the dispose() of your call-related screens.
+  /// It notifies the server only when the last call screen is closed.
+  void userLeftCallScreen() async {
+    _inCallScreenCount--;
+
+    // Safety check to prevent the counter from going below zero.
+    if (_inCallScreenCount < 0) {
+      _inCallScreenCount = 0;
+    }
+
+    // Only send the "left" event if this was the LAST call screen being closed.
+    if (_inCallScreenCount == 0) {
+      print('<-- Left call zone. Sending "inCall: false" status.');
+
+      // IMPORTANT: Replace with your actual user ID and meeting details
+      final currentUserId =
+          await SharedPrefs.getUserIdSharedPreference() ?? 'default_user_id';
+      const String meetingId = 'current_meeting_id';
+
+      notifyUserLeftCall(currentUserId, meetingId);
+    } else {
+      print(
+          'Closing one call screen, but others are still active. Count is now: $_inCallScreenCount');
+    }
+  }
+
+  // --- END OF NEW LOGIC ---
 
   @override
   void onInit() {

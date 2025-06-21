@@ -1,5 +1,6 @@
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
+import 'package:iftook/features/calls/controllers/call_status_controller.dart';
 import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:no_screenshot/no_screenshot.dart';
@@ -108,6 +109,7 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen>
     _durationService = Get.put(CallDurationService());
     _chatController = Get.put(ChatController());
     _initializeDurationService();
+    CallStatusController.to.userEnteredCallScreen();
 
     // Fetch complete user data from backend
     _fetchParticipantData();
@@ -952,6 +954,7 @@ class _ITVideoCallScreenState extends State<ITVideoCallScreen>
     _healthCheckTimer?.cancel(); // Add this line
     _autoPaymentEnabled = false;
     _paymentAnimationController.dispose(); // Add this line
+    CallStatusController.to.userLeftCallScreen();
 
     if (widget.onSessionEnd != null) {
       widget.onSessionEnd!();

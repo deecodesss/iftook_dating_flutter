@@ -1,5 +1,6 @@
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
+import 'package:iftook/features/calls/controllers/call_status_controller.dart';
 import 'package:iftook/features/profile/presentation/screens/add_review_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:no_screenshot/no_screenshot.dart';
@@ -84,6 +85,7 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
   @override
   void initState() {
     super.initState();
+    CallStatusController.to.userEnteredCallScreen();
     // Get or create CallController instance
     _callController = Get.put(CallController());
     _durationService = Get.put(CallDurationService());
@@ -537,6 +539,7 @@ class _NormalVideoCallScreenState extends State<NormalVideoCallScreen> {
     _walletRefreshTimer?.cancel(); // Safe to call even if null
     _autoPaymentEnabled = false;
     _durationService.reset();
+    CallStatusController.to.userLeftCallScreen();
     super.dispose();
   }
 
