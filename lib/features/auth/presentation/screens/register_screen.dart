@@ -72,6 +72,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     'Decent Talk Only'
   ];
 
+  // Add missing variables for Google Sign-in
+  bool _isFromGoogle = false;
+  Map<String, dynamic>? _googleData;
+
+  // Add missing variables for email verification
+  bool _isEmailVerified = false;
+  final TextEditingController _otpController = TextEditingController();
+  bool _showOtpInput = false;
+  String? _sentOtp;
+
   // Theme colors
   final Color _primaryColor = const Color(0xFFE91E63);
   final Color _surfaceColor = const Color(0xFF1E1E1E);
@@ -83,7 +93,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     _getCurrentLocation();
+
+    // Check if coming from Google Sign-in
+    final args = Get.arguments;
+    if (args != null && args['fromGoogle'] == true) {
+      _isFromGoogle = true;
+      _googleData = args['googleData'];
+      _prefillGoogleData();
+    }
+
     super.initState();
+  }
+
+  void _prefillGoogleData() {
+    if (_googleData != null) {
+      _nameController.text = _googleData!['name'] ?? '';
+      _emailController.text = _googleData!['email'] ?? '';
+      _isEmailVerified = true;
+      _authController.setEmailVerified(true);
+
+      // Update the controller values
+      _authController.name.value = _googleData!['name'] ?? '';
+      _authController.email.value = _googleData!['email'] ?? '';
+    }
   }
 
   String? selectedHeight;
@@ -318,23 +350,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
           backgroundColor: Colors.red, colorText: Colors.white);
       return false;
     }
-    if (!_isEmailVerified) {
+    if (!_isEmailVerified && !_isFromGoogle) {
       Get.snackbar('Error', 'Please verify your email address first',
           backgroundColor: Colors.red, colorText: Colors.white);
       return false;
     }
-    if (_passwordController.text.isEmpty ||
-        _passwordController.text.length < 8) {
-      Get.snackbar('Error', 'Password must be at least 8 characters',
-          backgroundColor: Colors.red, colorText: Colors.white);
-      return false;
+
+    // Skip password validation for Google users
+    if (!_isFromGoogle) {
+      if (_passwordController.text.isEmpty ||
+          _passwordController.text.length < 8) {
+        Get.snackbar('Error', 'Password must be at least 8 characters',
+            backgroundColor: Colors.red, colorText: Colors.white);
+        return false;
+      }
+      if (_confirmPasswordController.text.isEmpty ||
+          _confirmPasswordController.text != _passwordController.text) {
+        Get.snackbar('Error', 'Passwords do not match',
+            backgroundColor: Colors.red, colorText: Colors.white);
+        return false;
+      }
     }
-    if (_confirmPasswordController.text.isEmpty ||
-        _confirmPasswordController.text != _passwordController.text) {
-      Get.snackbar('Error', 'Passwords do not match',
-          backgroundColor: Colors.red, colorText: Colors.white);
-      return false;
-    }
+
     return true;
   }
 
@@ -395,7 +432,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _handleRegistration() {
-    // if (_formKey.currentState!.validate()) {
     _authController.name.value = _nameController.text;
     _authController.email.value = _emailController.text;
     _authController.password.value = _passwordController.text;
@@ -416,7 +452,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       'panImage': ''
     };
 
-    _authController.register().then((_) {
+    _authController
+        .register(
+      isGoogleSignup: _isFromGoogle,
+      googleData: _googleData,
+    )
+        .then((_) {
       if (_authController.errorMessage.isEmpty) {
         Get.offAll(() => const HomeScreen());
         Get.snackbar('Success', 'Registration successful!',
@@ -426,7 +467,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             backgroundColor: Colors.red, colorText: Colors.white);
       }
     });
-    // }
   }
 
   // Your existing input decoration method
@@ -451,11 +491,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
   }
-
-  bool _isEmailVerified = false;
-  final TextEditingController _otpController = TextEditingController();
-  bool _showOtpInput = false;
-  String? _sentOtp;
 
   Future<void> _sendOtp() async {
     if (_emailController.text.isEmpty) {
@@ -525,20 +560,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
             Expanded(
               child: TextFormField(
                 controller: _emailController,
-                enabled: !_isEmailVerified, // Disable field after verification
+                enabled: !_isEmailVerified &&
+                    !_isFromGoogle, // Disable for Google users
                 decoration: _getInputDecoration('Email').copyWith(
-                  suffixIcon: _isEmailVerified
+                  suffixIcon: _isEmailVerified || _isFromGoogle
                       ? Icon(Icons.verified, color: Colors.green)
                       : null,
                 ),
                 style: TextStyle(
-                  color: _isEmailVerified ? Colors.grey : Colors.white,
+                  color: (_isEmailVerified || _isFromGoogle)
+                      ? Colors.grey
+                      : Colors.white,
                 ),
                 keyboardType: TextInputType.emailAddress,
                 validator: _validateEmail,
               ),
             ),
-            if (!_isEmailVerified) ...[
+            if (!_isEmailVerified && !_isFromGoogle) ...[
               const SizedBox(width: 8),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -563,7 +601,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ],
           ],
         ),
-        if (_showOtpInput && !_isEmailVerified) ...[
+        if (_isFromGoogle) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Email verified via Google',
+            style: TextStyle(
+              color: Colors.green[400],
+              fontSize: 12,
+            ),
+          ),
+        ],
+        if (_showOtpInput && !_isEmailVerified && !_isFromGoogle) ...[
           const SizedBox(height: 16),
           Row(
             children: [
@@ -752,80 +800,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             const SizedBox(height: 20),
             _buildEmailSection(),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _passwordController,
-              decoration: _getInputDecoration('Password').copyWith(
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                    color: _primaryColor,
+            if (!_isFromGoogle) ...[
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _passwordController,
+                decoration: _getInputDecoration('Password').copyWith(
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      color: _primaryColor,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _obscurePassword = !_obscurePassword;
-                    });
-                  },
                 ),
+                style: const TextStyle(color: Colors.white),
+                obscureText: _obscurePassword,
+                validator: _validatePassword,
               ),
-              style: const TextStyle(color: Colors.white),
-              obscureText: _obscurePassword,
-              validator: _validatePassword,
-            ),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _confirmPasswordController,
-              decoration: _getInputDecoration('Confirm Password').copyWith(
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscureConfirmPassword
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                    color: _primaryColor,
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _confirmPasswordController,
+                decoration: _getInputDecoration('Confirm Password').copyWith(
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureConfirmPassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      color: _primaryColor,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureConfirmPassword = !_obscureConfirmPassword;
+                      });
+                    },
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _obscureConfirmPassword = !_obscureConfirmPassword;
-                    });
-                  },
                 ),
+                style: const TextStyle(color: Colors.white),
+                obscureText: _obscureConfirmPassword,
+                validator: _validateConfirmPassword,
               ),
-              style: const TextStyle(color: Colors.white),
-              obscureText: _obscureConfirmPassword,
-              validator: _validateConfirmPassword,
-            ),
-            // const SizedBox(height: 20),
-            // Row(
-            //   children: [
-            //     Expanded(
-            //       child: TextFormField(
-            //         controller: _phoneController,
-            //         decoration: _getInputDecoration('Phone Number'),
-            //         style: const TextStyle(color: Colors.white),
-            //         keyboardType: TextInputType.phone,
-            //       ),
-            //     ),
-            //     const SizedBox(width: 8),
-            //     ElevatedButton(
-            //       style: ElevatedButton.styleFrom(
-            //           backgroundColor: AppColors.primaryColor,
-            //           foregroundColor: Colors.white,
-            //           padding: const EdgeInsets.symmetric(
-            //               horizontal: 12, vertical: 8)),
-            //       onPressed: () {
-            //         // Implement verification logic
-            //       },
-            //       child: const Row(
-            //         mainAxisSize: MainAxisSize.min,
-            //         children: [
-            //           Text('Verify'),
-            //           SizedBox(width: 2),
-            //           Icon(HugeIcons.strokeRoundedCheckmarkBadge01, size: 20)
-            //         ],
-            //       ),
-            //     ),
-            //   ],
-            // ),
+            ],
           ],
         ),
       ),

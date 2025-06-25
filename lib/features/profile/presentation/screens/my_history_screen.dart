@@ -22,8 +22,9 @@ class _HistoryScreenState extends State<HistoryScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     controller.fetchMeetings();
+    controller.fetchInstaTalkRequests();
   }
 
   @override
@@ -34,6 +35,7 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   Future<void> _refreshHistory() async {
     await controller.fetchMeetings();
+    await controller.fetchInstaTalkRequests();
   }
 
   // --- NEW, IMPROVED HELPER WIDGET for Call Status ---
@@ -121,8 +123,7 @@ class _HistoryScreenState extends State<HistoryScreen>
             ? photos.first
             : 'https://i.stack.imgur.com/l60Hf.png';
 
-        // final String status = call['status'] ?? 'Expired';
-        final String status = '';
+        final String status = call['status'] ?? 'Expired';
         final callTime =
             DateTime.tryParse(call['scheduledTime'] ?? '') ?? DateTime.now();
         final String timestamp =
@@ -260,6 +261,7 @@ class _HistoryScreenState extends State<HistoryScreen>
             Tab(text: 'Calls'),
             Tab(text: 'Video'),
             Tab(text: 'Chat'),
+            Tab(text: 'InstaTalk'),
           ],
         ),
       ),
@@ -273,13 +275,19 @@ class _HistoryScreenState extends State<HistoryScreen>
           children: [
             _buildHistoryList(controller.historicalItems),
             _buildHistoryList(controller.historicalItems
-                .where((item) => item['type'] == 'voice')
+                .where((item) =>
+                    item['type'] == 'voice' && item['isInstatalk'] != true)
                 .toList()),
             _buildHistoryList(controller.historicalItems
-                .where((item) => item['type'] == 'video')
+                .where((item) =>
+                    item['type'] == 'video' && item['isInstatalk'] != true)
                 .toList()),
             _buildHistoryList(controller.historicalItems
-                .where((item) => item['type'] == 'chat')
+                .where((item) =>
+                    item['type'] == 'chat' && item['isInstatalk'] != true)
+                .toList()),
+            _buildHistoryList(controller.historicalItems
+                .where((item) => item['isInstatalk'] == true)
                 .toList()),
           ],
         );

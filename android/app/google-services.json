@@ -12,7 +12,20 @@
           "package_name": "com.application.iftook"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "857030913183-hq725ph1jobgp75gf81ib49ola3atfej.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.application.iftook",
+            "certificate_hash": "d6dfae3102695ef86cd668f0955abbe4f35e918c"
+          }
+        },
+        {
+          "client_id": "857030913183-lv6238u30mab49a2us1c7h4q9o8j3ps2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCkKgu4ZmGUeKZlStJ-PZr9VAGKvCZOvQg"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "857030913183-lv6238u30mab49a2us1c7h4q9o8j3ps2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "857030913183-f7179je8jhgshghk8p9u92qnpjo3tmp6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.application.iftook"
+              }
+            }
+          ]
         }
       }
     }

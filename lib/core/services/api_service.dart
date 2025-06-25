@@ -1470,4 +1470,66 @@ class ApiService {
       }),
     );
   }
+
+  // Google Sign-in specific API methods
+  static Future<http.Response> checkUserExists(String email) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/check-user-exists'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+    return response;
+  }
+
+  static Future<http.Response> loginWithGoogle(
+      Map<String, dynamic> body) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/google/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['success'] && responseData['accessToken'] != null) {
+          await SharedPrefs.saveTokens(
+            responseData['accessToken'],
+            responseData['refreshToken'],
+          );
+        }
+      }
+
+      return response;
+    } catch (e) {
+      print('Google login error in API service: $e');
+      rethrow;
+    }
+  }
+
+  static Future<http.Response> registerWithGoogle(
+      Map<String, dynamic> body) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/google/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['success'] && responseData['accessToken'] != null) {
+          await SharedPrefs.saveTokens(
+            responseData['accessToken'],
+            responseData['refreshToken'],
+          );
+        }
+      }
+
+      return response;
+    } catch (e) {
+      print('Google register error in API service: $e');
+      rethrow;
+    }
+  }
 }

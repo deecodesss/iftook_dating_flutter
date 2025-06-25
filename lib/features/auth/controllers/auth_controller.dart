@@ -2,9 +2,11 @@ import 'dart:convert';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:get/get.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:iftook/core/services/api_service.dart'; // Assuming you have an API service
 import 'package:iftook/core/services/shared_prefs.dart';
 import 'package:iftook/features/home/presentation/screens/home_screen.dart';
+import 'package:iftook/features/auth/presentation/screens/register_screen.dart';
 import 'package:iftook/features/notifications/controllers/notification_controller.dart';
 import 'package:flutter/material.dart';
 
@@ -49,72 +51,72 @@ class AuthController extends GetxController {
   var isEmailVerified = false.obs;
 
   // Register method
-  Future<void> register() async {
-    try {
-      isLoading(true);
-      errorMessage('');
+  // Future<void> register() async {
+  //   try {
+  //     isLoading(true);
+  //     errorMessage('');
 
-      // Prepare the request body
-      final requestBody = {
-        'name': name.value,
-        'email': email.value,
-        'password': password.value,
-        'dob': dob.value,
-        'gender': gender.value.toLowerCase(),
-        'interestedIn':
-            gender.value.toLowerCase() == 'female' ? 'men' : "women",
-        'about': about.value,
-        'profession': profession.value,
-        'height': height.value,
-        'languages': languages.toList(),
-        'location': location,
-        'interests': interests.toList(),
-        'panDetails': panDetails,
-        'earnings': earnings,
-        'isOnline': isOnline.value,
-      };
+  //     // Prepare the request body
+  //     final requestBody = {
+  //       'name': name.value,
+  //       'email': email.value,
+  //       'password': password.value,
+  //       'dob': dob.value,
+  //       'gender': gender.value.toLowerCase(),
+  //       'interestedIn':
+  //           gender.value.toLowerCase() == 'female' ? 'men' : "women",
+  //       'about': about.value,
+  //       'profession': profession.value,
+  //       'height': height.value,
+  //       'languages': languages.toList(),
+  //       'location': location,
+  //       'interests': interests.toList(),
+  //       'panDetails': panDetails,
+  //       'earnings': earnings,
+  //       'isOnline': isOnline.value,
+  //     };
 
-      print("register body: $requestBody");
+  //     print("register body: $requestBody");
 
-      // Call the API
-      final response = await ApiService.register(requestBody);
-      print("Registration response: ${response.body}");
+  //     // Call the API
+  //     final response = await ApiService.register(requestBody);
+  //     print("Registration response: ${response.body}");
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = jsonDecode(response.body);
+  //     if (response.statusCode == 200 || response.statusCode == 201) {
+  //       final responseData = jsonDecode(response.body);
 
-        // Check if the response contains success flag
-        if (responseData['success'] == true) {
-          // Save user data and token
-          if (responseData['user'] != null) {
-            await SharedPrefs.saveUserIdSharedPreference(
-                responseData['user']['_id']);
-          }
+  //       // Check if the response contains success flag
+  //       if (responseData['success'] == true) {
+  //         // Save user data and token
+  //         if (responseData['user'] != null) {
+  //           await SharedPrefs.saveUserIdSharedPreference(
+  //               responseData['user']['_id']);
+  //         }
 
-          // Update FCM token
-          updateFCMToken();
+  //         // Update FCM token
+  //         updateFCMToken();
 
-          // Handle successful registration
-          Get.offAll(() => const HomeScreen()); // Navigate to home screen
-          Get.snackbar('Success', 'Registration successful!',
-              backgroundColor: Colors.green, colorText: Colors.white);
-        } else {
-          errorMessage.value =
-              responseData['message']?.toString() ?? 'Registration failed';
-        }
-      } else {
-        // Handle API errors
-        final errorData = jsonDecode(response.body);
-        errorMessage.value =
-            errorData['message']?.toString() ?? 'Registration failed';
-      }
-    } catch (e) {
-      print('Registration error: $e');
-      errorMessage.value = 'An error occurred during registration';
-    } finally {
-      isLoading(false);
-    }
-  }
+  //         // Handle successful registration
+  //         Get.offAll(() => const HomeScreen()); // Navigate to home screen
+  //         Get.snackbar('Success', 'Registration successful!',
+  //             backgroundColor: Colors.green, colorText: Colors.white);
+  //       } else {
+  //         errorMessage.value =
+  //             responseData['message']?.toString() ?? 'Registration failed';
+  //       }
+  //     } else {
+  //       // Handle API errors
+  //       final errorData = jsonDecode(response.body);
+  //       errorMessage.value =
+  //           errorData['message']?.toString() ?? 'Registration failed';
+  //     }
+  //   } catch (e) {
+  //     print('Registration error: $e');
+  //     errorMessage.value = 'An error occurred during registration';
+  //   } finally {
+  //     isLoading(false);
+  //   }
+  // }
 
   String fcmToken = '';
   Future<void> updateFCMToken() async {
@@ -217,5 +219,334 @@ class AuthController extends GetxController {
     } else {
       return true;
     }
+  }
+
+  // Google Sign In instance
+  GoogleSignIn? _googleSignIn;
+  var isGoogleLoading = false.obs;
+
+  // Required scopes
+  static const List<String> scopes = <String>[
+    'email',
+    'profile',
+  ];
+
+  @override
+  void onInit() {
+    super.onInit();
+    _initializeGoogleSignIn();
+  }
+
+  void _initializeGoogleSignIn() {
+    try {
+      _googleSignIn = GoogleSignIn(
+        serverClientId:
+            '857030913183-lv6238u30mab49a2us1c7h4q9o8j3ps2.apps.googleusercontent.com',
+        scopes: scopes,
+        signInOption: SignInOption.standard,
+      );
+
+      print('Google Sign-in initialized successfully');
+      print('Available scopes: $scopes');
+    } catch (e) {
+      print('Google Sign-in initialization error: $e');
+    }
+  }
+
+  // Google Sign In method
+  Future<void> signInWithGoogle() async {
+    try {
+      isGoogleLoading(true);
+      errorMessage('');
+
+      if (_googleSignIn == null) {
+        errorMessage('Google Sign-in not properly configured');
+        return;
+      }
+
+      print('Starting Google Sign-in process...');
+
+      // Check if Google Play Services is available
+      print('Checking Google Play Services availability...');
+
+      // Sign out first to ensure clean state
+      await _googleSignIn!.signOut();
+      print('Signed out from previous session');
+
+      // Use the standard signIn method
+      print('Attempting to sign in...');
+      final GoogleSignInAccount? googleUser = await _googleSignIn!.signIn();
+
+      if (googleUser == null) {
+        print('User cancelled sign-in');
+        Get.snackbar('Info', 'Sign-in cancelled',
+            backgroundColor: Colors.orange, colorText: Colors.white);
+        return;
+      }
+
+      print('Google user obtained: ${googleUser.email}');
+
+      // Get the authentication details
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      print('Authentication tokens obtained');
+
+      // Verify we have the required tokens
+      if (googleAuth.idToken == null) {
+        print('ID Token is null');
+        errorMessage('Failed to get authentication tokens from Google');
+        return;
+      }
+
+      print('Google Sign-in successful for: ${googleUser.email}');
+
+      // Check if user exists in backend
+      final userExists = await checkUserExists(googleUser.email);
+
+      if (userExists) {
+        // User exists, proceed with login
+        await loginWithGoogle(googleUser);
+      } else {
+        // User doesn't exist, proceed with registration
+        await registerWithGoogle(googleUser);
+      }
+    } catch (e) {
+      print('Google Sign-In error details: $e');
+      print('Error type: ${e.runtimeType}');
+
+      String errorMsg = 'Failed to sign in with Google. Please try again.';
+
+      if (e.toString().contains('ApiException: 10')) {
+        errorMsg =
+            'Google Sign-in configuration error. Please contact support.';
+      } else if (e.toString().contains('network_error')) {
+        errorMsg = 'Network error. Please check your internet connection.';
+      } else if (e.toString().contains('sign_in_canceled')) {
+        errorMsg = 'Sign-in was cancelled.';
+      }
+
+      errorMessage(errorMsg);
+      Get.snackbar('Error', errorMsg,
+          backgroundColor: Colors.red, colorText: Colors.white);
+    } finally {
+      isGoogleLoading(false);
+    }
+  }
+
+  // Check if user exists
+  Future<bool> checkUserExists(String email) async {
+    try {
+      final response = await ApiService.checkUserExists(email);
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return responseData['exists'] ?? false;
+      }
+      return false;
+    } catch (e) {
+      print('Check user exists error: $e');
+      return false;
+    }
+  }
+
+  // Login with Google
+  Future<void> loginWithGoogle(GoogleSignInAccount googleUser) async {
+    try {
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      final requestBody = {
+        'email': googleUser.email,
+        'googleId': googleUser.id,
+        'name': googleUser.displayName,
+        'photoUrl': googleUser.photoUrl,
+        'idToken': googleAuth.idToken,
+      };
+
+      final response = await ApiService.loginWithGoogle(requestBody);
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+
+        if (responseData['success'] == true) {
+          // Save tokens and user data
+          if (responseData['accessToken'] != null) {
+            await SharedPrefs.saveTokens(
+                responseData['accessToken'], responseData['refreshToken']);
+          }
+
+          await SharedPrefs.saveUserIdSharedPreference(
+              responseData['user']['_id']);
+          await SharedPrefs.saveUserEmailSharedPreference(googleUser.email);
+          await SharedPrefs.saveUsernameSharedPreference(
+              responseData['user']['name']);
+
+          // Update FCM token
+          updateFCMToken();
+
+          Get.offAll(() => const HomeScreen());
+          Get.snackbar('Success', 'Signed in successfully!',
+              backgroundColor: Colors.green, colorText: Colors.white);
+        } else {
+          errorMessage.value =
+              responseData['message'] ?? 'Google sign-in failed';
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        errorMessage.value = errorData['message'] ?? 'Google sign-in failed';
+      }
+    } catch (e) {
+      print('Google login error: $e');
+      errorMessage('Failed to sign in with Google');
+    }
+  }
+
+  // Register with Google (navigate to registration with pre-filled data)
+  Future<void> registerWithGoogle(GoogleSignInAccount googleUser) async {
+    try {
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      // Pre-fill the form data
+      name.value = googleUser.displayName ?? '';
+      email.value = googleUser.email;
+      isEmailVerified.value = true; // Google email is already verified
+
+      // Navigate to registration screen
+      Get.to(() => const RegisterScreen(), arguments: {
+        'fromGoogle': true,
+        'googleData': {
+          'id': googleUser.id,
+          'name': googleUser.displayName,
+          'email': googleUser.email,
+          'photoUrl': googleUser.photoUrl,
+          'idToken': googleAuth.idToken,
+        }
+      });
+
+      Get.snackbar('Welcome!', 'Please complete your profile to get started',
+          backgroundColor: Colors.blue, colorText: Colors.white);
+    } catch (e) {
+      print('Register with Google error: $e');
+      errorMessage('Failed to start registration process');
+    }
+  }
+
+  // Modified register method to handle Google registration
+  Future<void> register(
+      {bool isGoogleSignup = false, Map<String, dynamic>? googleData}) async {
+    try {
+      isLoading(true);
+      errorMessage('');
+
+      String? freshIdToken;
+      if (isGoogleSignup) {
+        try {
+          // Re-authenticate silently to get a fresh ID token, as the original one might have expired
+          // during the multi-step registration process.
+          final googleUser = _googleSignIn?.currentUser;
+          if (googleUser == null) {
+            errorMessage.value =
+                'Google session expired. Please try signing in again.';
+            isLoading(false);
+            return;
+          }
+          final googleAuth = await googleUser.authentication;
+          freshIdToken = googleAuth.idToken;
+
+          if (freshIdToken == null) {
+            errorMessage.value =
+                'Could not refresh Google token. Please try again.';
+            isLoading(false);
+            return;
+          }
+        } catch (e) {
+          print('Error refreshing Google token: $e');
+          errorMessage.value =
+              'Failed to refresh Google session. Please try again.';
+          isLoading(false);
+          return;
+        }
+      }
+
+      // Prepare the request body
+      final requestBody = {
+        'name': name.value,
+        'email': email.value,
+        'password': isGoogleSignup ? null : password.value,
+        'googleId': isGoogleSignup ? (googleData?['id']) : null,
+        'photoUrl': isGoogleSignup
+            ? (googleData != null ? googleData['photoUrl'] : null)
+            : null,
+        'idToken': isGoogleSignup ? freshIdToken : null,
+        'dob': dob.value,
+        'gender': gender.value.toLowerCase(),
+        'interestedIn':
+            gender.value.toLowerCase() == 'female' ? 'men' : "women",
+        'about': about.value,
+        'profession': profession.value,
+        'height': height.value,
+        'languages': languages.toList(),
+        'location': location,
+        'interests': interests.toList(),
+        'panDetails': panDetails,
+        'earnings': earnings,
+        'isOnline': isOnline.value,
+      };
+
+      print("register body: $requestBody");
+
+      // Call the appropriate API endpoint
+      final response = isGoogleSignup
+          ? await ApiService.registerWithGoogle(requestBody)
+          : await ApiService.register(requestBody);
+
+      print("Registration response: ${response.body}");
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = jsonDecode(response.body);
+
+        // Check if the response contains success flag
+        if (responseData['success'] == true) {
+          // Save user data and tokens
+          if (responseData['user'] != null) {
+            await SharedPrefs.saveUserIdSharedPreference(
+                responseData['user']['_id']);
+          }
+
+          if (responseData['accessToken'] != null) {
+            await SharedPrefs.saveTokens(
+                responseData['accessToken'], responseData['refreshToken']);
+          }
+
+          // Update FCM token
+          updateFCMToken();
+
+          // Handle successful registration
+          Get.offAll(() => const HomeScreen());
+          Get.snackbar('Success', 'Registration successful!',
+              backgroundColor: Colors.green, colorText: Colors.white);
+        } else {
+          errorMessage.value =
+              responseData['message']?.toString() ?? 'Registration failed';
+        }
+      } else {
+        // Handle API errors
+        final errorData = jsonDecode(response.body);
+        errorMessage.value =
+            errorData['message']?.toString() ?? 'Registration failed';
+      }
+    } catch (e) {
+      print('Registration error: $e');
+      errorMessage.value = 'An error occurred during registration';
+    } finally {
+      isLoading(false);
+    }
+  }
+
+  // Clean up Google Sign-in on dispose
+  @override
+  void onClose() {
+    _googleSignIn?.signOut();
+    super.onClose();
   }
 }

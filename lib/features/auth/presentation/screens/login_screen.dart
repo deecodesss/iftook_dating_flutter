@@ -224,9 +224,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: () {
-                      // Implement Google login
-                    },
+                    onPressed: _authController.isGoogleLoading.value
+                        ? null
+                        : () {
+                            _authController.signInWithGoogle();
+                          },
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       backgroundColor: Colors.white,
@@ -235,29 +237,41 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
+                    child: Obx(() {
+                      if (_authController.isGoogleLoading.value) {
+                        return const SizedBox(
                           height: 24,
                           width: 24,
-                          child: Center(
-                            child: SvgPicture.asset(
-                              MyAssets.googleSVG,
-                              height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.black87,
+                            strokeWidth: 2,
+                          ),
+                        );
+                      }
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: Center(
+                              child: SvgPicture.asset(
+                                MyAssets.googleSVG,
+                                height: 20,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Continue with Google',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.black87,
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Continue with Google',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.black87,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      );
+                    }),
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(

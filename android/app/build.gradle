@@ -49,11 +49,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Use the release signing config for debug builds to ensure a consistent SHA-1 hash.
+            signingConfig signingConfigs.release
+        }
         release {
             // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
-            signingConfig = signingConfigs.release
+            signingConfig signingConfigs.release
 
             // Make sure your ProGuard rules are properly referenced
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -67,4 +69,8 @@ flutter {
 
 dependencies {
     // ...existing code...
+    implementation 'com.google.android.gms:play-services-auth:20.7.0'
 }
+
+// Make sure this is at the bottom of the file
+apply plugin: 'com.google.gms.google-services'
