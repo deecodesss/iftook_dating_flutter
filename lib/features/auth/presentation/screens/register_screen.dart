@@ -6,6 +6,9 @@ import 'package:iftook/core/widgets/charges_bottom_sheet.dart';
 import 'package:iftook/features/home/presentation/screens/home_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import '../../../../core/services/api_service.dart';
 
 import '../../controllers/auth_controller.dart';
 
@@ -55,6 +58,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _state = '';
   String _city = '';
   List<String> _photos = [];
+  List<String> _photoUrls = []; // Add this to track uploaded photo URLs
   bool _isLoadingLocation = true;
   String _locationError = '';
   final List<String> _genderOptions = ['Male', 'Female'];
@@ -81,6 +85,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _otpController = TextEditingController();
   bool _showOtpInput = false;
   String? _sentOtp;
+
+  // Add earnings variables
+  Map<String, double> _earnings = {
+    'chat': 150.0,
+    'voice': 300.0,
+    'video': 450.0,
+    'live': 5.0,
+    'subscription': 700.0,
+  };
 
   // Theme colors
   final Color _primaryColor = const Color(0xFFE91E63);
@@ -400,6 +413,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   bool _validatePhotos() {
+    // Remove the photo requirement validation for now
     // if (_photos.length < 2) {
     //   Get.snackbar('Error', 'Please add at least 2 photos',
     //       backgroundColor: Colors.red, colorText: Colors.white);
@@ -427,7 +441,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   bool _validateEarnings() {
-    // Add validation logic for earnings if needed
+    // Basic validation for earnings
+    if (_earnings.values.any((value) => value < 0)) {
+      Get.snackbar('Error', 'Earnings cannot be negative',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
     return true;
   }
 
@@ -451,6 +470,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       'panNumber': _panController.text,
       'panImage': ''
     };
+    // Update earnings with actual values
+    _authController.earnings.value = {
+      'chat': _earnings['chat']!.toInt(),
+      'voice': _earnings['voice']!.toInt(),
+      'video': _earnings['video']!.toInt(),
+      'live': _earnings['live']!.toInt(),
+      'subscription': _earnings['subscription']!.toInt(),
+    };
+    // Add photos to the controller
+    _authController.photos.value = _photoUrls;
 
     _authController
         .register(
@@ -970,38 +999,146 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildPhotosPage() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Container(
-        height: 200,
-        decoration: BoxDecoration(
-          color: _cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade800),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add_photo_alternate, size: 48, color: _primaryColor),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryColor,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () {
-                  // Implement photo upload logic
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('Add Photos'),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Add at least 2 photos',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _headerTitle("Add Your Photos"),
+          Text(
+            'Add photos to make your profile more attractive. You can reorder them by dragging.',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 14,
+            ),
           ),
-        ),
+          const SizedBox(height: 24),
+
+          // Photo grid
+          Container(
+            height: 300,
+            child: _photos.isEmpty
+                ? Container(
+                    decoration: BoxDecoration(
+                      color: _cardColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: Colors.grey.shade800,
+                          style: BorderStyle.solid),
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_photo_alternate,
+                              size: 48, color: _primaryColor),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryColor,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: _pickImage,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Your First Photo'),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Photos help others get to know you better',
+                            style: TextStyle(color: Colors.grey[400]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : ReorderableListView(
+                    scrollDirection: Axis.horizontal,
+                    onReorder: _onReorderPhotos,
+                    children: List.generate(_photos.length, (index) {
+                      return Container(
+                        key: Key('photo-$index'),
+                        margin: const EdgeInsets.only(right: 12),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                File(_photos[index]),
+                                width: 120,
+                                height: 300,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.6),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.white, size: 18),
+                                  padding: const EdgeInsets.all(4),
+                                  constraints: const BoxConstraints(),
+                                  onPressed: () => _deletePhoto(index),
+                                ),
+                              ),
+                            ),
+                            if (index == 0)
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 4),
+                                  color:
+                                      AppColors.primaryColor.withOpacity(0.8),
+                                  child: const Text(
+                                    'Profile Photo',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Add photo button (always visible)
+          if (_photos.isNotEmpty)
+            Center(
+              child: OutlinedButton.icon(
+                onPressed: _pickImage,
+                icon: const Icon(Icons.add_photo_alternate),
+                label: const Text('Add Another Photo'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(color: AppColors.primaryColor),
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 16),
+
+          // Photo count info
+          Text(
+            'Photos added: ${_photos.length}',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 14,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1127,52 +1264,238 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildEarningsPage() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _cardColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Set Your Earnings',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _headerTitle("Set Your Earnings"),
+          Text(
+            'Define your charges for different services. You can change these later.',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Earnings input fields
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildEarningField('Chat (per 30 minutes)', 'chat'),
+                  const SizedBox(height: 16),
+                  _buildEarningField('Voice Call (per 30 minutes)', 'voice'),
+                  const SizedBox(height: 16),
+                  _buildEarningField('Video Call (per 30 minutes)', 'video'),
+                  const SizedBox(height: 16),
+                  _buildEarningField('Live Streaming (per minute)', 'live'),
+                  const SizedBox(height: 16),
+                  _buildEarningField('Monthly Subscription', 'subscription'),
+                  const SizedBox(height: 24),
+
+                  // Info card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primaryColor.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info_outline,
+                                color: AppColors.primaryColor),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Pricing Tips',
+                                style: TextStyle(
+                                  color: AppColors.primaryColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '• Set competitive prices to attract more users\n• You can adjust these rates anytime from your profile\n• Higher quality interactions often justify higher rates',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Define your charges for different services',
-              style: TextStyle(
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                showPriceBottomSheet(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryColor,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text("Set Your Earnings"),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    _nameController.dispose();
-    _dobController.dispose();
-    super.dispose();
+  Widget _buildEarningField(String label, String key) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade800),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Text(
+                '₹',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  initialValue: _earnings[key]!.toInt().toString(),
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Enter amount',
+                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey.shade700),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey.shade700),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: AppColors.primaryColor),
+                    ),
+                    fillColor: Colors.grey.shade900,
+                    filled: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  onChanged: (value) {
+                    final amount = double.tryParse(value) ?? 0.0;
+                    setState(() {
+                      _earnings[key] = amount;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Add photo picker method
+  Future<void> _pickImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 80,
+      );
+
+      if (image != null) {
+        // Show loading dialog
+        Get.dialog(
+          const Center(child: CircularProgressIndicator()),
+          barrierDismissible: false,
+        );
+
+        try {
+          // Upload the image
+          final result = await ApiService.uploadImage(File(image.path));
+
+          // Close loading dialog
+          Get.back();
+
+          if (result['success']) {
+            setState(() {
+              _photos.add(image.path);
+              _photoUrls.add(result['imageUrl']);
+            });
+
+            Get.snackbar(
+              'Success',
+              'Photo uploaded successfully',
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+            );
+          } else {
+            Get.snackbar(
+              'Error',
+              'Failed to upload photo: ${result['message']}',
+              backgroundColor: Colors.red,
+              colorText: Colors.white,
+            );
+          }
+        } catch (e) {
+          // Close loading dialog
+          Get.back();
+          Get.snackbar(
+            'Error',
+            'Failed to upload photo. Please try again.',
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        }
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to pick image. Please try again.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  // Add photo deletion method
+  void _deletePhoto(int index) {
+    setState(() {
+      _photos.removeAt(index);
+      _photoUrls.removeAt(index);
+    });
+  }
+
+  // Add photo reordering method
+  void _onReorderPhotos(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) {
+        newIndex -= 1;
+      }
+      final String item = _photos.removeAt(oldIndex);
+      final String urlItem = _photoUrls.removeAt(oldIndex);
+      _photos.insert(newIndex, item);
+      _photoUrls.insert(newIndex, urlItem);
+    });
   }
 }

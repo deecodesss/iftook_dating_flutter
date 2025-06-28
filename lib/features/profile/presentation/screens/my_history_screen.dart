@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iftook/core/services/shared_prefs.dart';
@@ -15,7 +16,7 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   final FriendController controller = Get.find<FriendController>();
 
@@ -23,19 +24,38 @@ class _HistoryScreenState extends State<HistoryScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
-    controller.fetchMeetings();
-    controller.fetchInstaTalkRequests();
+    WidgetsBinding.instance.addObserver(this);
+    _fetchData();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  Future<void> _refreshHistory() async {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      if (kDebugMode) {
+        print("[HistoryScreen] App resumed, fetching latest history.");
+      }
+      _fetchData();
+    }
+  }
+
+  Future<void> _fetchData() async {
+    if (kDebugMode) {
+      print("[HistoryScreen] Fetching meetings and InstaTalk requests...");
+    }
     await controller.fetchMeetings();
     await controller.fetchInstaTalkRequests();
+  }
+
+  Future<void> _refreshHistory() async {
+    await _fetchData();
   }
 
   // --- NEW, IMPROVED HELPER WIDGET for Call Status ---
@@ -270,23 +290,62 @@ class _HistoryScreenState extends State<HistoryScreen>
           return const Center(
               child: CircularProgressIndicator(color: AppColors.primaryColor));
         }
+
+        // Manually add 'isInstatalk' flag to items from instaTalkRequests
+        // to ensure they are correctly identified in the combined list.
+        final instaTalksWithFlag = controller.instaTalkRequests.map((item) {
+          final newItem = Map<String, dynamic>.from(item);
+          newItem['isInstatalk'] = true;
+          return newItem;
+        }).toList();
+
+        // Combine meetings and instatalks into a single list for history
+        final allHistory = [
+          ...controller.historicalItems,
+          ...instaTalksWithFlag,
+        ];
+        allHistory.sort((a, b) {
+          final aTime = DateTime.tryParse(a['scheduledTime'] ?? '');
+          final bTime = DateTime.tryParse(b['scheduledTime'] ?? '');
+          if (aTime == null || bTime == null) return 0;
+          return bTime.compareTo(aTime); // Sort by most recent
+        });
+
+        if (kDebugMode) {
+          print('--- HISTORY SCREEN LOGS ---');
+          print(
+              'Total items in historicalItems: ${controller.historicalItems.length}');
+          print(
+              'Total items in instaTalkRequests: ${controller.instaTalkRequests.length}');
+          print('Total items in combined history: ${allHistory.length}');
+          final instaTalkHistory =
+              allHistory.where((item) => item['isInstatalk'] == true).toList();
+          print(
+              'Found ${instaTalkHistory.length} InstaTalks in combined history.');
+          if (instaTalkHistory.isNotEmpty) {
+            print(
+                'First InstaTalk from combined history: ${instaTalkHistory.first}');
+          }
+          print('--- END LOGS ---');
+        }
+
         return TabBarView(
           controller: _tabController,
           children: [
-            _buildHistoryList(controller.historicalItems),
-            _buildHistoryList(controller.historicalItems
+            _buildHistoryList(allHistory),
+            _buildHistoryList(allHistory
                 .where((item) =>
                     item['type'] == 'voice' && item['isInstatalk'] != true)
                 .toList()),
-            _buildHistoryList(controller.historicalItems
+            _buildHistoryList(allHistory
                 .where((item) =>
                     item['type'] == 'video' && item['isInstatalk'] != true)
                 .toList()),
-            _buildHistoryList(controller.historicalItems
+            _buildHistoryList(allHistory
                 .where((item) =>
                     item['type'] == 'chat' && item['isInstatalk'] != true)
                 .toList()),
-            _buildHistoryList(controller.historicalItems
+            _buildHistoryList(allHistory
                 .where((item) => item['isInstatalk'] == true)
                 .toList()),
           ],

@@ -301,13 +301,17 @@ class AuthController extends GetxController {
       print('Google Sign-in successful for: ${googleUser.email}');
 
       // Check if user exists in backend
+      print('Checking if user exists in backend...');
       final userExists = await checkUserExists(googleUser.email);
+      print('User exists: $userExists');
 
       if (userExists) {
         // User exists, proceed with login
+        print('User exists, proceeding with login...');
         await loginWithGoogle(googleUser);
       } else {
         // User doesn't exist, proceed with registration
+        print('User does not exist, proceeding with registration...');
         await registerWithGoogle(googleUser);
       }
     } catch (e) {
@@ -336,11 +340,18 @@ class AuthController extends GetxController {
   // Check if user exists
   Future<bool> checkUserExists(String email) async {
     try {
+      print('Calling API to check if user exists for email: $email');
       final response = await ApiService.checkUserExists(email);
+      print(
+          'Check user exists response: ${response.statusCode} - ${response.body}');
+
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        return responseData['exists'] ?? false;
+        final exists = responseData['exists'] ?? false;
+        print('User exists result: $exists');
+        return exists;
       }
+      print('API call failed with status code: ${response.statusCode}');
       return false;
     } catch (e) {
       print('Check user exists error: $e');
@@ -351,8 +362,24 @@ class AuthController extends GetxController {
   // Login with Google
   Future<void> loginWithGoogle(GoogleSignInAccount googleUser) async {
     try {
+      print('Starting Google login process...');
+
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
+
+      // Ensure we have fresh tokens
+      if (googleAuth.idToken == null || googleAuth.accessToken == null) {
+        print('Missing authentication tokens, attempting to refresh...');
+
+        // Try to refresh the authentication
+        await googleUser.clearAuthCache();
+        final newAuth = await googleUser.authentication;
+
+        if (newAuth.idToken == null) {
+          throw Exception(
+              'Unable to obtain valid Google authentication tokens');
+        }
+      }
 
       final requestBody = {
         'email': googleUser.email,
@@ -360,18 +387,33 @@ class AuthController extends GetxController {
         'name': googleUser.displayName,
         'photoUrl': googleUser.photoUrl,
         'idToken': googleAuth.idToken,
+        'accessToken': googleAuth.accessToken, // Add access token as well
       };
 
+      print('Sending Google login request...');
+      print('Request body (without tokens): ${requestBody
+        ..remove('idToken')
+        ..remove('accessToken')}');
+
+      // Add the tokens back for the actual request
+      requestBody['idToken'] = googleAuth.idToken;
+      requestBody['accessToken'] = googleAuth.accessToken;
+
       final response = await ApiService.loginWithGoogle(requestBody);
+      print('Google login response: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
+        print('Google login response data parsed successfully');
 
         if (responseData['success'] == true) {
+          print('Google login successful, saving tokens and user data...');
+
           // Save tokens and user data
           if (responseData['accessToken'] != null) {
             await SharedPrefs.saveTokens(
                 responseData['accessToken'], responseData['refreshToken']);
+            print('Tokens saved successfully');
           }
 
           await SharedPrefs.saveUserIdSharedPreference(
@@ -379,30 +421,69 @@ class AuthController extends GetxController {
           await SharedPrefs.saveUserEmailSharedPreference(googleUser.email);
           await SharedPrefs.saveUsernameSharedPreference(
               responseData['user']['name']);
+          print('User data saved successfully');
 
           // Update FCM token
           updateFCMToken();
 
+          print('Navigating to home screen...');
+          // Use Get.offAll to ensure we clear the navigation stack
           Get.offAll(() => const HomeScreen());
-          Get.snackbar('Success', 'Signed in successfully!',
-              backgroundColor: Colors.green, colorText: Colors.white);
+
+          // Show success message after navigation
+          Future.delayed(const Duration(milliseconds: 500), () {
+            Get.snackbar('Success', 'Signed in successfully!',
+                backgroundColor: Colors.green, colorText: Colors.white);
+          });
         } else {
+          print('Google login failed: ${responseData['message']}');
           errorMessage.value =
               responseData['message'] ?? 'Google sign-in failed';
+          Get.snackbar('Error', errorMessage.value,
+              backgroundColor: Colors.red, colorText: Colors.white);
         }
       } else {
+        print(
+            'Google login API call failed with status: ${response.statusCode}');
         final errorData = jsonDecode(response.body);
-        errorMessage.value = errorData['message'] ?? 'Google sign-in failed';
+        final errorMsg = errorData['message'] ?? 'Google sign-in failed';
+        print('Error message from server: $errorMsg');
+
+        // If it's a token verification error, try to sign in again
+        if (errorMsg.contains('Invalid Google token') ||
+            errorMsg.contains('token')) {
+          print(
+              'Token verification failed, attempting to refresh and retry...');
+
+          // Clear auth cache and try once more
+          await _googleSignIn!.signOut();
+
+          Get.snackbar(
+            'Authentication Issue',
+            'Please try signing in again. If the problem persists, restart the app.',
+            backgroundColor: Colors.orange,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 4),
+          );
+        } else {
+          errorMessage.value = errorMsg;
+          Get.snackbar('Error', errorMsg,
+              backgroundColor: Colors.red, colorText: Colors.white);
+        }
       }
     } catch (e) {
       print('Google login error: $e');
       errorMessage('Failed to sign in with Google');
+      Get.snackbar('Error', 'Failed to sign in with Google. Please try again.',
+          backgroundColor: Colors.red, colorText: Colors.white);
     }
   }
 
   // Register with Google (navigate to registration with pre-filled data)
   Future<void> registerWithGoogle(GoogleSignInAccount googleUser) async {
     try {
+      print('Starting Google registration redirect...');
+
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
@@ -410,6 +491,8 @@ class AuthController extends GetxController {
       name.value = googleUser.displayName ?? '';
       email.value = googleUser.email;
       isEmailVerified.value = true; // Google email is already verified
+
+      print('Navigating to registration screen with Google data...');
 
       // Navigate to registration screen
       Get.to(() => const RegisterScreen(), arguments: {
@@ -428,6 +511,8 @@ class AuthController extends GetxController {
     } catch (e) {
       print('Register with Google error: $e');
       errorMessage('Failed to start registration process');
+      Get.snackbar('Error', 'Failed to start registration process',
+          backgroundColor: Colors.red, colorText: Colors.white);
     }
   }
 

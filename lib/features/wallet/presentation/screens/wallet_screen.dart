@@ -342,21 +342,20 @@ class _WalletScreenState extends State<WalletScreen>
   List<Map<String, dynamic>> getFilteredTransactions() {
     final allTransactions = walletController.transactions;
     if (_tabController.index == 0) {
-      // "Transactions" tab - should show non-earning, non-refund
+      // "Bank Txs" tab - show wallet_deposit and withdrawal only
       return allTransactions
           .where((tx) =>
-              tx['paymentType'] != 'earning' && tx['paymentType'] != 'refund')
+              tx['paymentType'] == 'wallet_deposit' ||
+              tx['paymentType'] == 'withdrawal')
           .toList();
     } else if (_tabController.index == 1) {
-      // "Earnings" tab
+      // "Meetings" tab - show wallet_payment (service payments)
       return allTransactions
-          .where((tx) => tx['paymentType'] == 'earning')
+          .where((tx) => tx['paymentType'] == 'wallet_payment')
           .toList();
     } else {
-      // "Refunds" tab (_tabController.index == 2)
-      return allTransactions
-          .where((tx) => tx['paymentType'] == 'refund')
-          .toList();
+      // "Earnings" tab (_tabController.index == 2) - keep empty for now
+      return [];
     }
   }
 
@@ -479,10 +478,11 @@ class _WalletScreenState extends State<WalletScreen>
                             indicatorColor: AppColors.primaryColor,
                             labelColor: AppColors.primaryColor,
                             unselectedLabelColor: Colors.grey,
+                            dividerColor: Colors.transparent,
                             tabs: const [
-                              Tab(text: 'Transactions'),
+                              Tab(text: 'Bank Txs'),
+                              Tab(text: 'Meetings'),
                               Tab(text: 'Earnings'),
-                              Tab(text: 'Refunds'),
                             ],
                             onTap: (_) => setState(() {}),
                           ),
@@ -493,83 +493,118 @@ class _WalletScreenState extends State<WalletScreen>
                     // Sliver for Transaction List
                     SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final transaction =
-                                getFilteredTransactions()[index];
-                            final displayDetails =
-                                _getTransactionDisplayDetails(transaction);
-
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.blueGrey.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
+                      sliver: getFilteredTransactions().isEmpty
+                          ? SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.receipt_long_outlined,
+                                      size: 48,
+                                      color: Colors.grey[600],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      _tabController.index == 0
+                                          ? 'No bank transactions yet'
+                                          : _tabController.index == 1
+                                              ? 'No meeting payments yet'
+                                              : 'No earnings yet',
+                                      style: TextStyle(
+                                        color: Colors.grey[400],
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
+                            )
+                          : SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final transaction =
+                                      getFilteredTransactions()[index];
+                                  final displayDetails =
+                                      _getTransactionDisplayDetails(
+                                          transaction);
+
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: (displayDetails['color'] as Color)
-                                          .withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(8),
+                                      color: Colors.blueGrey.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: Icon(
-                                      displayDetails['icon'] as IconData,
-                                      color: displayDetails['color'] as Color,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                    child: Row(
                                       children: [
-                                        Text(
-                                          displayDetails['title'] as String,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w500,
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: (displayDetails['color']
+                                                    as Color)
+                                                .withOpacity(0.2),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Icon(
+                                            displayDetails['icon'] as IconData,
+                                            color: displayDetails['color']
+                                                as Color,
                                           ),
                                         ),
-                                        const SizedBox(height: 2),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                displayDetails['title']
+                                                    as String,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                displayDetails['subtitle']
+                                                    as String,
+                                                style: TextStyle(
+                                                  color: Colors.grey[400],
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                displayDetails['date']
+                                                    as String,
+                                                style: const TextStyle(
+                                                  color: Colors.grey,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                         Text(
-                                          displayDetails['subtitle'] as String,
+                                          displayDetails['amount'] as String,
                                           style: TextStyle(
-                                            color: Colors.grey[400],
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          displayDetails['date'] as String,
-                                          style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 12,
+                                            color: displayDetails['color']
+                                                as Color,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
                                           ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  Text(
-                                    displayDetails['amount'] as String,
-                                    style: TextStyle(
-                                      color: displayDetails['color'] as Color,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
+                                  );
+                                },
+                                childCount: getFilteredTransactions().length,
                               ),
-                            );
-                          },
-                          childCount: getFilteredTransactions().length,
-                        ),
-                      ),
+                            ),
                     ),
                   ],
                 ),
