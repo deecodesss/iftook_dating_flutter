@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Replace with your actual web client ID from Firebase Console -->
+    <string name="default_web_client_id">
+        857030913183-lv6238u30mab49a2us1c7h4q9o8j3ps2.apps.googleusercontent.com</string>
+</resources>

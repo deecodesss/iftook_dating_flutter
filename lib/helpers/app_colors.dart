@@ -4,7 +4,7 @@ class AppColors {
   static const Color primaryBackground =
       Color(0xFF1E1B2A); // Dark purple (complements red-pink)
   static const Color secondaryBackground =
-      Color(0xFF2C3E50); // Deep, slightly muted blue for variety
+      Color.fromARGB(255, 24, 24, 24); // Deep, slightly muted blue for variety
   static const Color accentColor =
       Color(0xFFFFB6C1); // Light pink accent, complementing the primary color
   static const Color secondaryAccent =

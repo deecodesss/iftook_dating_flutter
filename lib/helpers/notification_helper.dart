@@ -1,0 +1,362 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:get/get.dart';
+import 'package:iftook/features/calls/presentation/screens/loading_voice_call_screen.dart';
+import 'package:iftook/features/calls/presentation/screens/loading_video_call_screen.dart';
+import 'package:iftook/features/calls/services/chat_call_service.dart';
+import 'package:iftook/features/profile/data/models/user.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart'; // Added import
+import 'package:flutter_callkit_incoming/entities/call_event.dart'; // Added import for CallEvent
+
+class NotificationHelper {
+  static final FlutterLocalNotificationsPlugin
+      _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  static const AndroidNotificationChannel _callChannel =
+      AndroidNotificationChannel(
+    'call_channel',
+    'Call Notifications',
+    importance: Importance.max,
+    enableVibration: true,
+    playSound: true,
+    showBadge: true,
+  );
+
+  static Future<void> initialize() async {
+    const AndroidInitializationSettings androidInitialize =
+        AndroidInitializationSettings('app_icon');
+
+    const InitializationSettings initializationSettings =
+        const InitializationSettings(
+      android: androidInitialize,
+    );
+
+    await _flutterLocalNotificationsPlugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) async {
+        final payload = response.payload;
+        if (payload != null) {
+          final data = jsonDecode(payload);
+          _handleNotificationAction(data, response.actionId);
+        }
+      },
+    );
+
+    // Create notification channels
+    await _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(_callChannel);
+
+    // Initialize CallKit event listener
+    _initializeCallKitListeners();
+  }
+
+  static void _initializeCallKitListeners() {
+    FlutterCallkitIncoming.onEvent.listen((CallEvent? event) {
+      if (event == null) {
+        print('CallKit Listener: Received null event.');
+        return;
+      }
+
+      print(
+          'CallKit Listener: Event received: ${event.event}, Body: ${event.body}');
+      final dynamic eventBody = event.body;
+
+      switch (event.event) {
+        case Event.actionCallIncoming:
+          print('CallKit Listener: Handling Event.actionCallIncoming.');
+          // No specific action needed here for now as CallKit handles the UI.
+          // Handling this event prevents "Unhandled event" logs from our side.
+          break;
+        case Event.actionCallAccept:
+          print('CallKit Listener: Handling Event.actionCallAccept.');
+          if (eventBody is Map<String, dynamic>) {
+            final Map<String, dynamic> bodyMap = eventBody;
+            if (bodyMap['extra'] is Map<String, dynamic>) {
+              final Map<String, dynamic> extra = bodyMap['extra'];
+
+              final String meetingId = extra['meetingId']?.toString() ?? '';
+              final String token = extra['token']?.toString() ?? '';
+              final String channelName = extra['channelName']?.toString() ?? '';
+              final String callerId = extra['callerId']?.toString() ?? '';
+
+              final String callerName = bodyMap['nameCaller']?.toString() ??
+                  extra['callerName']?.toString() ??
+                  'Unknown Caller';
+              final String callerProfilePicture =
+                  extra['callerProfilePicture']?.toString() ??
+                      bodyMap['avatar']?.toString() ??
+                      '';
+
+              bool isVideo = false;
+              if (extra['isVideo'] is bool) {
+                isVideo = extra['isVideo'] as bool;
+              } else if (extra['type']?.toString() == 'video') {
+                isVideo = true;
+              } else if (bodyMap['type'] is int) {
+                isVideo = (bodyMap['type'] as int) ==
+                    1; // 0 for voice, 1 for video in CallKit
+              } else if (extra['type']?.toString() == 'voice') {
+                isVideo = false;
+              }
+
+              if (meetingId.isEmpty || callerId.isEmpty) {
+                print(
+                    'CallKit Error: Missing meetingId or callerId in accept event. MeetingId: "$meetingId", CallerId: "$callerId"');
+                return;
+              }
+
+              final User caller = User(
+                sId: callerId,
+                name: callerName,
+                photos: callerProfilePicture.isNotEmpty
+                    ? [callerProfilePicture]
+                    : [],
+              );
+
+              _acceptCall(
+                caller: caller,
+                meetingId: meetingId,
+                token: token,
+                channelName: channelName,
+                isVideo: isVideo,
+              );
+            } else {
+              print(
+                  'CallKit Error: "extra" data missing or not a map in accept event. Body: $bodyMap');
+            }
+          } else {
+            print(
+                'CallKit Error: Event body is not a map in accept event. Body: $eventBody');
+          }
+          break;
+        case Event.actionCallDecline:
+          print('CallKit Listener: Handling Event.actionCallDecline.');
+          if (eventBody is Map<String, dynamic>) {
+            final Map<String, dynamic> bodyMap = eventBody;
+            if (bodyMap['extra'] is Map<String, dynamic>) {
+              final Map<String, dynamic> extra = bodyMap['extra'];
+              final String meetingId = extra['meetingId']?.toString() ?? '';
+              final String callerId = extra['callerId']?.toString() ?? '';
+
+              if (meetingId.isEmpty || callerId.isEmpty) {
+                print(
+                    'CallKit Error: Missing meetingId or callerId in decline event. MeetingId: "$meetingId", CallerId: "$callerId"');
+                return;
+              }
+              _rejectCall(meetingId, callerId);
+            } else {
+              print(
+                  'CallKit Error: "extra" data missing or not a map in decline event. Body: $bodyMap');
+            }
+          } else {
+            print(
+                'CallKit Error: Event body is not a map in decline event. Body: $eventBody');
+          }
+          break;
+        case Event.actionCallTimeout:
+          print('CallKit Listener: Handling Event.actionCallTimeout.');
+          if (eventBody is Map<String, dynamic>) {
+            final Map<String, dynamic> bodyMap = eventBody;
+            if (bodyMap['extra'] is Map<String, dynamic>) {
+              final Map<String, dynamic> extra = bodyMap['extra'];
+              final String meetingId = extra['meetingId']?.toString() ?? '';
+              final String callerId = extra['callerId']?.toString() ?? '';
+
+              if (meetingId.isNotEmpty && callerId.isNotEmpty) {
+                // Treat timeout as a rejection to inform backend if necessary
+                // This assumes _rejectCall is appropriate for missed calls.
+                _rejectCall(meetingId, callerId);
+              } else {
+                print(
+                    'CallKit Error: Missing meetingId or callerId in timeout event for rejection. MeetingId: "$meetingId", CallerId: "$callerId"');
+              }
+            } else {
+              print(
+                  'CallKit Error: "extra" data missing or not a map in timeout event. Body: $bodyMap');
+            }
+          } else {
+            print(
+                'CallKit Error: Event body is not a map in timeout event. Body: $eventBody');
+          }
+          break;
+        default:
+          print('CallKit Listener: Unhandled event in switch: ${event.event}');
+          break;
+      }
+    });
+  }
+
+  static Future<void> showCallNotification({
+    required String title,
+    required String body,
+    required Map<String, dynamic> payload,
+  }) async {
+    // If CallKit is being used, this Get.snackbar might interfere with the native CallKit UI.
+    // Logging its invocation to see if it's being called unexpectedly for incoming calls.
+    // For now, we will prevent it from showing to avoid interference.
+    // The decision to use CallKit vs. this snackbar should ideally be in the FCM handler.
+    print(
+        'NotificationHelper.showCallNotification called with title: "$title", body: "$body".');
+    print('Payload for showCallNotification: $payload');
+    print(
+        'INFO: NotificationHelper.showCallNotification (Get.snackbar) is currently bypassed to prioritize CallKit UI.');
+
+    // The original Get.snackbar code is commented out below.
+    // If CallKit is not the primary UI, or for other types of notifications, this might be re-enabled.
+
+    /*
+    final meetingId = payload['meetingId'];
+    final type = payload['type'];
+    final callerName = payload['callerName'] ?? 'Someone';
+    final callerId = payload['callerId'];
+    final callerProfilePicture = payload['callerProfilePicture'];
+    final isVideo = type == 'video';
+
+    // Create a temp User object for the caller
+    final caller = User(
+      sId: callerId,
+      name: callerName,
+      photos: callerProfilePicture != null && callerProfilePicture.isNotEmpty
+          ? [callerProfilePicture]
+          : [],
+    );
+
+    // Show a snackbar with call controls instead of full-screen notification
+    Get.snackbar(
+      'Incoming ${isVideo ? 'Video' : 'Voice'} Call',
+      'From $callerName',
+      backgroundColor: Colors.black87,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 30),
+      isDismissible: false,
+      snackPosition: SnackPosition.TOP,
+      margin: const EdgeInsets.all(8),
+      borderRadius: 8,
+      icon: CircleAvatar(
+        backgroundImage:
+            callerProfilePicture != null && callerProfilePicture.isNotEmpty
+                ? NetworkImage(callerProfilePicture)
+                : null,
+        child: callerProfilePicture == null || callerProfilePicture.isEmpty
+            ? const Icon(Icons.person, color: Colors.white)
+            : null,
+      ),
+      mainButton: TextButton(
+        onPressed: () => Get.back(),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Decline button
+            ElevatedButton.icon(
+              icon: const Icon(Icons.call_end, color: Colors.white),
+              label:
+                  const Text('Decline', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () {
+                Get.back(); // Remove snackbar
+                _rejectCall(meetingId, callerId);
+              },
+            ),
+            const SizedBox(width: 8),
+            // Accept button
+            ElevatedButton.icon(
+              icon: const Icon(Icons.call, color: Colors.white),
+              label:
+                  const Text('Accept', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              onPressed: () {
+                Get.back(); // Remove snackbar
+                _acceptCall(
+                  caller: caller,
+                  meetingId: meetingId,
+                  token: payload['token'],
+                  channelName: payload['channelName'],
+                  isVideo: isVideo,
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+    */
+  }
+
+  static void showCallRejectedNotification(String recipientName) {
+    Get.snackbar(
+      'Call Declined',
+      '$recipientName declined your call',
+      backgroundColor: Colors.red.shade900,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 3),
+      snackPosition: SnackPosition.TOP,
+      margin: const EdgeInsets.all(8),
+      icon: const Icon(Icons.call_end, color: Colors.white),
+    );
+  }
+
+  static void _acceptCall({
+    required User caller,
+    required String meetingId,
+    required String token,
+    required String channelName,
+    required bool isVideo,
+  }) {
+    if (isVideo) {
+      Get.to(() => VideoCallLoadingScreen(
+            participant: caller,
+            type: "video",
+            scheduleTime: DateTime.now(),
+            meetingId: meetingId,
+            token: token,
+            channel: channelName,
+          ));
+    } else {
+      Get.to(() => VoiceCallLoadingScreen(
+            participant: caller,
+            type: "voice",
+            scheduleTime: DateTime.now(),
+            meetingId: meetingId,
+            token: token,
+            channel: channelName,
+          ));
+    }
+  }
+
+  static Future<void> _rejectCall(String meetingId, String callerId) async {
+    try {
+      // Call the service method to reject the call
+      await ChatCallService.rejectCall(meetingId);
+    } catch (e) {
+      print('Error rejecting call: $e');
+    }
+  }
+
+  static void _handleNotificationAction(
+      Map<String, dynamic> data, String? actionId) {
+    if (data['type'] == 'voice' || data['type'] == 'video') {
+      if (actionId == 'accept') {
+        final caller = User(
+          sId: data['callerId'],
+          name: data['callerName'],
+          photos: data['callerProfilePicture'] != null
+              ? [data['callerProfilePicture']]
+              : [],
+        );
+
+        _acceptCall(
+          caller: caller,
+          meetingId: data['meetingId'],
+          token: data['token'],
+          channelName: data['channelName'],
+          isVideo: data['type'] == 'video',
+        );
+      } else if (actionId == 'reject') {
+        _rejectCall(data['meetingId'], data['callerId']);
+      }
+    }
+  }
+}

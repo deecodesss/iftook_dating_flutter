@@ -1,22 +1,48 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:iftook/core/services/api_service.dart';
+import 'package:iftook/core/services/shared_prefs.dart';
+import 'package:iftook/core/widgets/custom_app_bar.dart';
+import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
+import 'package:iftook/features/friend_requests/controller/friend_controller.dart';
+import 'package:iftook/features/friends/controllers/instaTalkController.dart';
 import 'package:iftook/features/home/presentation/screens/profile_swiper.dart';
+import 'package:iftook/features/home/presentation/screens/schedule_meeting_screen.dart';
 import 'package:iftook/features/home/presentation/screens/swiper_animation.dart';
+import 'package:iftook/features/instatalk/presentation/instatalk_schedule.dart';
+import 'package:iftook/features/live/controllers/live_controller.dart';
+import 'package:iftook/features/live/screens/broadcaster_screen.dart';
+import 'package:iftook/features/live/screens/live_streams_screen.dart';
+import 'package:iftook/features/profile/data/models/user.dart';
+import 'package:iftook/features/profile/presentation/screens/view_reviews_screen.dart';
 import 'package:iftook/helpers/app_colors.dart';
-import 'package:iftook/helpers/myassets.dart';
+import 'package:iftook/features/home/data/enums/meeting_type.dart';
+import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
+import 'package:iftook/helpers/permissions_controller.dart';
+
+import '../../../calls/presentation/screens/loading_voice_call_screen.dart';
+import '../../../calls/presentation/screens/loading_video_call_screen.dart';
+import '../../../friends/presentation/screens/chat_room_screen.dart';
+import '../../../live/screens/viewer_screen.dart';
+import '../../../wallet/controllers/wallet_controller.dart';
+import '../../controllers/home_controller.dart';
 
 class UserProfile {
-  final String name;
-  final int age;
-  final String description;
-  final List<String> imageUrls;
-  final String location;
-  final String profession;
-  final double rating;
-  final int reviewCount;
-  final List<Review> reviews;
+  String name;
+  int age;
+  String description;
+  List<String> imageUrls;
+  String location;
+  String profession;
+  double rating;
+  int reviewCount;
+  List<Review> reviews;
+  int likes;
+  int dislikes;
 
   UserProfile({
     required this.name,
@@ -27,8 +53,24 @@ class UserProfile {
     required this.profession,
     this.rating = 4.5,
     this.reviewCount = 128,
+    this.likes = 2300,
+    this.dislikes = 23,
     this.reviews = const [],
   });
+
+  // Helper methods to format likes/dislikes
+  String get formattedLikes => _formatCount(likes!);
+
+  String get formattedDislikes => _formatCount(dislikes!);
+
+  String _formatCount(int count) {
+    if (count >= 1000000) {
+      return '${(count / 1000000).toStringAsFixed(1)}M';
+    } else if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}K';
+    }
+    return count.toString();
+  }
 }
 
 class Review {
@@ -116,164 +158,334 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
   final double _swipeThreshold = 100;
   final AppinioSwiperController _swiperController = AppinioSwiperController();
 
-  final List<UserProfile> _profiles = [
-    UserProfile(
-      name: 'Sarah',
-      age: 25,
-      description: 'Professional model and fitness enthusiast',
-      imageUrls: [
-        'https://images.unsplash.com/photo-1494790108377-be9c29b29330',
-        'https://images.unsplash.com/photo-1524504388940-b1c1722653e1',
-        'https://images.unsplash.com/photo-1517841905240-472988babdf9'
-      ],
-      location: 'Mumbai',
-      profession: 'Model',
-      rating: 4.8,
-      reviewCount: 156,
-      reviews: [
-        Review(
-            name: "John D.",
-            comment: "Great conversation, very friendly and engaging!",
-            rating: 5,
-            date: "2 days ago"),
-        Review(
-            name: "Mike R.",
-            comment: "Helpful and professional, would recommend.",
-            rating: 4,
-            date: "1 week ago"),
-      ],
-    ),
-    UserProfile(
-      name: 'Emma',
-      age: 23,
-      description: 'Travel blogger | Coffee lover',
-      imageUrls: [
-        'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43',
-        'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e',
-        'https://images.unsplash.com/photo-1535324492437-d8dea70a38a7'
-      ],
-      location: 'Delhi',
-      profession: 'Blogger',
-      rating: 4.8,
-      reviewCount: 156,
-      reviews: [
-        Review(
-            name: "John D.",
-            comment: "Great conversation, very friendly and engaging!",
-            rating: 5,
-            date: "2 days ago"),
-        Review(
-            name: "Mike R.",
-            comment: "Helpful and professional, would recommend.",
-            rating: 4,
-            date: "1 week ago"),
-      ],
-    ),
-    UserProfile(
-      name: 'Priya',
-      age: 24,
-      description: 'Software Engineer | Music enthusiast',
-      imageUrls: [
-        'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04',
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb',
-        'https://images.unsplash.com/photo-1526510747491-58f928ec870f'
-      ],
-      location: 'Bangalore',
-      profession: 'Engineer',
-      rating: 4.8,
-      reviewCount: 156,
-      reviews: [
-        Review(
-            name: "John D.",
-            comment: "Great conversation, very friendly and engaging!",
-            rating: 5,
-            date: "2 days ago"),
-        Review(
-            name: "Mike R.",
-            comment: "Helpful and professional, would recommend.",
-            rating: 4,
-            date: "1 week ago"),
-      ],
-    ),
-  ];
+  // Replace direct find with proper initialization
+  late HomeController _homeController;
+  late InstaTalkController _instaTalkController;
+  late LiveController _liveController;
+
+  // Add these variables to track live status
+  bool _isCheckingLiveStatus = false;
+  bool _isCurrentUserLive = false;
+  String? _currentLiveStreamId;
+
+  @override
+  void initState() {
+    super.initState();
+    _initControllers();
+    _checkPermissions();
+  }
+
+  void _initControllers() {
+    // Initialize HomeController
+    try {
+      if (!Get.isRegistered<HomeController>()) {
+        Get.put(HomeController());
+      }
+      _homeController = Get.find<HomeController>();
+
+      // Add listener to check live status when current index changes
+      _homeController.currentIndex.listen((index) {
+        if (_homeController.profiles.isNotEmpty) {
+          _checkCurrentUserLiveStatus();
+        }
+      });
+    } catch (e) {
+      print('Error initializing HomeController: $e');
+      _homeController = HomeController();
+      Get.put(_homeController);
+    }
+    try {
+      if (!Get.isRegistered<InstaTalkController>()) {
+        Get.put(InstaTalkController());
+      }
+      _instaTalkController = Get.find<InstaTalkController>();
+
+      _instaTalkController.currentIndex.listen((index) {});
+    } catch (e) {
+      print('Error initializing _instaTalkController: $e');
+      _instaTalkController = InstaTalkController();
+      Get.put(_instaTalkController);
+    }
+
+    // Initialize LiveController
+    try {
+      if (!Get.isRegistered<LiveController>()) {
+        Get.put(LiveController());
+      }
+      _liveController = Get.find<LiveController>();
+    } catch (e) {
+      print('Error initializing LiveController: $e');
+      _liveController = LiveController();
+      Get.put(_liveController);
+    }
+
+    // Initialize FriendController to ensure data is available when needed
+    try {
+      if (!Get.isRegistered<FriendController>()) {
+        Get.put(FriendController());
+      }
+    } catch (e) {
+      print('Error initializing FriendController: $e');
+    }
+  }
+
+  // Add method to check if current user is live
+  Future<void> _checkCurrentUserLiveStatus() async {
+    if (_homeController.profiles.isEmpty || _liveController == null) return;
+
+    final currentProfile =
+        _homeController.profiles[_homeController.currentIndex.value];
+    if (currentProfile.sId == null) return;
+
+    setState(() => _isCheckingLiveStatus = true);
+
+    try {
+      print('Checking live status for user: ${currentProfile.sId}');
+      final liveStream =
+          await _liveController.getUserActiveLiveStream(currentProfile.sId!);
+
+      print(
+          'Live stream check result: ${liveStream != null ? "LIVE" : "NOT LIVE"}');
+      if (liveStream != null) {
+        print('Live stream ID: ${liveStream.id}');
+      }
+
+      setState(() {
+        _isCurrentUserLive = liveStream != null;
+        _currentLiveStreamId = liveStream?.id;
+        _isCheckingLiveStatus = false;
+      });
+    } catch (e) {
+      print('Error checking live status: $e');
+      setState(() => _isCheckingLiveStatus = false);
+    }
+  }
+
+  // Method to handle joining a live stream directly - update this method
+  void _handleJoinLiveStream() async {
+    if (!_isCurrentUserLive || _currentLiveStreamId == null) {
+      // If not live, show live streams list instead
+      _handleLiveButton();
+      return;
+    }
+
+    final currentProfile =
+        _homeController.profiles[_homeController.currentIndex.value];
+
+    // Check if user already has a subscription
+    final hasActiveSubscription =
+        _liveController.hasSubscription(currentProfile.sId ?? '');
+
+    // Try to join live stream
+    final streamData =
+        await _liveController.joinLiveStream(_currentLiveStreamId!);
+
+    if (streamData == null) {
+      Get.snackbar(
+        'Error',
+        _liveController.errorMessage.value,
+        backgroundColor: Colors.red.withOpacity(0.8),
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    // If already subscribed, go directly to viewer screen
+    if (hasActiveSubscription) {
+      Get.to(() => ViewerScreen(
+            liveStreamId: _currentLiveStreamId!,
+            streamData: streamData,
+          ));
+      return;
+    }
+
+    // Check if subscription is required
+    if (streamData.containsKey('subscriptionRequired') &&
+        streamData['subscriptionRequired'] == true) {
+      // Get subscription price from stream data or profile
+      final subscriptionPrice = streamData.containsKey('subscriptionPrice')
+          ? streamData['subscriptionPrice'].toDouble()
+          : (currentProfile.earnings?.subscriptionRate ?? 700.0);
+
+      final walletController = Get.find<WalletController>();
+      final hasEnoughBalance =
+          walletController.hasEnoughBalance(subscriptionPrice);
+
+      final subscribe = await _showSubscriptionDialog(
+          message:
+              'You need to subscribe to ${currentProfile.name} to join this live stream.',
+          price: subscriptionPrice,
+          hasEnoughBalance: hasEnoughBalance);
+
+      if (subscribe) {
+        final success = await _liveController.subscribeToCreator(
+          streamData['broadcasterId'],
+        );
+
+        if (success) {
+          // Try joining again after subscribing
+          _handleJoinLiveStream();
+        }
+      }
+      return;
+    }
+
+    // Navigate to viewer screen if no subscription required
+    Get.to(() => ViewerScreen(
+          liveStreamId: _currentLiveStreamId!,
+          streamData: streamData,
+        ));
+  }
+
+  // Add helper method to show subscription dialog (same as in profile screen)
+  Future<bool> _showSubscriptionDialog({
+    required String message,
+    required double price,
+    required bool hasEnoughBalance,
+  }) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1A1A1A),
+            title: const Text(
+              'Subscription Required',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Subscription price: ₹${price.toStringAsFixed(0)}/month',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (!hasEnoughBalance)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.withOpacity(0.5)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded,
+                            color: Colors.red, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Insufficient wallet balance. Please add funds.',
+                            style:
+                                TextStyle(color: Colors.red[300], fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryColor,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: hasEnoughBalance
+                    ? () => Navigator.pop(context, true)
+                    : () {
+                        Navigator.pop(context, false);
+                        Get.to(() => const WalletScreen());
+                      },
+                child: Text(hasEnoughBalance ? 'Subscribe' : 'Add Funds'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: CustomScrollView(
-        physics: _isDragging ? const NeverScrollableScrollPhysics() : null,
-        slivers: [
-          SliverAppBar(
-            title: Row(
+      body: Obx(() {
+        if (_homeController.isLoading.value) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (_homeController.profiles.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Image.asset(MyAssets.appIconPNG, height: 40),
-                const Spacer(),
-                _buildCountryDropdown(),
+                Icon(Icons.person_search, size: 64, color: Colors.grey[600]),
+                const SizedBox(height: 16),
+                Text(
+                  'No Profiles Found',
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_homeController.selectedCountry.value != 'All')
+                  Text(
+                    'Try selecting a different country',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
               ],
             ),
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 600,
-              child: ProfileSwiper(
-                profiles: _profiles,
-                onSwipe: (profile, isLike) {
-                  print('${profile.name} was ${isLike ? 'liked' : 'disliked'}');
-                },
+          );
+        } else {
+          return Column(
+            children: [
+              CustomAppBar(),
+              Expanded(
+                child: ProfileSwiper(
+                  profiles: _homeController.profiles,
+                  onSwipe: (profile, isLike) {
+                    // Handle swipe if needed
+                  },
+                  onIndexChanged: (index) {
+                    if (index >= 0 && index < _homeController.profiles.length) {
+                      _currentProfileIndex = index;
+                      _homeController.updateCurrentIndex(index);
+                    }
+                  },
+                ),
               ),
-            ),
-          ),
-          // Service Buttons
-          SliverToBoxAdapter(
-            child: _buildServiceButtons(),
-          ),
-          // Action Buttons - Now moved below service buttons
-          SliverToBoxAdapter(
-            child: _buildActionButtonsRow(),
-          ),
-          const SliverPadding(padding: EdgeInsets.only(bottom: 20)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtonsRow() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildActionButtonWithLabel(
-            icon: HugeIcons.strokeRoundedStar,
-            label: 'Rating',
-            color: AppColors.primaryColor,
-            backgroundColor: Colors.transparent,
-            onPressed: () {},
-            showRating: false,
-          ),
-          _buildActionButtonWithLabel(
-            icon: HugeIcons.strokeRoundedFavourite,
-            label: 'Interested\n in Dating',
-            color: AppColors.primaryColor,
-            backgroundColor: Colors.transparent,
-            onPressed: () {},
-          ),
-          _buildActionButtonWithLabel(
-            icon: HugeIcons.strokeRoundedActivity01,
-            label: 'Activity',
-            color: AppColors.primaryColor,
-            backgroundColor: Colors.transparent,
-            onPressed: () {},
-          ),
-          _buildActionButtonWithLabel(
-            icon: HugeIcons.strokeRoundedVideo02,
-            label: 'Live',
-            color: AppColors.primaryColor,
-            backgroundColor: Colors.transparent,
-            onPressed: () {},
-          ),
-        ],
-      ),
+              // Bottom Section - Service and Action buttons
+              Container(
+                padding: const EdgeInsets.only(bottom: 16, top: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Service Buttons
+                    _buildServiceButtons(),
+                    const SizedBox(height: 16),
+                    // Action Buttons
+                    _buildActionButtonsRow(),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+      }),
     );
   }
 
@@ -348,6 +560,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
         // const SizedBox(height: 8),
         Text(
           label,
+          textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.grey[400],
             fontSize: 12,
@@ -358,396 +571,234 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     );
   }
 
-  Widget _buildActionButton({
+  Widget _buildActionButtonsRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildActionButtonWithLabel(
+            icon: HugeIcons.strokeRoundedDiamond02,
+            label: 'Rating\nand Review',
+            color: AppColors.primaryColor,
+            backgroundColor: Colors.transparent,
+            onPressed: () {
+              if (_homeController.profiles.isNotEmpty) {
+                final currentProfile =
+                    _homeController.profiles[_currentProfileIndex];
+                Get.to(() => ViewReviewsScreen(userId: currentProfile.sId!));
+              }
+            },
+            showRating: false,
+          ),
+          _buildActionButtonWithLabel(
+            icon: HugeIcons.strokeRoundedInLove,
+            label: 'Interested\nin Friendship',
+            color: AppColors.primaryColor,
+            backgroundColor: Colors.transparent,
+            onPressed: () {
+              if (_homeController.profiles.isNotEmpty) {
+                final currentProfile =
+                    _homeController.profiles[_currentProfileIndex];
+                _homeController
+                    .sendFriendRequest(currentProfile.sId.toString());
+              }
+            },
+          ),
+          _buildActionButtonWithLabel(
+            icon: HugeIcons.strokeRoundedActivity01,
+            label: 'Activity',
+            color: AppColors.primaryColor,
+            backgroundColor: Colors.transparent,
+            onPressed: () {
+              if (_homeController.profiles.isNotEmpty) {
+                final currentProfile =
+                    _homeController.profiles[_currentProfileIndex];
+                Get.to(
+                    () => ActivityScreen(viewingUserId: currentProfile.sId!));
+              }
+            },
+          ),
+          _buildActionButtonWithLiveStatus(
+            icon: HugeIcons.strokeRoundedVideo02,
+            label: 'Live',
+            color: AppColors.primaryColor,
+            backgroundColor: Colors.transparent,
+            onPressed:
+                _isCurrentUserLive ? _handleJoinLiveStream : _handleLiveButton,
+            isLive: _isCurrentUserLive,
+            isChecking: _isCheckingLiveStatus,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget for live button with status indicator
+  Widget _buildActionButtonWithLiveStatus({
     required IconData icon,
+    required String label,
     required Color color,
     required Color backgroundColor,
     required VoidCallback onPressed,
-    bool showRating = false,
+    bool isLive = false,
+    bool isChecking = false,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: backgroundColor.withOpacity(0.3),
-            spreadRadius: 2,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-          BoxShadow(
-            color: backgroundColor.withOpacity(0.2),
-            spreadRadius: -1,
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(30),
-          onTap: onPressed,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: backgroundColor,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  backgroundColor.withOpacity(0.9),
-                  backgroundColor,
-                ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: backgroundColor.withOpacity(0.3),
+                spreadRadius: 2,
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: backgroundColor.withOpacity(0.15),
-                  spreadRadius: 1,
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: showRating
-                ? Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(icon, color: color, size: 24),
-                      const SizedBox(width: 4),
-                      const Text(
-                        '4.5',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          shadows: [
-                            Shadow(
-                              offset: Offset(0, 1),
-                              blurRadius: 2,
-                              color: Colors.black26,
-                            ),
-                          ],
+              BoxShadow(
+                color: backgroundColor.withOpacity(0.2),
+                spreadRadius: -1,
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(30),
+              onTap: onPressed,
+              child: Stack(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isLive
+                          ? Colors.red.withOpacity(0.2)
+                          : backgroundColor,
+                      gradient: isLive
+                          ? LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.red.withOpacity(0.3),
+                                Colors.red.withOpacity(0.1),
+                              ],
+                            )
+                          : null,
+                    ),
+                    child: Icon(icon,
+                        color: isLive ? Colors.red : color, size: 24),
+                  ),
+                  if (isLive)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 1.5,
+                          ),
                         ),
                       ),
-                    ],
-                  )
-                : Icon(icon, color: color, size: 24),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReviewSection(UserProfile profile) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.star, color: Colors.amber, size: 24),
-              const SizedBox(width: 8),
-              Text(
-                '${profile.rating}',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+                    ),
+                  if (isChecking)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: SizedBox(
+                        width: 12,
+                        height: 12,
+                        // child: CircularProgressIndicator(
+                        //   strokeWidth: 2,
+                        //   valueColor:
+                        //       AlwaysStoppedAnimation<Color>(Colors.white),
+                        // ),
+                      ),
+                    ),
+                ],
               ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavigationArrows() {
-    return Positioned(
-      top: 0,
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back_ios,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                onPressed: () {
-                  if (_currentProfileIndex > 0) {
-                    pageController.previousPage(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                    );
-                  }
-                },
-              ),
-              IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                onPressed: () {
-                  if (_currentProfileIndex < _profiles.length - 1) {
-                    pageController.nextPage(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                    );
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBioSection(UserProfile profile) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${profile.name}, ${profile.age}',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            profile.description,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[400],
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-        ],
-      ),
+            if (isLive)
+              Container(
+                margin: const EdgeInsets.only(left: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 1,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'LIVE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
-  }
-
-  void _handleNavigation(bool isPrevious) {
-    final profile = _profiles[_currentProfileIndex];
-    if (isPrevious) {
-      if (_currentImageIndex > 0) {
-        carouselController.previousPage();
-      } else if (_currentProfileIndex > 0) {
-        pageController.previousPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-    } else {
-      if (_currentImageIndex < profile.imageUrls.length - 1) {
-        carouselController.nextPage();
-      } else if (_currentProfileIndex < _profiles.length - 1) {
-        pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-    }
   }
 
   Widget _buildServiceButtons() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildServiceButton(
-            icon: HugeIcons.strokeRoundedComment01,
-            label: 'Chat\n₹100/30min',
-            onTap: () {},
-          ),
-          _buildServiceButton(
-            icon: HugeIcons.strokeRoundedCall02,
-            label: 'Call\n₹300/30min',
-            onTap: () {},
-          ),
-          _buildServiceButton(
-            icon: HugeIcons.strokeRoundedVideo01,
-            label: 'Video\n₹400/30min',
-            onTap: () {},
-          ),
-          _buildTrialDropdown(),
-        ],
-      ),
-    );
-  }
+      child: Obx(() {
+        final currentProfile = _homeController.profiles.isEmpty
+            ? null
+            : _homeController.profiles[_homeController.currentIndex.value];
+        final earnings = currentProfile?.earnings;
 
-  Widget _buildActionButtons() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          // Reviews Button
-          IconButton(
-            onPressed: () {},
-            icon: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.star, color: Colors.amber, size: 24),
-                SizedBox(width: 4),
-                Text(
-                  '4.5',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildServiceButton(
+              icon: HugeIcons.strokeRoundedComment01,
+              label: 'Chat\n₹${earnings?.chatRate.toInt() ?? 150}/ 30m',
+              onTap: () => _navigateToSchedule(MeetingType.chat),
             ),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.grey[900],
-              padding: const EdgeInsets.all(12),
-              shape: const CircleBorder(),
+            _buildServiceButton(
+              icon: HugeIcons.strokeRoundedCall02,
+              label: 'Call\n₹${earnings?.voiceRate.toInt() ?? 300}/ 30m',
+              onTap: () => _navigateToSchedule(MeetingType.voice),
             ),
-          ),
-
-          // Dating Interest Button
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.favorite,
-              color: Colors.white,
-              size: 24,
+            _buildServiceButton(
+              icon: HugeIcons.strokeRoundedVideo01,
+              label: 'Video\n₹${earnings?.videoRate.toInt() ?? 450}/ 30m',
+              onTap: () => _navigateToSchedule(MeetingType.video),
             ),
-            style: IconButton.styleFrom(
-              backgroundColor: AppColors.primaryColor,
-              padding: const EdgeInsets.all(12),
-              shape: const CircleBorder(),
-            ),
-          ),
-
-          // Activity/Profile Button
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.person_outline,
-              color: AppColors.primaryColor,
-              size: 24,
-            ),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.grey[900],
-              padding: const EdgeInsets.all(12),
-              shape: const CircleBorder(),
-            ),
-          ),
-
-          // Live Button
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.videocam,
-              color: Colors.white,
-              size: 24,
-            ),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.red,
-              padding: const EdgeInsets.all(12),
-              shape: const CircleBorder(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSubscriptionButton() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: ElevatedButton(
-        onPressed: () {},
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.red,
-          foregroundColor: Colors.white,
-          // padding: const EdgeInsets.symmetric(vertical: 12),
-        ),
-        child: const Text(
-          'Live - Free on Subscribe & Watch',
-          style: TextStyle(fontSize: 16),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCountryDropdown() {
-    return DropdownButton<String>(
-      value: _selectedCountry,
-      dropdownColor: const Color(0xFF1E1E1E),
-      style: const TextStyle(color: Colors.white),
-      items: ['India', 'USA', 'UK'].map((String value) {
-        return DropdownMenuItem<String>(
-          value: value,
-          child: Row(
-            children: [
-              Text(value),
-              const SizedBox(width: 8),
-              const Icon(Icons.language, color: Colors.white),
-            ],
-          ),
+            _buildTrialDropdown(),
+          ],
         );
-      }).toList(),
-      onChanged: (String? newValue) {
-        setState(() => _selectedCountry = newValue!);
-      },
-    );
-  }
-
-  Widget _buildTrialDropdown() {
-    return Column(
-      children: [
-        const Text(
-          'Free Trial',
-          style: TextStyle(color: AppColors.primaryColor),
-        ),
-        DropdownButton<String>(
-          value: _selectedTrialOption,
-          dropdownColor: const Color(0xFF1E1E1E),
-          style: const TextStyle(color: Colors.white),
-          items: ['Chat', 'Call', 'Video'].map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(value),
-            );
-          }).toList(),
-          onChanged: (String? newValue) {
-            setState(() => _selectedTrialOption = newValue!);
-          },
-        ),
-      ],
+      }),
     );
   }
 
@@ -759,6 +810,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     return InkWell(
       onTap: onTap,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 24, color: AppColors.primaryColor),
           const SizedBox(height: 4),
@@ -772,70 +824,399 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     );
   }
 
-  Widget _buildLocationBadge(UserProfile profile) {
-    return Positioned(
-      top: 16,
-      left: 16,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.black54,
-          borderRadius: BorderRadius.circular(20),
+  Widget _buildTrialDropdown() {
+    return Column(
+      children: [
+        const Text(
+          'Insta Talk',
+          style: TextStyle(color: AppColors.primaryColor),
         ),
-        child: Text(
-          '${profile.location} • ${profile.profession}',
-          style: const TextStyle(color: Colors.white),
+        Obx(
+          () => _homeController.isInstatalkLoading.value
+              ? SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primaryColor,
+                  ),
+                )
+              : DropdownButton<String>(
+                  value: _selectedTrialOption,
+                  dropdownColor: const Color(0xFF1E1E1E),
+                  style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  underline: Container(
+                    height: 1,
+                    color: Colors.grey[700],
+                  ),
+                  items: ['Chat', 'Call', 'Video'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    if (newValue != null &&
+                        !_homeController.isInstatalkLoading.value) {
+                      // Only update the selected option, don't trigger setState
+                      _selectedTrialOption = newValue;
+                      MeetingType value = newValue == 'Chat'
+                          ? MeetingType.chat
+                          : newValue == 'Call'
+                              ? MeetingType.voice
+                              : MeetingType.video;
+
+                      final currentProfile =
+                          _homeController.profiles[_currentProfileIndex];
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => ScheduleInstaTalkScreen(
+                                participant: currentProfile!, type: value)),
+                      );
+
+                      // Call InstaTalk without causing a rebuild
+                      // _startInstaTalk(newValue);
+                    }
+                  },
+                ),
         ),
+      ],
+    );
+  }
+
+  // void _startInstaTalk(String option) async {
+  //   if (_homeController.profiles.isEmpty) return;
+
+  //   final currentProfile = _homeController.profiles[_currentProfileIndex];
+  //   final walletController = Get.find<WalletController>();
+
+  //   // Get the InstaTalk type based on the selected option
+  //   String instaTalkType;
+  //   switch (option.toLowerCase()) {
+  //     case 'chat':
+  //       instaTalkType = 'chat';
+  //       break;
+  //     case 'call':
+  //       instaTalkType = 'voice';
+  //       break;
+  //     case 'video':
+  //       instaTalkType = 'video';
+  //       break;
+  //     default:
+  //       Get.snackbar(
+  //         'Invalid Option',
+  //         'Please select a valid option: Chat, Call, or Video',
+  //         backgroundColor: Colors.red,
+  //         colorText: Colors.white,
+  //       );
+  //       return;
+  //   }
+
+  //   // Check if InstaTalk was previously used
+  //   final hasUsedInstaTalk = await ApiService.checkIfTrialUsed(
+  //       currentProfile.sId!,
+  //       SharedPrefs.getUserIdSharedPreference().toString());
+
+  //   if (hasUsedInstaTalk == true) {
+  //     // Get live rate from profile
+  //     final liveRate = currentProfile.earnings?.liveRate ?? 500.0;
+  //     final hasEnoughBalance = walletController.hasEnoughBalance(liveRate);
+
+  //     // Show payment confirmation dialog
+  //     final shouldProceed = await showDialog<bool>(
+  //           context: context,
+  //           builder: (context) => AlertDialog(
+  //             backgroundColor: const Color(0xFF1A1A1A),
+  //             title: const Text('Payment Required',
+  //                 style: TextStyle(color: Colors.white)),
+  //             content: Column(
+  //               mainAxisSize: MainAxisSize.min,
+  //               children: [
+  //                 Text(
+  //                   'You have already used your free InstaTalk with this user. You need to pay ₹${liveRate.toInt()} to continue.',
+  //                   style: const TextStyle(color: Colors.white70),
+  //                 ),
+  //                 if (!hasEnoughBalance) ...[
+  //                   const SizedBox(height: 16),
+  //                   Container(
+  //                     padding: const EdgeInsets.all(8),
+  //                     decoration: BoxDecoration(
+  //                       color: Colors.red.withOpacity(0.1),
+  //                       borderRadius: BorderRadius.circular(8),
+  //                       border: Border.all(color: Colors.red.withOpacity(0.5)),
+  //                     ),
+  //                     child: const Text(
+  //                       'Insufficient wallet balance. Please add funds.',
+  //                       style: TextStyle(color: Colors.red),
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ],
+  //             ),
+  //             actions: [
+  //               TextButton(
+  //                 onPressed: () => Navigator.pop(context, false),
+  //                 child: const Text('Cancel'),
+  //               ),
+  //               ElevatedButton(
+  //                 style: ElevatedButton.styleFrom(
+  //                   backgroundColor: AppColors.primaryColor,
+  //                   foregroundColor: Colors.white,
+  //                 ),
+  //                 onPressed: hasEnoughBalance
+  //                     ? () => Navigator.pop(context, true)
+  //                     : () {
+  //                         Navigator.pop(context, false);
+  //                         Get.to(() => const WalletScreen());
+  //                       },
+  //                 child:
+  //                     Text(hasEnoughBalance ? 'Pay & Continue' : 'Add Funds'),
+  //               ),
+  //             ],
+  //           ),
+  //         ) ??
+  //         false;
+
+  //     if (!shouldProceed) return;
+
+  //     // Process payment
+  //     final paymentSuccess = await _instaTalkController.processInstaTalkPayment(
+  //       userId: currentProfile.sId!,
+  //       amount: liveRate,
+  //     );
+
+  //     if (!paymentSuccess) {
+  //       Get.snackbar(
+  //         'Payment Failed',
+  //         'Unable to process payment. Please try again.',
+  //         backgroundColor: Colors.red,
+  //         colorText: Colors.white,
+  //       );
+  //       return;
+  //     }
+  //   }
+
+  //   // Create InstaTalk request
+  //   final result = await _instaTalkController.createInstaTalk(
+  //       currentProfile.sId!, instaTalkType);
+
+  //   if (result == null) return;
+
+  //   Get.snackbar(
+  //     'InstaTalk Request Sent',
+  //     '${currentProfile.name} will need to accept your request',
+  //     backgroundColor: Colors.green.withOpacity(0.8),
+  //     colorText: Colors.white,
+  //     duration: const Duration(seconds: 3),
+  //   );
+  // }
+
+  void _handleGoLive() async {
+    // Create controllers to capture input
+    final titleController = TextEditingController(text: 'My Live Stream');
+    final descriptionController = TextEditingController();
+
+    // Show dialog to enter title and description
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Start Live Stream',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Title',
+                labelStyle: TextStyle(color: Colors.grey[400]),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[700]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primaryColor),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: descriptionController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Description (optional)',
+                labelStyle: TextStyle(color: Colors.grey[400]),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[700]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primaryColor),
+                ),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(context, {
+                'title': titleController.text.isNotEmpty
+                    ? titleController.text
+                    : 'My Live Stream',
+                'description': descriptionController.text,
+              });
+            },
+            child: const Text(
+              'Start',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      final liveStream = await _liveController.startLiveStream(
+        title: result['title'] ?? 'My Live Stream',
+        description: result['description'] ?? '',
+      );
+
+      if (liveStream != null) {
+        Get.to(() => BroadcasterScreen(liveStream: liveStream));
+      } else {
+        Get.snackbar(
+          'Error',
+          _liveController.errorMessage.value,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    }
+
+    // Dispose controllers to prevent memory leaks
+    titleController.dispose();
+    descriptionController.dispose();
+  }
+
+  void _handleViewLiveStreams() {
+    Get.to(() => const LiveStreamsScreen());
+  }
+
+  // Update the live button handling method to match profile screen
+  void _handleLiveButton() {
+    final currentProfile = _homeController.profiles.isEmpty
+        ? null
+        : _homeController.profiles[_homeController.currentIndex.value];
+
+    // If current profile is live, handle joining that stream
+    if (_isCurrentUserLive &&
+        _currentLiveStreamId != null &&
+        currentProfile != null) {
+      _handleJoinLiveStream();
+      return;
+    }
+
+    // Otherwise show options dialog
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Live Streaming',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.live_tv, color: AppColors.primaryColor),
+              title: const Text('Start a Live Stream',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                _handleGoLive();
+              },
+            ),
+            const Divider(color: Colors.grey),
+            ListTile(
+              leading: const Icon(Icons.ondemand_video,
+                  color: AppColors.primaryColor),
+              title: const Text('View Live Streams',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                _handleViewLiveStreams();
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildImageIndicators(UserProfile profile) {
-    return Positioned(
-      bottom: 16,
-      left: 0,
-      right: 0,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: profile.imageUrls.asMap().entries.map((entry) {
-          return Container(
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _currentImageIndex == entry.key
-                  ? AppColors.primaryColor
-                  : Colors.grey[600],
-            ),
-          );
-        }).toList(),
-      ),
-    );
+  void _navigateToSchedule(MeetingType type) {
+    if (_homeController.profiles.isEmpty) return;
+    final currentProfile = _homeController.profiles[_currentProfileIndex];
+    print(
+        'Navigating to schedule with user earnings: ${currentProfile.earnings?.toJson()}');
+    print('User wallet balance: ${currentProfile.walletBalance}');
+
+    // Check if earnings exist
+    if (currentProfile.earnings == null) {
+      print('Warning: User has no earnings set, using defaults');
+    }
+
+    Get.to(() => ScheduleMeetingScreen(
+          participant: currentProfile,
+          type: type,
+        ));
   }
 
-  Widget _buildProfileIndicators() {
-    return Positioned(
-      bottom: 30,
-      left: 0,
-      right: 0,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: _profiles.asMap().entries.map((entry) {
-          return Container(
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _currentProfileIndex == entry.key
-                  ? AppColors.primaryColor
-                  : Colors.grey[600],
-            ),
-          );
-        }).toList(),
-      ),
-    );
+  void _checkPermissions() {
+    // Wait 2 seconds before showing permissions dialog
+    Future.delayed(const Duration(seconds: 2), () {
+      // Get the permissions controller
+      final permissionsController = Get.find<PermissionsController>();
+
+      // Reset the dialog shown flag to ensure it shows
+      permissionsController.resetDialogShownFlag();
+
+      // Check permissions and show dialog if needed
+      permissionsController.showPermissionsDialogIfNeeded();
+    });
   }
 
   @override

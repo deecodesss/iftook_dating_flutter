@@ -45,5 +45,28 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+    <string>Camera access is required for video calls</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Microphone access is required for video calls</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>We need your location to auto-detect country, state, and city.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>We need your location to auto-detect country, state, and city.</string>
+   <key>LSApplicationQueriesSchemes</key>
+   <array>
+       <string>upi</string>
+       <string>phonepe</string>
+       <string>gpay</string>
+       <string>paytm</string>
+       <string>bhim</string>
+   </array>
+<key>NSAppTransportSecurity</key>
+<dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <true/>
+</dict>
+
+
 </dict>
 </plist>

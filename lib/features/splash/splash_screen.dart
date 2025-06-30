@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:iftook/core/services/api_service.dart';
+import 'package:iftook/core/services/shared_prefs.dart';
+import 'package:iftook/core/services/socket_service.dart';
+import 'package:iftook/features/auth/presentation/screens/login_screen.dart';
 import 'package:iftook/features/home/presentation/screens/home_screen.dart';
+// import 'package:iftook/features/permissions/permissions_screen.dart'; // No longer needed here
+// import 'package:iftook/helpers/permissions_handler.dart'; // No longer needed here
+// import 'package:permission_handler/permission_handler.dart'; // No longer needed here
 
 import '../../helpers/myassets.dart';
 
@@ -16,6 +23,8 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _controller;
   late Animation<double> _animation;
   String? token = '';
+  bool isLoggedIn = false;
+  // final PermissionsHandler _permissionsHandler = PermissionsHandler(); // No longer needed
 
   @override
   void initState() {
@@ -32,38 +41,37 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _controller.forward();
-    Future.delayed(Duration(seconds: 3), () {
+    _checkIsLoggedIn();
+    Future.delayed(const Duration(seconds: 3), () async {
+      if (!isLoggedIn) {
+        Get.off(() => LoginScreen());
+        return;
+      }
+      // Permission check and navigation to PermissionsScreen removed.
+      // Always navigate to HomeScreen if logged in.
       Get.off(() => HomeScreen());
     });
 
     // fetchData();
   }
 
-  // Future<void> fetchData() async {
-  //   token = await SharedPrefs.getUserTokenSharedPreference();
-  //   bool isBiometricEnabled =
-  //       await SharedPrefs.getBiometricPreference() ?? false;
-  //
-  //   SchedulerBinding.instance.addPostFrameCallback((_) async {
-  //     Get.put(SubscriptionController()).checkForSubscription();
-  //     await updateFCMToken();
-  //
-  //     Future.delayed(const Duration(seconds: 3), () async {
-  //       if (token?.isNotEmpty ?? false) {
-  //         if (isBiometricEnabled) {
-  //           bool authenticated = await BiometricService.loginWithBiometric();
-  //           if (!authenticated) {
-  //             Get.offAll(() => const LoginScreen());
-  //             return;
-  //           }
-  //         }
-  //       }
-  //
-  //       Get.offAll(() =>
-  //       token?.isEmpty ?? true ? const LoginScreen() : const HomeScreen());
-  //     });
-  //   });
-  // }
+  void _checkIsLoggedIn() async {
+    final accessToken = await SharedPrefs.getAccessToken();
+    final refreshToken = await SharedPrefs.getRefreshToken();
+
+    // Only consider logged out if both tokens are null
+    isLoggedIn = (accessToken != null || refreshToken != null);
+
+    if (isLoggedIn) {
+      // Try refreshing the token during splash screen
+      final refreshed = await ApiService.refreshToken();
+      isLoggedIn = refreshed; // Update login state based on refresh result
+
+      if (isLoggedIn) {
+        await SocketService().initSocket(); // 👈 connect socket if login valid
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -79,8 +87,8 @@ class _SplashScreenState extends State<SplashScreen>
         child: Center(
           child: Image.asset(
             MyAssets.appIconPNG,
-            width: 100,
-            height: 100,
+            width: 200,
+            height: 200,
           ),
         ),
       ),

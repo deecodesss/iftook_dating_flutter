@@ -1,4 +1,137 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:iftook/core/widgets/charges_bottom_sheet.dart';
+import 'package:iftook/core/widgets/interests_bottom_sheet.dart';
+import 'package:iftook/features/about_us/presentation/screens/cancellation_and_refund_policy_screen.dart';
+import 'package:iftook/features/about_us/presentation/screens/privacy_policy_screen.dart';
+import 'package:iftook/features/about_us/presentation/screens/terms_and_conditions_screen.dart';
+import 'package:iftook/features/activity/presentation/screens/activity_screen.dart';
+import 'package:iftook/features/live/controllers/live_controller.dart';
+
+import 'package:iftook/features/live/screens/broadcaster_screen.dart';
+import 'package:iftook/features/profile/controllers/profile_controller.dart'; // Import the ProfileController
+import 'package:iftook/features/profile/data/models/user.dart';
+import 'package:iftook/features/profile/presentation/screens/availability_screen.dart';
+import 'package:iftook/features/profile/presentation/screens/edit_profile_screen.dart';
+import 'package:iftook/features/profile/presentation/screens/my_history_screen.dart';
+import 'package:iftook/features/profile/presentation/screens/promote_profile_screen.dart';
+import 'package:iftook/features/profile/presentation/screens/support_screen.dart';
+import 'package:iftook/features/profile/presentation/screens/view_reviews_screen.dart';
+import 'package:iftook/features/wallet/presentation/screens/wallet_screen.dart';
+import 'package:iftook/helpers/app_colors.dart';
+
+// Skeleton loader widget
+class SkeletonLoader extends StatelessWidget {
+  final double height;
+  final double width;
+  final BorderRadius? borderRadius;
+
+  const SkeletonLoader({
+    Key? key,
+    required this.height,
+    required this.width,
+    this.borderRadius,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: Colors.grey[800],
+        borderRadius: borderRadius ?? BorderRadius.circular(8),
+      ),
+      child: const SizedBox(),
+    );
+  }
+}
+
+// Profile skeleton loader
+class ProfileSkeleton extends StatelessWidget {
+  const ProfileSkeleton({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Profile header skeleton
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.blueGrey.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Row(
+            children: [
+              const SkeletonLoader(
+                height: 80,
+                width: 80,
+                borderRadius: BorderRadius.all(Radius.circular(40)),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SkeletonLoader(height: 20, width: 150),
+                    const SizedBox(height: 8),
+                    const SkeletonLoader(height: 16, width: 120),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Sections skeleton
+        ...List.generate(4, (index) => _buildSkeletonSection()),
+      ],
+    );
+  }
+
+  Widget _buildSkeletonSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
+          child: SkeletonLoader(height: 14, width: 100),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.blueGrey.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Column(
+            children: List.generate(
+              2 + (DateTime.now().millisecond % 3), // Random 2-4 items
+              (index) => Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  children: [
+                    const SkeletonLoader(height: 40, width: 40),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: SkeletonLoader(height: 16, width: double.infinity),
+                    ),
+                    const SizedBox(width: 16),
+                    const SkeletonLoader(height: 16, width: 60),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -7,9 +140,540 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with WidgetsBindingObserver {
+  final ProfileController _profileController = Get.put(ProfileController());
+  final LiveController _liveController = Get.put(LiveController());
+
+  @override
+  void initState() {
+    super.initState();
+    // Add observer to listen for app lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
+    // Refresh profile data when screen is opened
+    _refreshProfileData();
+  }
+
+  @override
+  void dispose() {
+    // Remove observer when disposing
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(
+        state); // Refresh wallet balance when app comes to foreground (lightweight)
+    if (state == AppLifecycleState.resumed) {
+      print('🔄 App resumed, refreshing wallet balance...');
+      _refreshWalletBalance();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super
+        .didChangeDependencies(); // Only refresh wallet balance when coming back to this screen (lightweight)
+    _refreshWalletBalance();
+  }
+
+  void _refreshProfileData() {
+    print('🔄 Refreshing profile data...');
+    _profileController.fetchProfile();
+  }
+
+  Future<void> _refreshWalletBalance() async {
+    print('💰 Refreshing wallet balance only...');
+    await _profileController.fetchWalletBalance();
+  }
+
+  Future<void> _onRefresh() async {
+    print('🔄 Pull to refresh triggered...');
+    await _profileController.fetchProfile();
+  }
+
+  void _handleGoLive() async {
+    // Create controllers to capture input
+    final titleController = TextEditingController(text: 'My Live Stream');
+    final descriptionController = TextEditingController();
+
+    // Show dialog to enter title and description
+    final result = await showDialog<Map<String, String>>(
+      context: Get.context!,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Start Live Stream',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Title',
+                labelStyle: TextStyle(color: Colors.grey[400]),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[700]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primaryColor),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: descriptionController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Description (optional)',
+                labelStyle: TextStyle(color: Colors.grey[400]),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[700]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primaryColor),
+                ),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              // Use the controllers to get the text values
+              Navigator.pop(context, {
+                'title': titleController.text.isNotEmpty
+                    ? titleController.text
+                    : 'My Live Stream',
+                'description': descriptionController.text,
+              });
+            },
+            child: const Text(
+              'Start',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      final liveStream = await _liveController.startLiveStream(
+        title: result['title'] ?? 'My Live Stream',
+        description: result['description'] ?? '',
+      );
+
+      if (liveStream != null) {
+        Get.to(() => BroadcasterScreen(liveStream: liveStream));
+      } else {
+        Get.snackbar(
+          'Error',
+          _liveController.errorMessage.value,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    }
+
+    // Dispose controllers to prevent memory leaks
+    titleController.dispose();
+    descriptionController.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return const Scaffold();
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        title: Text(
+          'Profile',
+          style: GoogleFonts.manrope(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: Obx(() {
+        if (_profileController.isLoading.value) {
+          return const ProfileSkeleton();
+        }
+
+        if (_profileController.errorMessage.isNotEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _profileController.errorMessage.value,
+                  style: const TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _refreshProfileData,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                  ),
+                  child: const Text(
+                    'Retry',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final user = _profileController.user.value;
+
+        return RefreshIndicator(
+          onRefresh: _onRefresh,
+          color: AppColors.primaryColor,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _buildProfileHeader(user),
+              const SizedBox(height: 24),
+              _buildSection(
+                'Streaming',
+                [
+                  _buildProfileOption(
+                    icon: Icons.live_tv,
+                    title: 'Go Live',
+                    onTap: _handleGoLive,
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'LIVE',
+                        style: TextStyle(
+                          color: AppColors.primaryColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              _buildSection(
+                'Account',
+                [
+                  _buildProfileOption(
+                    icon: Icons.account_balance_wallet_outlined,
+                    title: 'My Wallet',
+                    onTap: () async {
+                      // Refresh only wallet balance before navigating (lightweight)
+                      print(
+                          '💰 Refreshing wallet balance before navigation...');
+                      await _refreshWalletBalance();
+                      Get.to(() => const WalletScreen());
+                    },
+                    trailing: Text(
+                      '₹${(user.walletBalance ?? 0).toStringAsFixed(2)}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.history,
+                    title: 'My Activity',
+                    onTap: () {
+                      Get.to(() => ActivityScreen(
+                            viewingUserId: user.sId!,
+                          ));
+                    },
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.interests_outlined,
+                    title: 'My Interests',
+                    onTap: () {
+                      showInterestsBottomSheet(context);
+                    },
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.access_time,
+                    title: 'My Availability',
+                    onTap: () {
+                      Get.to(() => const AvailabilityScreen());
+                    },
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.manage_history_outlined,
+                    title: 'My History',
+                    onTap: () {
+                      Get.to(() => const HistoryScreen());
+                    },
+                  ),
+                ],
+              ),
+              _buildSection(
+                'Monetization',
+                [
+                  _buildProfileOption(
+                    icon: Icons.campaign_outlined,
+                    title: 'Promote My Profile',
+                    onTap: () {
+                      Get.to(() => const PromoteProfileScreen());
+                    },
+                    iconColor: AppColors.highlightColor,
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.payments_outlined,
+                    title: 'My Earnings',
+                    onTap: () {
+                      showPriceBottomSheet(context);
+                    },
+                    iconColor: AppColors.highlightColor,
+                  ),
+                ],
+              ),
+              _buildSection(
+                'Support & Feedback',
+                [
+                  _buildProfileOption(
+                    icon: Icons.support_agent_outlined,
+                    title: 'Support',
+                    onTap: () {
+                      Get.to(() => SupportScreen());
+                    },
+                    iconColor: AppColors.greenColor,
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.star_outline,
+                    title: 'Rating & Review',
+                    onTap: () {
+                      Get.to(() => ViewReviewsScreen(
+                            userId: user.sId!,
+                          ));
+                    },
+                    iconColor: AppColors.greenColor,
+                  ),
+                  _buildProfileOption(
+                    icon: Icons.logout,
+                    title: 'Logout',
+                    onTap: _profileController.logout,
+                    iconColor: AppColors.greenColor,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildProfileHeader(User user) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.accentColor, width: 0.5),
+            ),
+            child: CircleAvatar(
+              radius: 40,
+              backgroundImage: NetworkImage(
+                user.photos?.isNotEmpty == true
+                    ? user.photos!.first
+                    : 'https://via.placeholder.com/150',
+              ),
+            ),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.name ?? 'User Name',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  user.email ?? '@username',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              switch (value) {
+                case 'Edit Profile':
+                  Get.to(() => EditProfileScreen());
+                  break;
+                case 'Cancellation & Refund Policy':
+                  Get.to(() => CancellationAndRefundPolicyScreen());
+                  break;
+                case 'Privacy Policy':
+                  Get.to(() => PrivacyPolicyScreen());
+                  break;
+                case 'Terms & Conditions':
+                  Get.to(() => TermsAndConditionsScreen());
+                  break;
+              }
+            },
+            icon: const Icon(Icons.more_vert, color: AppColors.primaryColor),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'Edit Profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit, size: 15),
+                    SizedBox(width: 4),
+                    Text('Edit Profile'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'Cancellation & Refund Policy',
+                child: Row(
+                  children: [
+                    Icon(Icons.policy, size: 15),
+                    SizedBox(width: 4),
+                    Text('Cancellation & Refund Policy'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'Privacy Policy',
+                child: Row(
+                  children: [
+                    Icon(Icons.security, size: 15),
+                    SizedBox(width: 4),
+                    Text('Privacy Policy'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'Terms & Conditions',
+                child: Row(
+                  children: [
+                    Icon(Icons.description, size: 15),
+                    SizedBox(width: 4),
+                    Text('Terms & Conditions'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileOption({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    Widget? trailing,
+    Color? iconColor,
+  }) {
+    return ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: (iconColor ?? AppColors.primaryColor).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          color: iconColor ?? AppColors.primaryColor,
+          size: 24,
+        ),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      trailing: trailing ??
+          Icon(
+            Icons.arrow_forward_ios,
+            color: Colors.white.withOpacity(0.5),
+            size: 16,
+          ),
+    );
+  }
+
+  Widget _buildSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+          child: Text(
+            title,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.blueGrey.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Column(children: children),
+        ),
+      ],
+    );
   }
 }

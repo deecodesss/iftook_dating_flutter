@@ -1,0 +1,2 @@
+D:/freelane/iftook new/iftook_dating_flutter/android/app/.cxx/Debug/4t2i2i4p/x86_64/CMakeFiles/edit_cache.dir
+D:/freelane/iftook new/iftook_dating_flutter/android/app/.cxx/Debug/4t2i2i4p/x86_64/CMakeFiles/rebuild_cache.dir
